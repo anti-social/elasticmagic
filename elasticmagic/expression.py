@@ -1,5 +1,9 @@
+import inspect
 import operator
 import collections
+
+from .types import instantiate, Type
+from .compat import string_types
 
 
 OPERATORS = {
@@ -314,11 +318,37 @@ class Sort(QueryExpression):
 class Field(Expression):
     __visit_name__ = 'field'
 
-    def __init__(self, name):
-        self.name = name
+    def __init__(self, *args):
+        self.name = None
+        self.type = None
+
+        if len(args) == 1:
+            if isinstance(args[0], string_types):
+                self.name = args[0]
+            elif (
+                    isinstance(args[0], Type) or (
+                        inspect.isclass(args[0]) and issubclass(args[0], Type)
+                    )
+            ):
+                self.type = args[0]
+            else:
+                raise TypeError('Argument must be string or field type: %s found' % args[0].__class__.__name__)
+        elif len(args) == 2:
+            self.name, self.type = args
+        else:
+            raise TypeError('Takes 1 or 2 positional arguments: %s given' % len(args))
+
+        if self.type is None:
+            self.type = Type()
+        self.type = instantiate(self.type)
 
     def __getattr__(self, name):
         return Field('{}.{}'.format(self.name, name))
+
+    def __set__(self, obj, value):
+        if self.type is not None:
+            value = self.type.to_python(value)
+        obj.__dict__[self.name] = value
 
     def __eq__(self, other):
         if other is None:
@@ -407,7 +437,9 @@ class Fields(object):
 
     def _wildcard(self, name):
         return Field(name)
-        
+
+    _w = _wildcard
+
 
 class Compiled(object):
     def __init__(self, expression):
