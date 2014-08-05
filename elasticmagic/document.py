@@ -13,6 +13,7 @@ class DocumentMeta(type):
         for attr_name, attr_value in cls.__dict__.items():
             if isinstance(attr_value, Field):
                 attr_value.name = attr_name
+                attr_value.doc_cls = cls
 
         return cls
 

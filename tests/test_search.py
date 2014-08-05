@@ -1,5 +1,8 @@
-from elasticmagic import SearchQuery, Params, Term, Sort, agg
-from elasticmagic.expression import Fields
+from mock import MagicMock
+
+from elasticmagic import Index, Document, SearchQuery, Params, Term, Bool, Sort, agg
+from elasticmagic.types import String, Integer
+from elasticmagic.expression import Fields, Field
 
 from .base import BaseTestCase
 
@@ -10,8 +13,7 @@ class SearchQueryTest(BaseTestCase):
 
         self.assert_expression(
             SearchQuery(),
-            {
-            }
+            {}
         )
 
         self.assert_expression(
@@ -44,7 +46,7 @@ class SearchQueryTest(BaseTestCase):
         )
 
         self.assert_expression(
-            SearchQuery(None).order_by(
+            SearchQuery().order_by(
                 f.opinion_rating.desc(missing='_last'),
                 f.opinion_count.desc(),
                 f.id
@@ -63,6 +65,19 @@ class SearchQueryTest(BaseTestCase):
                     "id"
                 ]
             }
+        )
+        self.assert_expression(
+            (
+                SearchQuery()
+                .order_by(
+                    f.opinion_rating.desc(missing='_last'),
+                    f.opinion_count.desc(),
+                    f.id
+                )
+                .order_by(None)
+                .order_by(None)
+            ),
+            {}
         )
 
         self.assert_expression(
@@ -177,3 +192,68 @@ class SearchQueryTest(BaseTestCase):
                 }
             }
         )
+
+    def test_index_search(self):
+        class CarDocument(Document):
+            __doc_type__ = 'car'
+            vendor = Field(String)
+            model = Field(String)
+            year = Field(Integer)
+
+        es_client = MagicMock()
+        es_client.search = MagicMock(
+            return_value={
+                'hits': {
+                    'hits': [
+                        {
+                            '_id': '31888815',
+                            '_index': 'ad',
+                            '_score': 4.675524,
+                            '_source': {
+                                'vendor': 'Subaru',
+                                'model': 'Imprezza',
+                                'year': 2004
+                            },
+                        }
+                    ],
+                    'max_score': 4.675524,
+                    'total': 6234
+                },
+                'timed_out': False,
+                'took': 47
+            }
+        )
+        es_index = Index(es_client, 'ad')
+        sq = (
+            es_index.search(
+                Bool(
+                    must=CarDocument.vendor == 'Subaru',
+                    should=[CarDocument.model.in_(['Imprezza', 'Forester']),
+                            CarDocument.year == 2004]
+                )
+            )
+        )
+        results = sq.results
+
+        es_client.search.assert_called_with(
+            index='ad',
+            doc_type='car',
+            body={
+                'query': {
+                    'bool': {
+                        'must': {
+                            'term': {'vendor': 'Subaru'}
+                        },
+                        'should': [
+                            {
+                                'terms': {'model': ['Imprezza', 'Forester']}
+                            },
+                            {
+                                'term': {'year': 2004}
+                            }
+                        ]
+                    }
+                }
+            }
+        )
+        

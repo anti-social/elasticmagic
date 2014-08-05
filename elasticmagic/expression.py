@@ -1,6 +1,7 @@
 import inspect
 import operator
 import collections
+from itertools import chain
 
 from .types import instantiate, Type
 from .compat import string_types
@@ -13,6 +14,8 @@ OPERATORS = {
 }
 
 class Expression(object):
+    _doc_types = ()
+
     def __init__(self, *args, **kwargs):
         params = {}
         for k, v in kwargs.items():
@@ -69,6 +72,10 @@ class FieldQuery(QueryExpression):
         self.field = field
         self.query = query
 
+    @property
+    def _doc_types(self):
+        return self.field._doc_types
+
 
 class Term(FieldQuery):
     __query_name__ = 'term'
@@ -87,6 +94,10 @@ class Terms(QueryExpression):
         )
         self.field = field
         self.terms = terms
+
+    @property
+    def _doc_types(self):
+        return self.field._doc_types
 
 
 class Match(FieldQuery):
@@ -109,7 +120,7 @@ class Match(FieldQuery):
 
 
 class MultiMatch(QueryExpression):
-    __query_name__ = 'multi_match'
+    __visit_name__ = 'multi_match'
 
     def __init__(
             self, query, fields,
@@ -119,12 +130,18 @@ class MultiMatch(QueryExpression):
             cutoff_frequency=None, tie_breaker=None, **kwargs
     ):
         super(MultiMatch, self).__init__(
-            query=query, fields=fields,
             type=type, analyzer=analyzer, boost=boost, operator=operator,
             minimum_should_match=minimum_should_match, fuzziness=fuzziness, prefix_length=prefix_length,
             max_expansions=max_expansions, rewrite=rewrite, zero_terms_query=zero_terms_query,
             cutoff_frequency=cutoff_frequency, tie_breaker=tie_breaker, **kwargs
         )
+        self.query = query
+        self.fields = fields
+
+    @property
+    def _doc_types(self):
+        return list(chain(f._doc_types for f in self.fields))
+
 
 
 class MatchAll(QueryExpression):
@@ -143,6 +160,10 @@ class NamedParam(collections.Sequence):
 
     def __getitem__(self, index):
         return self.expressions[index]
+
+    @property
+    def _doc_types(self):
+        return set(chain(e._doc_types for e in self.expressions))
 
 
 class Must(NamedParam):
@@ -170,6 +191,18 @@ class Bool(QueryExpression):
     #         must=must, must_not=must_not, should=should,
     #         minimum_should_match=minimum_should_match,
     #         boost=boost, disable_coord=disable_coord, **kwargs)
+
+    @property
+    def _doc_types(self):
+        doc_types = set()
+        for expressions in [self.params.get('must', []),
+                            self.params.get('must_not', []),
+                            self.params.get('should', [])]:
+            if not isinstance(expressions, (tuple, list)):
+                expressions = [expressions]
+            for e in expressions:
+                doc_types.update(e._doc_types)
+        return doc_types
 
 
 class Boosting(QueryExpression):
@@ -229,6 +262,10 @@ class Range(QueryExpression):
         super(Range, self).__init__(gte=gte, gt=gt, lte=lte, lt=lt, boost=boost, **kwargs)
         self.field = field
 
+    @property
+    def _doc_types(self):
+        return self.field._doc_types
+
 
 class Prefix(FieldQuery):
     __query_name__ = 'prefix'
@@ -244,6 +281,10 @@ class Query(QueryExpression):
     def __init__(self, query, **kwargs):
         super(Query, self).__init__(**kwargs)
         self.query = query
+
+    @property
+    def _doc_types(self):
+        return self.query._doc_types
 
 
 class BooleanExpression(QueryExpression):
@@ -272,6 +313,11 @@ class BooleanExpression(QueryExpression):
         return cls._construct(operator.or_, *expressions, **kwargs)
 
 
+    @property
+    def _doc_types(self):
+        return set(chain(e._doc_types for e in self.expressions))
+
+
 And = BooleanExpression.and_
 Or = BooleanExpression.or_
 
@@ -283,6 +329,10 @@ class Not(QueryExpression):
         super(Not, self).__init__(**kwargs)
         self.expr = expr
 
+    @property
+    def _doc_types(self):
+        return self.expr._doc_types
+
 
 class Exists(QueryExpression):
     __query_name__ = 'exists'
@@ -290,12 +340,20 @@ class Exists(QueryExpression):
     def __init__(self, field, **kwargs):
         super(Exists, self).__init__(field=field, **kwargs)
 
+    @property
+    def _doc_types(self):
+        return self.params['field']._doc_types
+
 
 class Missing(QueryExpression):
     __query_name__ = 'missing'
 
     def __init__(self, field, **kwargs):
         super(Missing, self).__init__(field=field, **kwargs)
+
+    @property
+    def _doc_types(self):
+        return self.params['field']._doc_types
 
 
 class Sort(QueryExpression):
@@ -314,6 +372,10 @@ class Sort(QueryExpression):
         self.expr = expr
         self.order = order
 
+    @property
+    def _doc_types(self):
+        return self.expr._doc_types
+
 
 class Field(Expression):
     __visit_name__ = 'field'
@@ -321,6 +383,7 @@ class Field(Expression):
     def __init__(self, *args):
         self.name = None
         self.type = None
+        self.doc_cls = None
 
         if len(args) == 1:
             if isinstance(args[0], string_types):
@@ -349,6 +412,12 @@ class Field(Expression):
         if self.type is not None:
             value = self.type.to_python(value)
         obj.__dict__[self.name] = value
+
+    @property
+    def _doc_types(self):
+        if self.doc_cls:
+            return [self.doc_cls]
+        return []
 
     def __eq__(self, other):
         if other is None:
@@ -421,6 +490,10 @@ class BoostExpression(Expression):
         self.expr = expr
         self.weight = weight
 
+    @property
+    def _doc_types(self):
+        return self.expr._doc_types
+
 
 class FieldExpression(Expression):
     __visit_name__ = 'field_expression'
@@ -429,6 +502,10 @@ class FieldExpression(Expression):
         self.field = field
         self.other = other
         self.operator = operator
+
+    @property
+    def _doc_types(self):
+        return self.field._doc_types
 
 
 class Fields(object):
@@ -525,6 +602,16 @@ class Compiled(object):
         params.update(self.visit(expr.params))
         return {
             'terms': params
+        }
+
+    def visit_multi_match(self, expr):
+        params = {
+            'query': self.visit(expr.query),
+            'fields': [self.visit(f) for f in expr.fields],
+        }
+        params.update(self.visit(params))
+        return {
+            'multi_match': params
         }
 
     def visit_query(self, expr):
