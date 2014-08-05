@@ -21,6 +21,3 @@ class Document(with_metaclass(DocumentMeta)):
     def __init__(self, **kwargs):
         for fname, fvalue in kwargs.items():
             setattr(self, fname, fvalue)
-
-    # def __getattr__(self, name):
-    #     return None

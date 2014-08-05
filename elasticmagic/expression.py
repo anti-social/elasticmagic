@@ -238,12 +238,12 @@ class Prefix(FieldQuery):
         super(Prefix, self).__init__(field, value, boost=boost, **kwargs)
 
 
-# class BooleanExpression(QueryExpression):
-#     __visit_name__ = 'boolean_expression'
+class Query(QueryExpression):
+    __visit_name__ = 'query'
 
-#     def __init__(self, *expressions, **kwargs):
-#         super(And, self).__init__(**kwargs)
-#         self.expressions = expressions
+    def __init__(self, query, **kwargs):
+        super(Query, self).__init__(**kwargs)
+        self.query = query
 
 
 class BooleanExpression(QueryExpression):
@@ -526,6 +526,17 @@ class Compiled(object):
         return {
             'terms': params
         }
+
+    def visit_query(self, expr):
+        params = {
+            'query': self.visit(expr.query)
+        }
+        if expr.params:
+            params.update(self.visit(expr.params))
+            return {
+                'fquery': params
+            }
+        return params
 
     def visit_boolean_expression(self, expr):
         if expr.params:

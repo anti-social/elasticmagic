@@ -1,6 +1,6 @@
 from elasticmagic import (
     Term, Terms, Exists, Missing, Match, MatchAll, MultiMatch, Range,
-    Bool, Must, MustNot, Should, And, Or, Not, Sort,
+    Bool, Must, MustNot, Should, Query, And, Or, Not, Sort,
     Boosting, Common, ConstantScore, DisMax, Filtered, Prefix,
 )
 from elasticmagic.expression import Fields, Compiled
@@ -259,6 +259,30 @@ class ExpressionTestCase(BaseTestCase):
             MatchAll(boost=1.2),
             {
                 "match_all": { "boost" : 1.2 }
+            }
+        )
+
+        self.assert_expression(
+            Query(Match(f.title, 'this that thus')),
+            {
+                "query": {
+                    "match": {
+                        "title": "this that thus"
+                    }
+                }
+            }
+        )
+        self.assert_expression(
+            Query(Match(f.title, 'this that thus'), _cache=True),
+            {
+                "fquery": {
+                    "query": {
+                        "match": {
+                            "title": "this that thus"
+                        }
+                    },
+                    "_cache": True
+                }
             }
         )
 
