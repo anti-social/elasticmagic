@@ -408,10 +408,10 @@ class Field(Expression):
     def __getattr__(self, name):
         return Field('{}.{}'.format(self.name, name))
 
-    def __set__(self, obj, value):
-        if self.type is not None:
-            value = self.type.to_python(value)
-        obj.__dict__[self.name] = value
+    # def __set__(self, obj, value):
+    #     if self.type is not None:
+    #         value = self.type.to_python(value)
+    #     obj.__dict__[self.name] = value
 
     @property
     def _doc_types(self):

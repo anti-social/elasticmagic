@@ -207,7 +207,8 @@ class SearchQueryTest(BaseTestCase):
                     'hits': [
                         {
                             '_id': '31888815',
-                            '_index': 'ad',
+                            '_type': 'car',
+                            '_index': 'ads',
                             '_score': 4.675524,
                             '_source': {
                                 'vendor': 'Subaru',
@@ -256,4 +257,13 @@ class SearchQueryTest(BaseTestCase):
                 }
             }
         )
-        
+
+        self.assertEqual(len(sq.results.hits), 1)
+        doc = sq.results.hits[0]
+        self.assertEqual(doc._id, '31888815')
+        self.assertEqual(doc._type, 'car')
+        self.assertEqual(doc._index, 'ads')
+        self.assertEqual(doc._score, 4.675524)
+        self.assertEqual(doc.vendor, 'Subaru')
+        self.assertEqual(doc.model, 'Imprezza')
+        self.assertEqual(doc.year, 2004)
