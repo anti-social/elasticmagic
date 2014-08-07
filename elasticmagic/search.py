@@ -19,11 +19,12 @@ class SearchQuery(object):
     _limit = None
     _offset = None
 
-    def __init__(self, q=None, index=None, doc_cls=None):
+    def __init__(self, q=None, index=None, doc_cls=None, doc_type=None):
         if q is not None:
             self._q = q
         self.index = index
         self.doc_cls = doc_cls
+        self.doc_type = doc_type
 
     def clone(self):
         cls = self.__class__
@@ -81,8 +82,12 @@ class SearchQuery(object):
         self.index = index
 
     @_with_clone
-    def with_doc_cls(self, doc_cls):
+    def with_document(self, doc_cls):
         self.doc_cls = doc_cls
+
+    @_with_clone
+    def with_doc_type(self, doc_type):
+        self.doc_type = doc_type
 
     def count(self):
         sq = self.aggregation(None).order_by(None).limit(0)
@@ -94,15 +99,18 @@ class SearchQuery(object):
         if self.doc_cls:
             doc_classes = [self.doc_cls]
         else:
-            doc_classes = self._collect_doc_types()
+            doc_classes = self._collect_documents()
         if len(doc_classes) != 1:
             raise ValueError('Cannot determine document type')
-        raw_result = client.search(index=self.index.name,
-                                   doc_type=doc_classes.pop().__doc_type__,
-                                   body=self.to_dict())
-        return Result(raw_result)
 
-    def _collect_doc_types(self):
+        doc_cls = doc_classes.pop()
+        doc_type = self.doc_type or doc_cls.__doc_type__
+        raw_result = client.search(index=self.index.name,
+                                   doc_type=doc_type,
+                                   body=self.to_dict())
+        return Result(raw_result, doc_cls=doc_cls)
+
+    def _collect_documents(self):
         doc_types = set()
         for expr in chain([self._q],
                           self._fields,

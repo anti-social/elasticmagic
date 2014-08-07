@@ -29,7 +29,7 @@ class Document(with_metaclass(DocumentMeta)):
             for skey, svalue in _hit['_source'].items():
                 field = getattr(self.__class__, skey, None)
                 if field:
-                    svalue = field.to_python(svalue)
+                    svalue = field.type.to_python(svalue)
                 setattr(self, skey, svalue)
 
         for fkey, fvalue in kwargs.items():

@@ -224,7 +224,7 @@ class SearchQueryTest(BaseTestCase):
                 'took': 47
             }
         )
-        es_index = Index(es_client, 'ad')
+        es_index = Index(es_client, 'ads')
         sq = (
             es_index.search(
                 Bool(
@@ -237,7 +237,7 @@ class SearchQueryTest(BaseTestCase):
         results = sq.results
 
         es_client.search.assert_called_with(
-            index='ad',
+            index='ads',
             doc_type='car',
             body={
                 'query': {
@@ -260,10 +260,11 @@ class SearchQueryTest(BaseTestCase):
 
         self.assertEqual(len(sq.results.hits), 1)
         doc = sq.results.hits[0]
+        self.assertIsInstance(doc, CarDocument)
         self.assertEqual(doc._id, '31888815')
         self.assertEqual(doc._type, 'car')
         self.assertEqual(doc._index, 'ads')
-        self.assertEqual(doc._score, 4.675524)
+        self.assertAlmostEqual(doc._score, 4.675524)
         self.assertEqual(doc.vendor, 'Subaru')
         self.assertEqual(doc.model, 'Imprezza')
         self.assertEqual(doc.year, 2004)
