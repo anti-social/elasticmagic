@@ -11,10 +11,10 @@ def instantiate(typeobj, *args, **kwargs):
     return typeobj
 
 
-class Type(object):
+class Type(BaseType):
     def to_python(self, value):
         return value
-
+    
 
 class String(Type):
     def to_python(self, value):
@@ -119,3 +119,15 @@ class Object(Type):
 
 class Nested(Object):
     pass
+
+
+class List(Type):
+    def __init__(self, sub_type):
+        self.sub_type = sub_type
+
+    def to_python(self, value):
+        if value is None:
+            return None
+        if not isinstance(value, list):
+            return [value]
+        return value

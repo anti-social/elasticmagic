@@ -377,47 +377,84 @@ class Sort(QueryExpression):
         return self.expr._doc_types
 
 
+class _Fields(object):
+    def __init__(self, parent=None):
+        self._parent_field = parent
+
+    def _get_field(self, name):
+        if self._parent_field:
+            if self._parent_field._doc_cls and hasattr(self._parent_field._doc_cls, name):
+                return getattr(self._parent_field._doc_cls, name)
+            return Field('{}.{}'.format(self._parent_field._name, name))
+        return Field(name)
+        
+    def __getattr__(self, name):
+        return self._get_field(name)
+
+    def _wildcard(self, name):
+        return self._get_field(name)
+
+    _w = _wildcard
+
+Fields = _Fields
+
+
 class Field(Expression):
     __visit_name__ = 'field'
 
     def __init__(self, *args):
-        self.name = None
-        self.type = None
-        self.doc_cls = None
+        self._name = None
+        self._type = None
+        self._doc_cls = None
 
         if len(args) == 1:
             if isinstance(args[0], string_types):
-                self.name = args[0]
+                self._name = args[0]
             elif (
                     isinstance(args[0], Type) or (
                         inspect.isclass(args[0]) and issubclass(args[0], Type)
                     )
             ):
-                self.type = args[0]
+                self._type = args[0]
             else:
                 raise TypeError('Argument must be string or field type: %s found' % args[0].__class__.__name__)
         elif len(args) == 2:
-            self.name, self.type = args
+            self._name, self._type = args
         else:
             raise TypeError('Takes 1 or 2 positional arguments: %s given' % len(args))
 
-        if self.type is None:
-            self.type = Type()
-        self.type = instantiate(self.type)
+        if self._type is None:
+            self._type = Type()
+        self._type = instantiate(self._type)
+
+    def _bind(self, doc_cls, name):
+        self._doc_cls = doc_cls
+        self._name = name
+
+    @property
+    def fields(self):
+        return _Fields(self)
+
+    f = fields
 
     def __getattr__(self, name):
-        return Field('{}.{}'.format(self.name, name))
+        return getattr(self.fields, name)
 
     # def __set__(self, obj, value):
     #     if self.type is not None:
     #         value = self.type.to_python(value)
-    #     obj.__dict__[self.name] = value
+    #     obj.__dict__[self._name] = value
 
     @property
     def _doc_types(self):
-        if self.doc_cls:
-            return [self.doc_cls]
+        print 'Field._doc_types'
+        print self._doc_cls
+        if self._doc_cls:
+            return [self._doc_cls]
         return []
+
+    def _to_python(self, value):
+        return self._type.to_python(value)
 
     def __eq__(self, other):
         if other is None:
@@ -508,16 +545,6 @@ class FieldExpression(Expression):
         return self.field._doc_types
 
 
-class Fields(object):
-    def __getattr__(self, name):
-        return Field(name)
-
-    def _wildcard(self, name):
-        return Field(name)
-
-    _w = _wildcard
-
-
 class Compiled(object):
     def __init__(self, expression):
         self.expression = expression
@@ -550,7 +577,7 @@ class Compiled(object):
         return res
 
     def visit_field(self, field):
-        return field.name
+        return field._name
 
     def visit_boost_expression(self, boost):
         return '{}^{}'.format(self.visit(boost.expr), self.visit(boost.weight))
@@ -564,10 +591,10 @@ class Compiled(object):
                 if params:
                     options.update(params)
                 return {
-                    expr.field.name: options
+                    self.visit(expr.field): options
                 }
             else:
-                return {expr.field.name: expr.other}
+                return {self.visit(expr.field): expr.other}
 
     def visit_query_expression(self, expr):
         return {

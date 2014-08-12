@@ -95,7 +95,7 @@ class SearchQuery(object):
 
     @property
     def results(self):
-        client = self.index.client
+        client = self.index._client
         if self.doc_cls:
             doc_classes = [self.doc_cls]
         else:
@@ -105,7 +105,7 @@ class SearchQuery(object):
 
         doc_cls = doc_classes.pop()
         doc_type = self.doc_type or doc_cls.__doc_type__
-        raw_result = client.search(index=self.index.name,
+        raw_result = client.search(index=self.index._name,
                                    doc_type=doc_type,
                                    body=self.to_dict())
         return Result(raw_result, doc_cls=doc_cls)

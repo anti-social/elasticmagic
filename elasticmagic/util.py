@@ -1,3 +1,4 @@
+from string import capitalize
 from functools import wraps
 
 
@@ -10,3 +11,7 @@ def _with_clone(fn):
             return res
         return clone
     return wrapper
+
+
+def to_camel_case(s):
+    return u''.join(map(capitalize, s.split('_')))

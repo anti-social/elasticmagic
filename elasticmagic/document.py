@@ -12,8 +12,7 @@ class DocumentMeta(type):
 
         for field_name, field in cls.__dict__.items():
             if isinstance(field, Field):
-                field.name = field_name
-                field.doc_cls = cls
+                field._bind(cls, field_name)
 
         return cls
 
@@ -29,7 +28,7 @@ class Document(with_metaclass(DocumentMeta)):
             for skey, svalue in _hit['_source'].items():
                 field = getattr(self.__class__, skey, None)
                 if field:
-                    svalue = field.type.to_python(svalue)
+                    svalue = field._to_python(svalue)
                 setattr(self, skey, svalue)
 
         for fkey, fvalue in kwargs.items():

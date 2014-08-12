@@ -1,4 +1,4 @@
-from elasticmagic.types import String, Integer, Object
+from elasticmagic.types import Type, String, Integer, Object
 from elasticmagic.compat import string_types
 from elasticmagic.document import Document
 from elasticmagic.expression import Field
@@ -17,13 +17,17 @@ class DocumentTestCase(BaseTestCase):
             group = Field(Object(GroupDocument))
 
         self.assertIsInstance(TestDocument._id, Field)
-        self.assertIsInstance(TestDocument._id.type, String)
+        self.assertIsInstance(TestDocument._id._type, String)
         self.assertIsInstance(TestDocument.name, Field)
-        self.assertIsInstance(TestDocument.name.type, String)
+        self.assertIsInstance(TestDocument.name._type, String)
         self.assertIsInstance(TestDocument.status, Field)
-        self.assertIsInstance(TestDocument.status.type, Integer)
+        self.assertIsInstance(TestDocument.status._type, Integer)
         self.assertIsInstance(TestDocument.group, Field)
-        self.assertIsInstance(TestDocument.group.type, Object)
+        self.assertIsInstance(TestDocument.group._type, Object)
+        self.assertIsInstance(TestDocument.group.f.name, Field)
+        self.assertIsInstance(TestDocument.group.f.name._type, String)
+        self.assertIsInstance(TestDocument.group.f.missing, Field)
+        self.assertIsInstance(TestDocument.group.f.missing._type, Type)
 
         doc = TestDocument()
         self.assertEqual(doc._id, None)
@@ -50,3 +54,18 @@ class DocumentTestCase(BaseTestCase):
         self.assertIsInstance(doc.group, GroupDocument)
         self.assertIsInstance(doc.group.name, string_types)
         self.assertEqual(doc.group.name, 'Test group')
+
+
+# class ProductCompanyDoc(Document):
+#     id = Field(Integer)
+
+
+# class ProductDoc(Document):
+#     __doc_type__ = 'product'
+
+#     name = Field(String)
+#     keywords = Field(String)
+#     name_keywords = Field(String)
+#     description = Field(String)
+
+#     company = Field(Object(ProductCompanyDoc))
