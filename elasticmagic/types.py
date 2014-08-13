@@ -11,7 +11,7 @@ def instantiate(typeobj, *args, **kwargs):
     return typeobj
 
 
-class Type(BaseType):
+class Type(object):
     def to_python(self, value):
         return value
     
