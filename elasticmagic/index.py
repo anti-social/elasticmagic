@@ -22,9 +22,16 @@ class Index(object):
             )
         return self._doc_cls_cache[name]
 
-    # def index(self, docs):
-    #     self.client.index()
-
     def search(self, *args, **kwargs):
         kwargs['index'] = self
         return SearchQuery(*args, **kwargs)
+
+    def add(self, docs):
+        actions = defaultdict(list)
+        for doc in docs:
+            actions[doc.__doc_type__].extend([
+                {'index': {'_id': doc._id}},
+                doc.to_dict()
+            ])
+        for doc_type, acts in actions.items():
+            es_client.bulk(index=self._name, doc_type=doc_type, body=acts)

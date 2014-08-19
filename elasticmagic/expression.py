@@ -406,6 +406,7 @@ class Field(Expression):
         self._name = None
         self._type = None
         self._doc_cls = None
+        self._attr_name = None
 
         if len(args) == 1:
             if isinstance(args[0], string_types):
@@ -429,7 +430,9 @@ class Field(Expression):
 
     def _bind(self, doc_cls, name):
         self._doc_cls = doc_cls
-        self._name = name
+        self._attr_name = name
+        if not self._name:
+            self._name = name
 
     @property
     def fields(self):
@@ -440,6 +443,16 @@ class Field(Expression):
     def __getattr__(self, name):
         return getattr(self.fields, name)
 
+    def __get__(self, obj, type=None):
+        if obj is None:
+            return self
+
+        dict_ = obj.__dict__
+        if self._attr_name in obj.__dict__:
+            return dict_[self._attr_name]
+        dict_[self._attr_name] = None
+        return None
+        
     # def __set__(self, obj, value):
     #     if self.type is not None:
     #         value = self.type.to_python(value)
@@ -447,14 +460,15 @@ class Field(Expression):
 
     @property
     def _doc_types(self):
-        print 'Field._doc_types'
-        print self._doc_cls
         if self._doc_cls:
             return [self._doc_cls]
         return []
 
     def _to_python(self, value):
         return self._type.to_python(value)
+
+    def _to_dict(self, value):
+        return self._type.to_dict(value)
 
     def __eq__(self, other):
         if other is None:

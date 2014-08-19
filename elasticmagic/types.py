@@ -1,6 +1,6 @@
 import inspect
 
-import dateutil
+import dateutil.parser
 
 from .compat import text_type
 
@@ -14,10 +14,15 @@ def instantiate(typeobj, *args, **kwargs):
 class Type(object):
     def to_python(self, value):
         return value
-    
+
+    def to_dict(self, value):
+        return value
+
 
 class String(Type):
     def to_python(self, value):
+        if value is None:
+            return None
         return text_type(value)
 
 
@@ -116,6 +121,13 @@ class Object(Type):
             return value
         return self.doc_cls(**value)
 
+    def to_dict(self, value):
+        if value is None:
+            return None
+        if isinstance(value, self.doc_cls):
+            return value.to_dict()
+        return value
+
 
 class Nested(Object):
     pass
@@ -129,5 +141,12 @@ class List(Type):
         if value is None:
             return None
         if not isinstance(value, list):
-            return [value]
-        return value
+            value = [value]
+        return [self.sub_type.to_python(v) for v in value]
+
+    def to_dict(self, value):
+        if value is None:
+            return None
+        if not isinstance(value, list):
+            value = [value]
+        return [self.sub_type.to_dict(v) for v in value]
