@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from .util import to_camel_case
 from .search import SearchQuery
 from .document import Document
@@ -27,11 +29,15 @@ class Index(object):
         return SearchQuery(*args, **kwargs)
 
     def add(self, docs):
-        actions = defaultdict(list)
+        actions = []
         for doc in docs:
-            actions[doc.__doc_type__].extend([
-                {'index': {'_id': doc._id}},
+            doc_type = doc.__doc_type__
+            actions.extend([
+                {'index': {'_type': doc_type, '_id': doc._id}},
                 doc.to_dict()
             ])
-        for doc_type, acts in actions.items():
-            es_client.bulk(index=self._name, doc_type=doc_type, body=acts)
+        self._client.bulk(index=self._name, body=actions)
+
+    def flush(self):
+        # TODO: flush modified documents
+        pass
