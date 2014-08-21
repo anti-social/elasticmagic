@@ -1,6 +1,6 @@
 from itertools import chain
 
-from .util import _with_clone
+from .util import _with_clone, cached_property
 from .result import Result
 from .expression import Params, Compiled
 
@@ -29,7 +29,8 @@ class SearchQuery(object):
     def clone(self):
         cls = self.__class__
         q = cls.__new__(cls)
-        q.__dict__ = self.__dict__.copy()
+        q.__dict__ = {k: v for k, v in self.__dict__.items()
+                      if not isinstance(getattr(cls, k, None), cached_property)}
         return q
 
     def to_dict(self):
@@ -93,7 +94,7 @@ class SearchQuery(object):
         sq = self.aggregation(None).order_by(None).limit(0)
         return sq.results.total
 
-    @property
+    @cached_property
     def results(self):
         client = self.index._client
         if self.doc_cls:

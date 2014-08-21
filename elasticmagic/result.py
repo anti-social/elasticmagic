@@ -10,3 +10,6 @@ class Result(object):
         self.hits = []
         for hit in raw_result['hits']['hits']:
             self.hits.append(self.doc_cls(_hit=hit))
+
+    def __iter__(self):
+        return iter(self.hits)
