@@ -2,15 +2,17 @@ from .document import Document
 
 
 class Result(object):
-    def __init__(self, raw_result, aggregations, doc_cls=None):
+    def __init__(self, raw_result, aggregations,
+                 doc_cls=None, instance_mapper=None):
         self.raw = raw_result
         self._query_aggs = aggregations
         self.doc_cls = doc_cls or Document
+        self.instance_mapper = instance_mapper or self.doc_cls.instance_mapper
 
         self.total = raw_result['hits']['total']
         self.hits = []
         for hit in raw_result['hits']['hits']:
-            self.hits.append(self.doc_cls(_hit=hit))
+            self.hits.append(self.doc_cls(_hit=hit, _result=self))
 
         self.aggregations = {}
         for agg_name, agg_data in raw_result.get('aggregations', {}).items():
@@ -22,3 +24,9 @@ class Result(object):
 
     def get_aggregation(self, name):
         return self.aggregations.get(name)
+
+    def _populate_instances(self):
+        ids = [doc._id for doc in self.hits]
+        instances = self.instance_mapper(ids)
+        for doc in self.hits:
+            doc.__dict__['instance'] = instances.get(doc._id)

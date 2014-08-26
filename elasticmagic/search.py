@@ -19,6 +19,8 @@ class SearchQuery(object):
     _limit = None
     _offset = None
 
+    _instance_mapper = None
+
     def __init__(self, q=None, index=None, doc_cls=None, doc_type=None):
         if q is not None:
             self._q = q
@@ -90,6 +92,10 @@ class SearchQuery(object):
     def with_doc_type(self, doc_type):
         self.doc_type = doc_type
 
+    @_with_clone
+    def with_instance_mapper(self, instance_mapper):
+        self._instance_mapper = instance_mapper
+
     def count(self):
         sq = self.aggregation(None).order_by(None).limit(0)
         return sq.results.total
@@ -109,7 +115,9 @@ class SearchQuery(object):
         raw_result = client.search(index=self.index._name,
                                    doc_type=doc_type,
                                    body=self.to_dict())
-        return Result(raw_result, self._aggregations, doc_cls=doc_cls)
+        return Result(raw_result, self._aggregations,
+                      doc_cls=doc_cls,
+                      instance_mapper=self._instance_mapper)
 
     def _collect_documents(self):
         doc_types = set()

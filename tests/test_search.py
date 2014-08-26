@@ -1,4 +1,4 @@
-from mock import MagicMock
+from mock import Mock, MagicMock
 
 from elasticmagic import Index, Document, SearchQuery, Params, Term, Bool, Sort, agg
 from elasticmagic.types import String, Integer
@@ -205,11 +205,26 @@ class SearchQueryTest(BaseTestCase):
         )
 
     def test_index_search(self):
+        class CarObject(object):
+            def __init__(self, id):
+                self.id = id
+                self.name = '{0}:{0}'.format(id)
+
+        def _obj_mapper(ids):
+            return {id: CarObject(int(id)) for id in ids}
+        obj_mapper = Mock(wraps=_obj_mapper)
+
         class CarDocument(Document):
             __doc_type__ = 'car'
             vendor = Field(String)
             model = Field(String)
             year = Field(Integer)
+
+            # @staticmethod
+            # def _instance_mapper(ids):
+            #     return {id: CarObject(int(id)) for id in ids}
+
+            # instance_mapper = Mock(wraps=_obj_mapper)
 
         es_client = MagicMock()
         es_client.search = MagicMock(
@@ -224,7 +239,18 @@ class SearchQueryTest(BaseTestCase):
                             '_source': {
                                 'vendor': 'Subaru',
                                 'model': 'Imprezza',
-                                'year': 2004
+                                'year': 2004,
+                            },
+                        },
+                        {
+                            '_id': '987321',
+                            '_type': 'car',
+                            '_index': 'ads',
+                            '_score': 3.654321,
+                            '_source': {
+                                'vendor': 'Subaru',
+                                'model': 'Forester',
+                                'year': 2007,
                             },
                         }
                     ],
@@ -244,6 +270,7 @@ class SearchQueryTest(BaseTestCase):
                             CarDocument.year == 2004]
                 )
             )
+            .with_instance_mapper(obj_mapper)
         )
         results = sq.results
 
@@ -269,7 +296,7 @@ class SearchQueryTest(BaseTestCase):
             }
         )
 
-        self.assertEqual(len(sq.results.hits), 1)
+        self.assertEqual(len(sq.results.hits), 2)
         doc = sq.results.hits[0]
         self.assertIsInstance(doc, CarDocument)
         self.assertEqual(doc._id, '31888815')
@@ -279,3 +306,17 @@ class SearchQueryTest(BaseTestCase):
         self.assertEqual(doc.vendor, 'Subaru')
         self.assertEqual(doc.model, 'Imprezza')
         self.assertEqual(doc.year, 2004)
+        self.assertEqual(doc.instance.id, 31888815)
+        self.assertEqual(doc.instance.name, '31888815:31888815')
+        doc = sq.results.hits[1]
+        self.assertIsInstance(doc, CarDocument)
+        self.assertEqual(doc._id, '987321')
+        self.assertEqual(doc._type, 'car')
+        self.assertEqual(doc._index, 'ads')
+        self.assertAlmostEqual(doc._score, 3.654321)
+        self.assertEqual(doc.vendor, 'Subaru')
+        self.assertEqual(doc.model, 'Forester')
+        self.assertEqual(doc.year, 2007)
+        self.assertEqual(doc.instance.id, 987321)
+        self.assertEqual(doc.instance.name, '987321:987321')
+        self.assertEqual(obj_mapper.call_count, 1)

@@ -1,5 +1,6 @@
 from .types import String
 from .expression import Field
+from .util import cached_property
 from .compat import with_metaclass
 
 
@@ -26,7 +27,7 @@ class DocumentMeta(type):
 
 
 class Document(with_metaclass(DocumentMeta)):
-    def __init__(self, _hit=None, **kwargs):
+    def __init__(self, _hit=None, _result=None, **kwargs):
         self._index = self._type = self._id = self._score = None
         if _hit:
             self._index = _hit.get('_index')
@@ -40,8 +41,20 @@ class Document(with_metaclass(DocumentMeta)):
         for fkey, fvalue in kwargs.items():
             setattr(self, fkey, fvalue)
 
+        self._result = _result
+
     def to_dict(self):
         dct = {}
         for field in self._fields:
             dct[field._attr_name] = field._to_dict(getattr(self, field._attr_name, None))
         return dct
+
+    @classmethod
+    def instance_mapper(self):
+        return {}
+
+    @cached_property
+    def instance(self):
+        if self._result:
+            self._result._populate_instances()
+            return self.__dict__['instance']
