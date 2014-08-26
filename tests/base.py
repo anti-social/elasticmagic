@@ -10,5 +10,5 @@ class BaseTestCase(unittest.TestCase):
 
     def assert_expression(self, expr, params):
         c = Compiled(expr)
-        self.assertEqual(c.params, params)
+        self.assertEqual(params, c.params)
 

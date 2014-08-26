@@ -113,7 +113,7 @@ class SearchQueryTest(BaseTestCase):
         )
 
         self.assert_expression(
-            SearchQuery().aggregation(type=agg.Terms(f.type).aggs(min_price=agg.Min(f.price))),
+            SearchQuery().aggregation(type=agg.Terms(f.type, aggs={'min_price': agg.Min(f.price)})),
             {
                 "aggregations": {
                     "type": {
@@ -125,16 +125,22 @@ class SearchQueryTest(BaseTestCase):
                         }
                     }
                 }
-            }
+            },
         )
 
         self.assert_expression(
             SearchQuery().aggregation(
                 top_tags=(
-                    agg.Terms(f.tags, size=3)
-                    .aggs(top_tag_hits=agg.TopHits(sort=f.last_activity_date.desc(),
-                                                   size=1,
-                                                   _source=Params(include=[f.title])))
+                    agg.Terms(
+                        f.tags,
+                        size=3,
+                        aggs={
+                            'top_tag_hits': agg.TopHits(
+                                sort=f.last_activity_date.desc(),
+                                size=1,
+                                _source=Params(include=[f.title]))
+                        }
+                    )
                 )
             ),
             {
@@ -164,9 +170,14 @@ class SearchQueryTest(BaseTestCase):
         self.assert_expression(
             SearchQuery().aggregation(
                 top_sites=(
-                    agg.Terms(f.domain, order=Sort('top_hit', 'desc'))
-                    .aggs(top_tags_hits=agg.TopHits(),
-                          top_hit=agg.Max(script='_doc.score'))
+                    agg.Terms(
+                        f.domain,
+                        order=Sort('top_hit', 'desc'),
+                        aggs={
+                            'top_tags_hits': agg.TopHits(),
+                            'top_hit': agg.Max(script='_doc.score'),
+                        }
+                    )
                 )
             ),
             {

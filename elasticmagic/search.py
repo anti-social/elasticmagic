@@ -109,7 +109,7 @@ class SearchQuery(object):
         raw_result = client.search(index=self.index._name,
                                    doc_type=doc_type,
                                    body=self.to_dict())
-        return Result(raw_result, doc_cls=doc_cls)
+        return Result(raw_result, self._aggregations, doc_cls=doc_cls)
 
     def _collect_documents(self):
         doc_types = set()
@@ -117,7 +117,7 @@ class SearchQuery(object):
                           self._fields,
                           self._filters,
                           self._order_by,
-                          self._aggregations.items()):
+                          self._aggregations.values()):
             if expr:# and hasattr(expr, '_doc_types'):
                 doc_types.update(expr._doc_types)
         return doc_types
