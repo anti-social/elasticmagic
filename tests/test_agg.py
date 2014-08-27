@@ -14,6 +14,35 @@ class AggregationTest(unittest.TestCase):
         })
         self.assertAlmostEqual(a.value, 75.3)
 
+        a = agg.Percentiles(f.load_time, percents=[95, 99, 99.9])
+        a.process_results(
+            {
+                "values": {
+                    "95.0": 60,
+                    "99.0": 150,
+                    "99.9": 2,
+                }
+            }
+        )
+        self.assertEqual(
+            a.values,
+            {'95.0': 60, '99.0': 150, '99.9': 2},
+        )
+
+        a = agg.PercentileRanks(f.load_time, values=[15, 30])
+        a.process_results(
+            {
+                "values": {
+                    "15": 92,
+                    "30": 100,
+                }
+            }
+        )
+        self.assertEqual(
+            a.values,
+            {'15': 92, '30': 100},
+        )
+        
         a = agg.Terms(f.status)
         a.process_results(
             {
@@ -109,6 +138,17 @@ class AggregationTest(unittest.TestCase):
         self.assertIs(a.buckets[1].key, 'warnings')
         self.assertEqual(a.buckets[1].doc_count, 439)
 
+        a = agg.Nested(f.resellers, aggs={'min_price': agg.Min(f.resellers.price)})
+        a.process_results(
+            {
+                "min_price": {
+                    "value" : 350
+                }
+            }
+        )
+        self.assertEqual(a.get_aggregation('min_price').value, 350)
+        
+        # complex aggregation with sub aggregations
         a = agg.Global(
             aggs={
                 'selling_type': agg.Terms(

@@ -12,50 +12,81 @@ class AggExpression(Expression):
         raise NotImplementedError()
 
 
-class MetricsAggExpression(AggExpression):
-    def __init__(self, field=None, script=None, **kwargs):
-        super(MetricsAggExpression, self).__init__(field=field, script=script, **kwargs)
-        self.value = None
-
-    def process_results(self, raw_data):
-        self.value = raw_data['value']
+class MetricsAgg(AggExpression):
+    pass
 
 
-class BucketAggExpression(AggExpression):
+class BucketAgg(AggExpression):
     __visit_name__ = 'bucket_agg'
 
     def __init__(self, aggs=None, **kwargs):
-        super(BucketAggExpression, self).__init__(**kwargs)
+        super(BucketAgg, self).__init__(**kwargs)
         self._aggs = Params(aggs or {}, **kwargs.pop('aggregations', {}))
 
     def clone(self):
         return self.__class__(aggs=self._aggs, **self.params)
 
 
-class Min(MetricsAggExpression):
+class SingleValueMetricsAgg(MetricsAgg):
+    def __init__(self, field=None, script=None, **kwargs):
+        super(SingleValueMetricsAgg, self).__init__(field=field, script=script, **kwargs)
+        self.value = None
+
+    def process_results(self, raw_data):
+        self.value = raw_data['value']
+
+
+class MultiValueMetricsAgg(MetricsAgg):
+    def __init__(self, field=None, script=None, **kwargs):
+        super(MultiValueMetricsAgg, self).__init__(field=field, script=script, **kwargs)
+        self.values = {}
+
+    def process_results(self, raw_data):
+        self.values = raw_data['values'].copy()
+
+
+class Min(SingleValueMetricsAgg):
     __agg_name__ = 'min'
 
 
-class Max(MetricsAggExpression):
+class Max(SingleValueMetricsAgg):
     __agg_name__ = 'max'
 
 
-class Sum(MetricsAggExpression):
+class Sum(SingleValueMetricsAgg):
     __agg_name__ = 'sum'
 
 
-class Avg(MetricsAggExpression):
+class Avg(SingleValueMetricsAgg):
     __agg_name__ = 'avg'
 
 
-class Percentiles(MetricsAggExpression):
-    __agg_name__ = 'percentiles'
+class TopHits(SingleValueMetricsAgg):
+    __agg_name__ = 'top_hits'
 
-    def __init__(self, field=None, script=None, percents=None, **kwargs):
-        super(Percentiles, self).__init__(
-            field=field, script=script, percents=percents, **kwargs
+    def __init__(self, size=None, from_=None, sort=None, _source=None, **kwargs):
+        super(TopHits, self).__init__(
+            size=size, from_=from_, sort=sort, _source=_source, **kwargs
         )
 
+
+class Percentiles(MultiValueMetricsAgg):
+    __agg_name__ = 'percentiles'
+
+    def __init__(self, field=None, script=None, percents=None, compression=None, **kwargs):
+        super(Percentiles, self).__init__(
+            field=field, script=script, percents=percents, compression=compression, **kwargs
+        )
+
+
+class PercentileRanks(MultiValueMetricsAgg):
+    __agg_name__ = 'percentile_ranks'
+
+    def __init__(self, field=None, script=None, values=None, compression=None, **kwargs):
+        super(PercentileRanks, self).__init__(
+            field=field, script=script, values=values, compression=None, **kwargs
+        )
+        
 
 class Bucket(object):
     def __init__(self, raw_data, aggs):
@@ -71,7 +102,7 @@ class Bucket(object):
         return self.aggregations.get(name)
 
 
-class MultiBucketAgg(BucketAggExpression):
+class MultiBucketAgg(BucketAgg):
     bucket_cls = Bucket
 
     def __init__(self, **kwargs):
@@ -156,9 +187,9 @@ class Filters(MultiBucketAgg):
         super(Filters, self).__init__(filters=filters, aggs=aggs, **kwargs)
 
 
-class SingleBucketAgg(BucketAggExpression):
-    def __init__(self, filter=None, **kwargs):
-        super(SingleBucketAgg, self).__init__(filter=filter, **kwargs)
+class SingleBucketAgg(BucketAgg):
+    def __init__(self, **kwargs):
+        super(SingleBucketAgg, self).__init__(**kwargs)
         self.doc_count = None
         self.aggregations = {}
 
@@ -166,8 +197,7 @@ class SingleBucketAgg(BucketAggExpression):
         return self.aggregations.get(name)
 
     def process_results(self, raw_data):
-        # super(SingleBucketAgg, self).process_results(raw_data)
-        self.doc_count = raw_data['doc_count']
+        self.doc_count = raw_data.get('doc_count')
         for agg_name, agg in self._aggs.items():
             agg = agg.clone()
             agg.process_results(raw_data.get(agg_name, {}))
@@ -181,11 +211,16 @@ class Global(SingleBucketAgg):
 class Filter(SingleBucketAgg):
     __agg_name__ = 'filter'
 
+    def __init__(self, filter, **kwargs):
+        super(Filter, self).__init__(filter=filter, **kwargs)
 
-class TopHits(MetricsAggExpression):
-    __agg_name__ = 'top_hits'
 
-    def __init__(self, size=None, from_=None, sort=None, _source=None, **kwargs):
-        super(TopHits, self).__init__(
-            size=size, from_=from_, sort=sort, _source=_source, **kwargs
-        )
+class Missing(SingleBucketAgg):
+    __agg_name__ = 'missing'
+
+
+class Nested(SingleBucketAgg):
+    __agg_name__ = 'nested'
+
+    def __init__(self, path, **kwargs):
+        super(Nested, self).__init__(path=path, **kwargs)
