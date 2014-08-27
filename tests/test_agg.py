@@ -1,4 +1,5 @@
 import unittest
+from mock import Mock
 
 from elasticmagic import agg, Term
 from elasticmagic.expression import Fields
@@ -297,3 +298,39 @@ class AggregationTest(unittest.TestCase):
         # a = agg.Global(
         #     agg.Terms('selling_type', f.selling_type, aggs=)
         # )
+
+    def test_instance_mapper(self):
+        class _Gender(object):
+            def __init__(self, key, title):
+                self.key = key
+                self.title = title
+
+        Male = _Gender('m', 'Male')
+        Female = _Gender('f', 'Female')
+        GENDERS = {g.key: g for g in [Male, Female]}
+
+        def _gender_mapper(keys):
+            return GENDERS
+
+        gender_mapper = Mock(wraps=_gender_mapper)
+
+        f = Fields()
+
+        a = agg.Terms(f.gender, instance_mapper=gender_mapper)
+        a.process_results(
+            {
+                "buckets": [
+                    {
+                        "key": "m",
+                        "doc_count": 10
+                    },
+                    {
+                        "key": "f",
+                        "doc_count": 10
+                    },
+                ]
+            }
+        )
+        self.assertEqual(a.buckets[0].instance.title, 'Male')
+        self.assertEqual(a.buckets[1].instance.title, 'Female')
+        self.assertEqual(gender_mapper.call_count, 1)

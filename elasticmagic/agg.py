@@ -1,5 +1,5 @@
 from .expression import Expression, Params
-from .util import _with_clone
+from .util import _with_clone, cached_property
 
 
 class AggExpression(Expression):
@@ -139,9 +139,10 @@ class Cardinality(SingleValueMetricsAgg):
 
 
 class Bucket(object):
-    def __init__(self, raw_data, aggs):
+    def __init__(self, raw_data, aggs, parent):
         self.key = raw_data.get('key')
         self.doc_count = raw_data['doc_count']
+        self.parent = parent
         self.aggregations = {}
         for agg_name, agg in aggs.items():
             agg = agg.clone()
@@ -151,13 +152,19 @@ class Bucket(object):
     def get_aggregation(self, name):
         return self.aggregations.get(name)
 
+    @cached_property
+    def instance(self):
+        self.parent._populate_instances()
+        return self.__dict__['instance']
+
 
 class MultiBucketAgg(BucketAgg):
     bucket_cls = Bucket
 
-    def __init__(self, **kwargs):
+    def __init__(self, instance_mapper=None, **kwargs):
         super(MultiBucketAgg, self).__init__(**kwargs)
         self.buckets = []
+        self._instance_mapper = instance_mapper
 
     def __iter__(self):
         return iter(self.buckets)
@@ -173,8 +180,18 @@ class MultiBucketAgg(BucketAgg):
                 raw_buckets.append(raw_bucket)
 
         for raw_bucket in raw_buckets:
-            bucket = self.bucket_cls(raw_bucket, self._aggs)
+            bucket = self.bucket_cls(raw_bucket, self._aggs, self)
             self.buckets.append(bucket)
+
+    def _populate_instances(self):
+        buckets = self._collect_buckets()
+        keys = [bucket.key for bucket in buckets]
+        instances = self._instance_mapper(keys)
+        for bucket in buckets:
+            bucket.__dict__['instance'] = instances.get(bucket.key)
+
+    def _collect_buckets(self):
+        return self.buckets
 
 
 class Terms(MultiBucketAgg):
@@ -195,8 +212,8 @@ class Terms(MultiBucketAgg):
 
 
 class SignificantBucket(Bucket):
-    def __init__(self, raw_data, aggs):
-        super(SignificantBucket, self).__init__(raw_data, aggs)
+    def __init__(self, raw_data, aggs, parent):
+        super(SignificantBucket, self).__init__(raw_data, aggs, parent)
         self.score = raw_data['score']
         self.bg_count = raw_data['bg_count']
 
