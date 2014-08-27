@@ -42,7 +42,10 @@ class MultiValueMetricsAgg(MetricsAgg):
         self.values = {}
 
     def process_results(self, raw_data):
-        self.values = raw_data['values'].copy()
+        if 'values' in raw_data:
+            self.values = raw_data['values'].copy()
+        else:
+            self.values = raw_data.copy()
 
 
 class Min(SingleValueMetricsAgg):
@@ -68,6 +71,42 @@ class TopHits(SingleValueMetricsAgg):
         super(TopHits, self).__init__(
             size=size, from_=from_, sort=sort, _source=_source, **kwargs
         )
+
+
+class Stats(MultiValueMetricsAgg):
+    __agg_name__ = 'stats'
+
+    def __init__(self, field=None, script=None, **kwargs):
+        super(Stats, self).__init__(field=field, script=script, **kwargs)
+        self.count = None
+        self.min = None
+        self.max = None
+        self.avg = None
+        self.sum = None
+
+    def process_results(self, raw_data):
+        super(Stats, self).process_results(raw_data)
+        self.count = self.values['count']
+        self.min = self.values['min']
+        self.max = self.values['max']
+        self.avg = self.values['avg']
+        self.sum = self.values['sum']
+
+
+class ExtendedStats(Stats):
+    __agg_name__ = 'extended_stats'
+
+    def __init__(self, field=None, script=None, **kwargs):
+        super(ExtendedStats, self).__init__(field=field, script=script, **kwargs)
+        self.sum_of_squares = None
+        self.variance = None
+        self.std_deviation = None
+
+    def process_results(self, raw_data):
+        super(ExtendedStats, self).process_results(raw_data)
+        self.sum_of_squares = self.values['sum_of_squares']
+        self.variance = self.values['variance']
+        self.std_deviation = self.values['std_deviation']
 
 
 class Percentiles(MultiValueMetricsAgg):

@@ -14,6 +14,44 @@ class AggregationTest(unittest.TestCase):
         })
         self.assertAlmostEqual(a.value, 75.3)
 
+        a = agg.Stats(f.grade)
+        a.process_results(
+            {
+                "count": 6,
+                "min": 60,
+                "max": 98,
+                "avg": 78.5,
+                "sum": 471
+            }
+        )
+        self.assertEqual(a.count, 6)
+        self.assertEqual(a.min, 60)
+        self.assertEqual(a.max, 98)
+        self.assertAlmostEqual(a.avg, 78.5)
+        self.assertEqual(a.sum, 471)
+
+        a = agg.ExtendedStats(f.grade)
+        a.process_results(
+            {
+                "count": 6,
+                "min": 72,
+                "max": 117.6,
+                "avg": 94.2,
+                "sum": 565.2,
+                "sum_of_squares": 54551.51999999999,
+                "variance": 218.2799999999976,
+                "std_deviation": 14.774302013969987
+            }
+        )
+        self.assertEqual(a.count, 6)
+        self.assertEqual(a.min, 72)
+        self.assertAlmostEqual(a.max, 117.6)
+        self.assertAlmostEqual(a.avg, 94.2)
+        self.assertAlmostEqual(a.sum, 565.2)
+        self.assertAlmostEqual(a.sum_of_squares, 54551.51999999999)
+        self.assertAlmostEqual(a.variance, 218.2799999999976)
+        self.assertAlmostEqual(a.std_deviation, 14.774302013969987)
+
         a = agg.Percentiles(f.load_time, percents=[95, 99, 99.9])
         a.process_results(
             {
