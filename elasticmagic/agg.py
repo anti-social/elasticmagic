@@ -59,7 +59,7 @@ class Percentiles(MetricsAggExpression):
 
 class Bucket(object):
     def __init__(self, raw_data, aggs):
-        self.key = raw_data['key']
+        self.key = raw_data.get('key')
         self.doc_count = raw_data['doc_count']
         self.aggregations = {}
         for agg_name, agg in aggs.items():
@@ -82,7 +82,16 @@ class MultiBucketAgg(BucketAggExpression):
         return iter(self.buckets)
 
     def process_results(self, raw_data):
-        for raw_bucket in raw_data.get('buckets', []):
+        raw_buckets = raw_data.get('buckets', [])
+        if isinstance(raw_buckets, dict):
+            raw_buckets_map = raw_buckets
+            raw_buckets = []
+            for key, raw_bucket in raw_buckets_map.items():
+                raw_bucket = raw_bucket.copy()
+                raw_bucket.setdefault('key', key)
+                raw_buckets.append(raw_bucket)
+
+        for raw_bucket in raw_buckets:
             bucket = self.bucket_cls(raw_bucket, self._aggs)
             self.buckets.append(bucket)
 
@@ -138,6 +147,13 @@ class Range(MultiBucketAgg):
 
     def __init__(self, field=None, script=None, ranges=None, aggs=None, **kwargs):
         super(Range, self).__init__(field=field, script=script, ranges=ranges, aggs=aggs, **kwargs)
+
+
+class Filters(MultiBucketAgg):
+    __agg_name__ = 'filters'
+
+    def __init__(self, filters, aggs=None, **kwargs):
+        super(Filters, self).__init__(filters=filters, aggs=aggs, **kwargs)
 
 
 class SingleBucketAgg(BucketAggExpression):

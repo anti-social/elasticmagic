@@ -1,6 +1,6 @@
 import unittest
 
-from elasticmagic import agg
+from elasticmagic import agg, Term
 from elasticmagic.expression import Fields
 
 
@@ -70,6 +70,44 @@ class AggregationTest(unittest.TestCase):
         self.assertEqual(a.buckets[1].doc_count, 27617)
         self.assertAlmostEqual(a.buckets[1].score, 0.0599)
         self.assertEqual(a.buckets[1].bg_count, 53182)
+
+        a = agg.Filters([Term(f.body, 'error'), Term(f.body, 'warning')])
+        a.process_results(
+            {
+                "buckets": [
+                    {
+                        "doc_count" : 34
+                    },
+                    {
+                        "doc_count" : 439
+                    },
+                ]
+            }
+        )
+        self.assertEqual(len(a.buckets), 2)
+        self.assertIs(a.buckets[0].key, None)
+        self.assertEqual(a.buckets[0].doc_count, 34)
+        self.assertIs(a.buckets[1].key, None)
+        self.assertEqual(a.buckets[1].doc_count, 439)
+
+        a = agg.Filters({'errors': Term(f.body, 'error'), 'warnings': Term(f.body, 'warning')})
+        a.process_results(
+            {
+                "buckets": {
+                    "errors": {
+                        "doc_count" : 34
+                    },
+                    "warnings": {
+                        "doc_count" : 439
+                    },
+                }
+            }
+        )
+        self.assertEqual(len(a.buckets), 2)
+        self.assertIs(a.buckets[0].key, 'errors')
+        self.assertEqual(a.buckets[0].doc_count, 34)
+        self.assertIs(a.buckets[1].key, 'warnings')
+        self.assertEqual(a.buckets[1].doc_count, 439)
 
         a = agg.Global(
             aggs={
