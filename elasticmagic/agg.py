@@ -125,7 +125,18 @@ class PercentileRanks(MultiValueMetricsAgg):
         super(PercentileRanks, self).__init__(
             field=field, script=script, values=values, compression=None, **kwargs
         )
-        
+
+
+class Cardinality(SingleValueMetricsAgg):
+    __agg_name__ = 'cardinality'
+
+    def __init__(self, field=None, script=None, precision_threshold=None, rehash=None, **kwargs):
+        super(Cardinality, self).__init__(
+            field=field, script=script,
+            precision_threshold=precision_threshold, rehash=rehash,
+            **kwargs
+        )
+
 
 class Bucket(object):
     def __init__(self, raw_data, aggs):

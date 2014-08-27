@@ -80,7 +80,7 @@ class AggregationTest(unittest.TestCase):
             a.values,
             {'15': 92, '30': 100},
         )
-        
+
         a = agg.Terms(f.status)
         a.process_results(
             {
