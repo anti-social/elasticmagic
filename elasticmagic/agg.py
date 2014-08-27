@@ -31,6 +31,7 @@ class BucketAggExpression(AggExpression):
     def clone(self):
         return self.__class__(aggs=self._aggs, **self.params)
 
+
 class Min(MetricsAggExpression):
     __agg_name__ = 'min'
 
@@ -57,19 +58,17 @@ class Percentiles(MetricsAggExpression):
 
 
 class Bucket(object):
-    def __init__(self, key, doc_count):
-        self.key = key
-        self.doc_count = doc_count
+    def __init__(self, raw_data, aggs):
+        self.key = raw_data['key']
+        self.doc_count = raw_data['doc_count']
         self.aggregations = {}
-
-    def add_aggregation(self, name, agg):
-        self.aggregations[name] = agg
+        for agg_name, agg in aggs.items():
+            agg = agg.clone()
+            agg.process_results(raw_data[agg_name])
+            self.aggregations[agg_name] = agg
 
     def get_aggregation(self, name):
         return self.aggregations.get(name)
-
-    def process_results(self, raw_data):
-        pass
 
 
 class MultiBucketAgg(BucketAggExpression):
@@ -84,12 +83,8 @@ class MultiBucketAgg(BucketAggExpression):
 
     def process_results(self, raw_data):
         for raw_bucket in raw_data.get('buckets', []):
-            bucket = self.bucket_cls(raw_bucket['key'], raw_bucket['doc_count'])
+            bucket = self.bucket_cls(raw_bucket, self._aggs)
             self.buckets.append(bucket)
-            for agg_name, agg in self._aggs.items():
-                agg = agg.clone()
-                agg.process_results(raw_bucket[agg_name])
-                bucket.add_aggregation(agg_name, agg)
 
 
 class Terms(MultiBucketAgg):
@@ -110,10 +105,10 @@ class Terms(MultiBucketAgg):
 
 
 class SignificantBucket(Bucket):
-    def __init__(self, key, doc_count, score, bg_count):
-        super(SignificantBucket, self).__init__(key, doc_count)
-        self.score = score
-        self.bg_count = bg_count
+    def __init__(self, raw_data, aggs):
+        super(SignificantBucket, self).__init__(raw_data, aggs)
+        self.score = raw_data['score']
+        self.bg_count = raw_data['bg_count']
 
 
 class SignificantTerms(Terms):

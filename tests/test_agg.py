@@ -41,6 +41,36 @@ class AggregationTest(unittest.TestCase):
         self.assertEqual(a.buckets[5].key, 5)
         self.assertEqual(a.buckets[5].doc_count, 46)
 
+        a = agg.SignificantTerms(f.crime_type)
+        a.process_results(
+            {
+                "doc_count": 47347,
+                "buckets" : [
+                    {
+                        "key": "Bicycle theft",
+                        "doc_count": 3640,
+                        "score": 0.371,
+                        "bg_count": 66799,
+                    },
+                    {
+                        "key": "Mobile phone theft",
+                        "doc_count": 27617,
+                        "score": 0.0599,
+                        "bg_count": 53182,
+                    }
+                ]
+            }
+        )
+        self.assertEqual(len(a.buckets), 2)
+        self.assertEqual(a.buckets[0].key, 'Bicycle theft')
+        self.assertEqual(a.buckets[0].doc_count, 3640)
+        self.assertAlmostEqual(a.buckets[0].score, 0.371)
+        self.assertEqual(a.buckets[0].bg_count, 66799)
+        self.assertEqual(a.buckets[1].key, 'Mobile phone theft')
+        self.assertEqual(a.buckets[1].doc_count, 27617)
+        self.assertAlmostEqual(a.buckets[1].score, 0.0599)
+        self.assertEqual(a.buckets[1].bg_count, 53182)
+
         a = agg.Global(
             aggs={
                 'selling_type': agg.Terms(
