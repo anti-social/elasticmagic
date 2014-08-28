@@ -1,5 +1,5 @@
 import unittest
-from mock import Mock
+from mock import Mock, patch
 
 from elasticmagic import agg, Term
 from elasticmagic.expression import Fields
@@ -309,13 +309,9 @@ class AggregationTest(unittest.TestCase):
         Female = _Gender('f', 'Female')
         GENDERS = {g.key: g for g in [Male, Female]}
 
-        def _gender_mapper(keys):
-            return GENDERS
-
-        gender_mapper = Mock(wraps=_gender_mapper)
-
         f = Fields()
 
+        gender_mapper = Mock(return_value=GENDERS)
         a = agg.Terms(f.gender, instance_mapper=gender_mapper)
         a.process_results(
             {
@@ -331,6 +327,148 @@ class AggregationTest(unittest.TestCase):
                 ]
             }
         )
+        self.assertEqual(len(a.buckets), 2)
         self.assertEqual(a.buckets[0].instance.title, 'Male')
         self.assertEqual(a.buckets[1].instance.title, 'Female')
         self.assertEqual(gender_mapper.call_count, 1)
+
+        gender_mapper = Mock(return_value=GENDERS)
+        a = agg.Global(
+            aggs={
+                'all_genders': agg.Terms(f.gender, instance_mapper=gender_mapper),
+                'all_salary': agg.Range(
+                    f.month_salary,
+                    ranges=[
+                        {'to': 1000},
+                        {'from': 1000, 'to': 2000},
+                        {'from': 2000, 'to': 3000},
+                        {'from': 3000},
+                    ],
+                    aggs={
+                        'gender': agg.Terms(f.gender, instance_mapper=gender_mapper)
+                    }
+                )
+            }
+        )
+        a.process_results(
+            {
+                "doc_count": 1819,
+                "all_genders": {
+                    "buckets": [
+                        {
+                            "key": "m",
+                            "doc_count": 1212
+                        },
+                        {
+                            "key": "f",
+                            "doc_count": 607
+                        }
+                    ]
+                },
+                "all_salary": {
+                    "buckets": [
+                        {
+                            "to": 1000,
+                            "doc_count": 183,
+                            "gender": {
+                                "buckets": [
+                                    {
+                                        "key": "f",
+                                        "doc_count": 101
+                                    },
+                                    {
+                                        "key": "m",
+                                        "doc_count": 82
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "from": 1000,
+                            "to": 2000,
+                            "doc_count": 456,
+                            "gender": {
+                                "buckets": [
+                                    {
+                                        "key": "f",
+                                        "doc_count": 231
+                                    },
+                                    {
+                                        "key": "m",
+                                        "doc_count": 225
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "from": 2000,
+                            "to": 3000,
+                            "doc_count": 1158,
+                            "gender": {
+                                "buckets": [
+                                    {
+                                        "key": "m",
+                                        "doc_count": 894
+                                    },
+                                    {
+                                        "key": "f",
+                                        "doc_count": 264
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "from": 3000,
+                            "doc_count": 22,
+                            "gender": {
+                                "buckets": [
+                                    {
+                                        "key": "m",
+                                        "doc_count": 11
+                                    },
+                                    {
+                                        "key": "f",
+                                        "doc_count": 11
+                                    }
+                                ]
+                            }
+                        },
+                    ]
+                }
+            }
+        )
+        self.assertEqual(a.doc_count, 1819)
+        all_genders_agg = a.get_aggregation('all_genders')
+        self.assertEqual(len(all_genders_agg.buckets), 2)
+        self.assertEqual(all_genders_agg.buckets[0].key, 'm')
+        self.assertEqual(all_genders_agg.buckets[0].doc_count, 1212)
+        self.assertEqual(all_genders_agg.buckets[0].instance.title, 'Male')
+        self.assertEqual(all_genders_agg.buckets[1].key, 'f')
+        self.assertEqual(all_genders_agg.buckets[1].doc_count, 607)
+        self.assertEqual(all_genders_agg.buckets[1].instance.title, 'Female')
+        all_salary_agg = a.get_aggregation('all_salary')
+        self.assertEqual(len(all_salary_agg.buckets), 4)
+        self.assertIs(all_salary_agg.buckets[0].from_, None)
+        self.assertEqual(all_salary_agg.buckets[0].to, 1000)
+        self.assertEqual(all_salary_agg.buckets[0].doc_count, 183)
+        gender_agg = all_salary_agg.buckets[0].get_aggregation('gender')
+        self.assertEqual(len(gender_agg.buckets), 2)
+        self.assertEqual(gender_agg.buckets[0].key, 'f')
+        self.assertEqual(gender_agg.buckets[0].doc_count, 101)
+        self.assertEqual(gender_agg.buckets[0].instance.title, 'Female')
+        self.assertEqual(gender_agg.buckets[1].key, 'm')
+        self.assertEqual(gender_agg.buckets[1].doc_count, 82)
+        self.assertEqual(gender_agg.buckets[1].instance.title, 'Male')
+        self.assertEqual(all_salary_agg.buckets[1].from_, 1000)
+        self.assertEqual(all_salary_agg.buckets[1].to, 2000)
+        self.assertEqual(all_salary_agg.buckets[1].doc_count, 456)
+        gender_agg = all_salary_agg.buckets[1].get_aggregation('gender')
+        self.assertEqual(len(gender_agg.buckets), 2)
+        self.assertEqual(gender_agg.buckets[0].key, 'f')
+        self.assertEqual(gender_agg.buckets[0].doc_count, 231)
+        self.assertEqual(gender_agg.buckets[0].instance.title, 'Female')
+        self.assertEqual(gender_agg.buckets[1].key, 'm')
+        self.assertEqual(gender_agg.buckets[1].doc_count, 225)
+        self.assertEqual(gender_agg.buckets[1].instance.title, 'Male')
+        self.assertEqual(gender_mapper.call_count, 2)
+        

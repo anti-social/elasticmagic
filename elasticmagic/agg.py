@@ -5,8 +5,17 @@ from .util import _with_clone, cached_property
 class AggExpression(Expression):
     __visit_name__ = 'agg'
 
+    def __init__(self, **kwargs):
+        super(AggExpression, self).__init__(**kwargs)
+        self.parent = None
+        self.path = None
+
     def clone(self):
         return self.__class__(**self.params)
+
+    def _bind(self, parent, path):
+        self.parent = parent
+        self.path = path
     
     def process_results(self, raw_data):
         raise NotImplementedError()
@@ -147,6 +156,7 @@ class Bucket(object):
         for agg_name, agg in aggs.items():
             agg = agg.clone()
             agg.process_results(raw_data[agg_name])
+            agg._bind(parent, parent.path + (agg_name,))
             self.aggregations[agg_name] = agg
 
     def get_aggregation(self, name):
@@ -163,11 +173,16 @@ class MultiBucketAgg(BucketAgg):
 
     def __init__(self, instance_mapper=None, **kwargs):
         super(MultiBucketAgg, self).__init__(**kwargs)
-        self.buckets = []
         self._instance_mapper = instance_mapper
+        self.buckets = []
+        self.parent = None
+        self.path = ()
 
     def __iter__(self):
         return iter(self.buckets)
+
+    def clone(self):
+        return self.__class__(aggs=self._aggs, instance_mapper=self._instance_mapper, **self.params)
 
     def process_results(self, raw_data):
         raw_buckets = raw_data.get('buckets', [])
@@ -184,14 +199,28 @@ class MultiBucketAgg(BucketAgg):
             self.buckets.append(bucket)
 
     def _populate_instances(self):
-        buckets = self._collect_buckets()
+        buckets = self._root._collect_buckets(self.path)
         keys = [bucket.key for bucket in buckets]
         instances = self._instance_mapper(keys)
         for bucket in buckets:
             bucket.__dict__['instance'] = instances.get(bucket.key)
 
-    def _collect_buckets(self):
-        return self.buckets
+    @property
+    def _root(self):
+        if not self.parent:
+            return self
+        parent = self.parent
+        while parent:
+            parent = parent.parent
+        return self.parent
+
+    def _collect_buckets(self, path):
+        if not path:
+            return self.buckets
+        buckets = []
+        for bucket in self.buckets:
+            buckets += bucket.get_aggregation(path[0])._collect_buckets(path[1:])
+        return buckets
 
 
 class Terms(MultiBucketAgg):
@@ -232,10 +261,10 @@ class Histogram(MultiBucketAgg):
 
 
 class RangeBucket(Bucket):
-    def __init__(self, key, doc_count, from_=None, to=None):
-        super(RangeBucket, self).__init__(key, doc_count)
-        self.from_ = from_
-        self.to = to
+    def __init__(self, raw_data, aggs, parent):
+        super(RangeBucket, self).__init__(raw_data, aggs, parent)
+        self.from_ = raw_data.get('from')
+        self.to = raw_data.get('to')
 
 
 class Range(MultiBucketAgg):
