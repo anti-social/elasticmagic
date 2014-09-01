@@ -35,6 +35,10 @@ class BucketAgg(AggExpression):
     def clone(self):
         return self.__class__(aggs=self._aggs, **self.params)
 
+    @_with_clone
+    def aggs(self, **aggs):
+        self._aggs = Params(dict(self._aggs), **aggs)
+
 
 class SingleValueMetricsAgg(MetricsAgg):
     def __init__(self, field=None, script=None, **kwargs):

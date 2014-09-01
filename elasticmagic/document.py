@@ -1,5 +1,5 @@
 from .types import String
-from .expression import Field
+from .expression import Field, Fields
 from .util import cached_property
 from .compat import with_metaclass
 
@@ -58,3 +58,20 @@ class Document(with_metaclass(DocumentMeta)):
         if self._result:
             self._result._populate_instances()
             return self.__dict__['instance']
+
+
+class DynamicDocumentMeta(DocumentMeta):
+    @property
+    def fields(cls):
+        return Fields(cls)
+
+    f = fields
+
+    def __getattr__(cls, name):
+        field = Field(name)
+        field._bind(cls, name)
+        return field
+
+
+class DynamicDocument(with_metaclass(DynamicDocumentMeta, Document)):
+    pass

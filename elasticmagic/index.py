@@ -2,7 +2,7 @@ from collections import defaultdict
 
 from .util import to_camel_case
 from .search import SearchQuery
-from .document import Document
+from .document import DynamicDocument
 
 
 class Index(object):
@@ -19,7 +19,7 @@ class Index(object):
         if name not in self._doc_cls_cache:
             self._doc_cls_cache[name] = type(
                 '{}{}'.format(to_camel_case(name), 'Document'),
-                (Document,),
+                (DynamicDocument,),
                 {'__doc_type__': name}
             )
         return self._doc_cls_cache[name]

@@ -39,6 +39,9 @@ class Expression(object):
     def compile(self):
         return Compiled(self)
 
+    def to_dict(self):
+        return self.compile().params
+
 
 class Params(Expression, collections.Mapping):
     __visit_name__ = 'params'
@@ -379,13 +382,17 @@ class Sort(QueryExpression):
 
 class _Fields(object):
     def __init__(self, parent=None):
-        self._parent_field = parent
+        self._parent = parent
 
     def _get_field(self, name):
-        if self._parent_field:
-            if self._parent_field._doc_cls and hasattr(self._parent_field._doc_cls, name):
-                return getattr(self._parent_field._doc_cls, name)
-            return Field('{}.{}'.format(self._parent_field._name, name))
+        from .document import Document
+        
+        if self._parent:
+            if isinstance(self._parent, Document):
+                return getattr(self._parent, name)
+            if self._parent._doc_cls and hasattr(self._parent._doc_cls, name):
+                return getattr(self._parent._doc_cls, name)
+            return Field('{}.{}'.format(self._parent._name, name))
         return Field(name)
         
     def __getattr__(self, name):
@@ -721,7 +728,7 @@ class Compiled(object):
         params = {}
         q = query._q
         if query._filters:
-            q = Filtered(query=q, filter=And(query._filters))
+            q = Filtered(query=q, filter=And(*[f for f, m in query._filters]))
         if q is not None:
             params['query'] = self.visit(q)
         if query._order_by:

@@ -47,8 +47,12 @@ class SearchQuery(object):
         self._fields = self._fields + fields
 
     @_with_clone
-    def filter(self, *filters):
-        self._filters = self._filters + filters
+    def filter(self, *filters, **meta):
+        if len(filters) > 1:
+            f = (And(*filters), meta)
+        else:
+            f = (filters[0], meta)
+        self._filters = self._filters + (f,)
 
     @_with_clone
     def order_by(self, *orders):
@@ -59,14 +63,14 @@ class SearchQuery(object):
             self._order_by = self._order_by + orders
 
     @_with_clone
-    def aggregation(self, *args, **aggs):
+    def aggregations(self, *args, **aggs):
         if len(args) == 1 and args[0] is None:
             if '_aggregations' in self.__dict__:
                 del self._aggregations
         if aggs:
             self._aggregations = Params(dict(self._aggregations), **aggs)
 
-    agg = aggregation
+    aggs = aggregations
 
     @_with_clone
     def limit(self, limit):
@@ -123,7 +127,7 @@ class SearchQuery(object):
         doc_types = set()
         for expr in chain([self._q],
                           self._fields,
-                          self._filters,
+                          [f for f, m in self._filters],
                           self._order_by,
                           self._aggregations.values()):
             if expr:# and hasattr(expr, '_doc_types'):

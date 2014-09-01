@@ -91,7 +91,7 @@ class SearchQueryTest(BaseTestCase):
         f = Fields()
 
         self.assert_expression(
-            SearchQuery().aggregation(min_price=agg.Min(f.price)),
+            SearchQuery().aggregations(min_price=agg.Min(f.price)),
             {
                 "aggregations": {
                     "min_price": {
@@ -102,7 +102,7 @@ class SearchQueryTest(BaseTestCase):
         )
 
         self.assert_expression(
-            SearchQuery().aggregation(genders=agg.Terms(f.gender)),
+            SearchQuery().aggregations(genders=agg.Terms(f.gender)),
             {
                 "aggregations": {
                     "genders": {
@@ -113,7 +113,7 @@ class SearchQueryTest(BaseTestCase):
         )
 
         self.assert_expression(
-            SearchQuery().aggregation(type=agg.Terms(f.type, aggs={'min_price': agg.Min(f.price)})),
+            SearchQuery().aggregations(type=agg.Terms(f.type, aggs={'min_price': agg.Min(f.price)})),
             {
                 "aggregations": {
                     "type": {
@@ -129,7 +129,7 @@ class SearchQueryTest(BaseTestCase):
         )
 
         self.assert_expression(
-            SearchQuery().aggregation(
+            SearchQuery().aggregations(
                 top_tags=(
                     agg.Terms(
                         f.tags,
@@ -168,7 +168,7 @@ class SearchQueryTest(BaseTestCase):
             }  
         )
         self.assert_expression(
-            SearchQuery().aggregation(
+            SearchQuery().aggregations(
                 top_sites=(
                     agg.Terms(
                         f.domain,
