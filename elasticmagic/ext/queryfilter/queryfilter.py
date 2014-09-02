@@ -68,7 +68,11 @@ class QueryFilter(object):
 
     def process_results(self, results):
         global_agg = results.get_aggregation(self.name)
-        main_agg = global_agg.get_aggregation(self.name)
+        if global_agg.get_aggregation(self.name):
+            main_agg = global_agg.get_aggregation(self.name)
+        else:
+            main_agg = global_agg
+
         for f in self.filters:
             f._process_agg(main_agg, self._params.get(f.name) or [])
 
@@ -78,11 +82,22 @@ class QueryFilter(object):
                 return f
 
 
-class Facet(object):
+class BaseFilter(object):
+    def _apply_filter(self, search_query, params):
+        raise NotImplementedError()
+
+    def _apply_agg(self, main_agg, search_query):
+        raise NotImplementedError()
+
+    def _process_agg(self, main_agg, params):
+        pass
+
+
+class FacetFilter(BaseFilter):
     def __init__(self, name, field, type=None, instance_mapper=None):
         self.name = name
         self.field = field
-        self.type = instantiate(type or String)
+        self.type = instantiate(type or self.field._type)
         self.instance_mapper = instance_mapper
 
         self.values = []
@@ -98,11 +113,11 @@ class Facet(object):
         if not params:
             return search_query
 
-        filts = []
         ops = defaultdict(list)
         for op, v in params:
             ops[op].append(v[0])
 
+        filts = []
         for op, values in ops.items():
             op_func = OPERATORS.get(op)
             filts.append(op_func(self.field, values))
@@ -152,3 +167,64 @@ class FacetValue(object):
     @property
     def count(self):
         return self.bucket.count
+
+
+class RangeFilter(BaseFilter):
+
+    def __init__(self, name, field, type=None):
+        self.name = name
+        self.field = field
+        self.type = instantiate(type or self.field._type)
+        self.min = None
+        self.max = None
+
+        self._min_agg_name = '{}_min'.format(self.name)
+        self._max_agg_name = '{}_max'.format(self.name)
+
+    @property
+    def _types(self):
+        return [self.type]
+
+    def _apply_filter(self, search_query, params):
+        if not params:
+            return search_query
+
+        ops = defaultdict(list)
+        for op, v in params:
+            ops[op].append(v[0])
+
+        filts = []
+        for op, values in ops.items():
+            op_func = OPERATORS.get(op)
+            filts.append(op_func(self.field, values))
+
+        return search_query.filter(*filts, tags=[self.name])
+
+    def _apply_agg(self, main_agg, search_query):
+        filters = []
+        for filt, meta in search_query._filters:
+            tags = meta.get('tags') or set()
+            if self.name not in tags:
+                filters.append(filt)
+
+        stat_aggs = {
+            self._min_agg_name: agg.Min(self.field),
+            self._max_agg_name: agg.Max(self.field),
+        }
+        if filters:
+            main_agg = main_agg.aggs(
+                **{self.name: agg.Filter(And(*filters), aggs=stat_aggs)}
+            )
+        else:
+            main_agg = main_agg.aggs(**stat_aggs)
+
+        return main_agg
+
+    def _process_agg(self, main_agg, params):
+        if main_agg.get_aggregation(self.name):
+            base_agg = main_agg.get_aggregation(self.name)
+        else:
+            base_agg = main_agg
+
+        self.min = base_agg.get_aggregation(self._min_agg_name).value
+        self.max = base_agg.get_aggregation(self._max_agg_name).value

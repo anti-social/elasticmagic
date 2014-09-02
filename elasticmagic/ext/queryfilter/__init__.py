@@ -1,1 +1,1 @@
-from .queryfilter import QueryFilter, Facet
+from .queryfilter import QueryFilter, FacetFilter, RangeFilter

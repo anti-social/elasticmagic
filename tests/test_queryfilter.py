@@ -1,37 +1,39 @@
 from mock import MagicMock
 
-from elasticmagic import SearchQuery, Term, Index, types
+from elasticmagic import SearchQuery, Term, Index
+from elasticmagic.types import Integer, Float
 from elasticmagic.expression import Fields
-from elasticmagic.ext.queryfilter import QueryFilter, Facet
+from elasticmagic.ext.queryfilter import QueryFilter, FacetFilter, RangeFilter
 
 from .base import BaseTestCase
 
 
+class CarType(object):
+    def __init__(self, id, title):
+        self.id = id
+        self.title = title
+
+TYPES = {
+    t.id: t
+    for t in [
+            CarType(0, 'Sedan'),
+            CarType(1, 'Station Wagon'),
+            CarType(2, 'Hatchback'),
+    ]
+}
+
+def type_mapper(values):
+    return TYPES
+
+
 class QueryFilterTest(BaseTestCase):
     def test_facet(self):
-        class CarType(object):
-            def __init__(self, id, title):
-                self.id = id
-                self.title = title
-
-        TYPES = {
-            t.id: t
-            for t in [
-                    CarType(0, 'Sedan'),
-                    CarType(1, 'Station Wagon'),
-                    CarType(2, 'Hatchback'),
-            ]
-        }
-
-        def type_mapper(values):
-            return TYPES
-
         f = Fields()
 
         qf = QueryFilter()
-        qf.add_filter(Facet('type', f.type, instance_mapper=type_mapper, type=types.Integer))
-        qf.add_filter(Facet('vendor', f.vendor))
-        qf.add_filter(Facet('model', f.model))
+        qf.add_filter(FacetFilter('type', f.type, instance_mapper=type_mapper, type=Integer))
+        qf.add_filter(FacetFilter('vendor', f.vendor))
+        qf.add_filter(FacetFilter('model', f.model))
 
         es_client = MagicMock()
         es_client.search = MagicMock(
@@ -101,7 +103,6 @@ class QueryFilterTest(BaseTestCase):
         es_index = Index(es_client, 'ads')
         sq = es_index.search(Term(es_index.car.name, 'test'))
         sq = qf.apply(sq, {'type': ['0', '1'], 'vendor': ['Subaru']})
-        import pprint; pprint.pprint(sq.to_dict())
         self.assert_expression(
             sq,
             {
@@ -192,3 +193,75 @@ class QueryFilterTest(BaseTestCase):
         self.assertEqual(len(model_filter.values), 2)
         self.assertEqual(model_filter.values[0].selected, False)
         self.assertEqual(model_filter.values[1].selected, False)
+
+    def test_range_filter(self):
+        es_client = MagicMock()
+        es_client.search = MagicMock(
+            return_value={
+                "hits": {
+                    "hits": [],
+                    "max_score": 1.829381,
+                    "total": 893
+                },
+                "aggregations": {
+                    "qf": {
+                        "doc_count": 128,
+                        "price_min": {"value": 7500},
+                        "price_max": {"value": 25800},
+                        "disp": {
+                            "doc_count": 237,
+                            "disp_min": {"value": 1.6},
+                            "disp_max": {"value": 3.0}
+                        }
+                    }
+                }
+            }
+        )
+        es_index = Index(es_client, 'ads')
+
+        qf = QueryFilter()
+        qf.add_filter(RangeFilter('price', es_index.car.price, type=Integer))
+        qf.add_filter(RangeFilter('disp', es_index.car.engine_displacement, type=Float))
+
+        sq = es_index.search()
+        sq = qf.apply(sq, {'price__lte': ['10000']})
+        self.assert_expression(
+            sq,
+            {
+                "query": {
+                    "filtered": {
+                        "filter": {
+                            "range": {"price": {"lte": 10000}}
+                        }
+                    }
+                },
+                "aggregations": {
+                    "qf": {
+                        "global": {},
+                        "aggregations": {
+                            "price_min": {"min": {"field": "price"}},
+                            "price_max": {"max": {"field": "price"}},
+                            "disp": {
+                                "filter": {
+                                    "filter": {
+                                        "range": {"price": {"lte": 10000}}
+                                    }
+                                },
+                                "aggregations": {
+                                    "disp_min": {"min": {"field": "engine_displacement"}},
+                                    "disp_max": {"max": {"field": "engine_displacement"}}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        )
+
+        qf.process_results(sq.results)
+        price_filter = qf.get_filter('price')
+        self.assertEqual(price_filter.min, 7500)
+        self.assertEqual(price_filter.max, 25800)
+        disp_filter = qf.get_filter('disp')
+        self.assertAlmostEqual(disp_filter.min, 1.6)
+        self.assertAlmostEqual(disp_filter.max, 3.0)
