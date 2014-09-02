@@ -1,4 +1,4 @@
-from . import Term, Terms, Query, And, agg, types
+from elasticmagic import Term, Terms, Query, And, agg, types
 
 
 class QueryFilter(object):

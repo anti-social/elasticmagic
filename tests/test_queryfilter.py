@@ -2,7 +2,7 @@ from mock import MagicMock
 
 from elasticmagic import SearchQuery, Term, Index, types
 from elasticmagic.expression import Fields
-from elasticmagic.queryfilter import QueryFilter, Facet
+from elasticmagic.ext.queryfilter import QueryFilter, Facet
 
 from .base import BaseTestCase
 
