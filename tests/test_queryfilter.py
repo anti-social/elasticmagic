@@ -101,6 +101,7 @@ class QueryFilterTest(BaseTestCase):
         es_index = Index(es_client, 'ads')
         sq = es_index.search(Term(es_index.car.name, 'test'))
         sq = qf.apply(sq, {'type': ['0', '1'], 'vendor': ['Subaru']})
+        import pprint; pprint.pprint(sq.to_dict())
         self.assert_expression(
             sq,
             {

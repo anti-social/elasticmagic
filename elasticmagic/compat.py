@@ -15,6 +15,31 @@ else:
     unichr = unichr
     int_types = (int, long)
 
+if PY2:
+    from itertools import izip_longest as zip_longest
+else:
+    from itertools import zip_longest
+
+
+def force_unicode(value):
+    """
+    Forces a bytestring to become a Unicode string.
+    """
+    if PY2:
+        # Python 2.X
+        if isinstance(value, str):
+            value = value.decode('utf-8', 'replace')
+        elif not isinstance(value, basestring):
+            value = unicode(value)
+    else:
+        # Python 3.X
+        if isinstance(value, bytes):
+            value = value.decode('utf-8', errors='replace')
+        elif not isinstance(value, str):
+            value = str(value)
+
+    return value
+
 
 def with_metaclass(meta, *bases):
     class metaclass(meta):

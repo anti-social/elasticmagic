@@ -1,23 +1,54 @@
-from elasticmagic import Term, Terms, Query, And, agg, types
+import operator
+from itertools import chain, groupby
+from collections import defaultdict
+
+from elasticmagic import Term, Terms, Query, And, Or, agg
+from elasticmagic.types import String, instantiate
+
+from .codec import SimpleCodec
+
+
+def exact_op(f, values):
+    if len(values) == 1:
+        return f == values[0]
+    return f.in_(values)
+
+
+OPERATORS = {
+    'exact': exact_op,
+    'gte': operator.ge,
+    'gt': operator.gt,
+    'lte': operator.le,
+    'lt': operator.lt,
+    # 'isnull': isnull_op,
+}
 
 
 class QueryFilter(object):
     DEFAULT_NAME = 'qf'
 
-    def __init__(self, name=None):
+    def __init__(self, name=None, codec=None):
         self.name = name or self.DEFAULT_NAME
+        self.codec = codec or SimpleCodec()
         self.filters = []
-        self.params = {}
+        self._params = {}
+
+    @property
+    def _filter_types(self):
+        types = {}
+        for filt in self.filters:
+            types[filt.name] = filt._types
+        return types
 
     def add_filter(self, filter):
         self.filters.append(filter)
 
     def apply(self, search_query, params):
-        self.params = params
+        self._params = self.codec.decode(params, self._filter_types)
 
         # First filter query
         for f in self.filters:
-            search_query = f._apply_filter(search_query, params.get(f.name))
+            search_query = f._apply_filter(search_query, self._params.get(f.name) or [])
 
         # disable all filters for aggregations
         if search_query._q:
@@ -39,7 +70,7 @@ class QueryFilter(object):
         global_agg = results.get_aggregation(self.name)
         main_agg = global_agg.get_aggregation(self.name)
         for f in self.filters:
-            f._process_agg(main_agg, self.params.get(f.name))
+            f._process_agg(main_agg, self._params.get(f.name) or [])
 
     def get_filter(self, name):
         for f in self.filters:
@@ -48,11 +79,10 @@ class QueryFilter(object):
 
 
 class Facet(object):
-    def __init__(self, name, field, alias=None, type=None, instance_mapper=None):
+    def __init__(self, name, field, type=None, instance_mapper=None):
         self.name = name
         self.field = field
-        self.alias = alias or self.name
-        self.type = types.instantiate(type)
+        self.type = instantiate(type or String)
         self.instance_mapper = instance_mapper
 
         self.values = []
@@ -60,18 +90,27 @@ class Facet(object):
         self.all_values = []
         self.values_map = {}
 
+    @property
+    def _types(self):
+        return [self.type]
+
     def _apply_filter(self, search_query, params):
         if not params:
             return search_query
 
-        if self.type:
-            params = [self.type.to_python(p) for p in params]
+        filts = []
+        ops = defaultdict(list)
+        for op, v in params:
+            ops[op].append(v[0])
 
-        if len(params) == 1:
-            filt = Term(self.field, params[0])
+        for op, values in ops.items():
+            op_func = OPERATORS.get(op)
+            filts.append(op_func(self.field, values))
+
+        if len(filts) == 1:
+            filt = filts[0]
         else:
-            filt = Terms(self.field, params)
-
+            filt = Or(*filts)
         return search_query.filter(filt, tags=[self.name])
 
     def _apply_agg(self, main_agg, search_query):
@@ -91,15 +130,13 @@ class Facet(object):
 
         return main_agg
         
-
     def _process_agg(self, main_agg, params):
-        params = params or []
-        if self.type:
-            params = [self.type.to_python(p) for p in params]
-
-        terms_agg = main_agg.get_aggregation(self.name).get_aggregation(self.name)
+        values = set(chain(*(v for op, v in params if op == 'exact')))
+        terms_agg = main_agg.get_aggregation(self.name)
+        if terms_agg.get_aggregation(self.name):
+            terms_agg = terms_agg.get_aggregation(self.name)
         for bucket in terms_agg.buckets:
-            selected = bucket.key in params
+            selected = bucket.key in values
             self.values.append(FacetValue(bucket, selected))
 
 
