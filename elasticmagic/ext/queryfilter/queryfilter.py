@@ -135,7 +135,7 @@ class FacetFilter(BaseFilter):
             if self.name not in tags:
                 filters.append(filt)
 
-        terms_agg = agg.Terms(self.field)
+        terms_agg = agg.Terms(self.field, instance_mapper=self.instance_mapper)
         if filters:
             main_agg = main_agg.aggs(
                 **{self.name: agg.Filter(And(*filters), aggs={self.name: terms_agg})}
@@ -166,7 +166,11 @@ class FacetValue(object):
 
     @property
     def count(self):
-        return self.bucket.count
+        return self.bucket.doc_count
+
+    @property
+    def instance(self):
+        return self.bucket.instance
 
 
 class RangeFilter(BaseFilter):

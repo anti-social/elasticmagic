@@ -205,7 +205,7 @@ class MultiBucketAgg(BucketAgg):
     def _populate_instances(self):
         buckets = self._root._collect_buckets(self.path)
         keys = [bucket.key for bucket in buckets]
-        instances = self._instance_mapper(keys)
+        instances = self._instance_mapper(keys) if self._instance_mapper else {}
         for bucket in buckets:
             bucket.__dict__['instance'] = instances.get(bucket.key)
 
