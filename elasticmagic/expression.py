@@ -541,6 +541,11 @@ class Field(Expression):
         return BoostExpression(self, weight)
 
 
+class DynamicField(Field):
+    def __init__(self, name, type):
+        super(DynamicField, self).__init__(name, type)
+
+
 class BoostExpression(Expression):
     __visit_name__ = 'boost_expression'
 

@@ -1,3 +1,5 @@
+import fnmatch
+
 from .types import String
 from .expression import Field, Fields
 from .util import cached_property
@@ -9,6 +11,7 @@ class DocumentMeta(type):
         cls = type.__new__(meta, name, bases, dct)
 
         cls._fields = []
+        cls._fields_map = {}
 
         if not hasattr(cls, '_id'):
             cls._id = Field(String())
@@ -22,11 +25,28 @@ class DocumentMeta(type):
             if isinstance(field, Field):
                 field._bind(cls, field_name)
                 cls._fields.append(field)
+                cls._fields_map[field_name] = field
 
         return cls
 
+    def __getattr__(cls, name):
+        field = cls._from_dynamic_field(name)
+        if field:
+            # setattr(cls, name, field)
+            return field
+        raise AttributeError("No such field: '%s'" % name)
+
+    def _from_dynamic_field(cls, name):
+        for dyn_field in cls.__dynamic_fields__:
+            if fnmatch.fnmatch(name, dyn_field._name):
+                field = Field(name, dyn_field._type)
+                field._bind(cls, name)
+                return field
+
 
 class Document(with_metaclass(DocumentMeta)):
+    __dynamic_fields__ = []
+
     def __init__(self, _hit=None, _result=None, **kwargs):
         self._index = self._type = self._id = self._score = None
         if _hit:
@@ -44,10 +64,21 @@ class Document(with_metaclass(DocumentMeta)):
         self._result = _result
 
     def to_dict(self):
-        dct = {}
-        for field in self._fields:
-            dct[field._attr_name] = field._to_dict(getattr(self, field._attr_name, None))
-        return dct
+        res = {}
+        for key, value in self.__dict__.items():
+            if value is None or value == '' or value == []:
+                continue
+
+            field = None
+            if key in self._fields_map:
+                field = self._fields_map[key]
+            else:
+                field = self.__class__._from_dynamic_field(key)
+
+            if field:
+                res[field._attr_name] = field._to_dict(value)
+
+        return res
 
     @classmethod
     def instance_mapper(self):
