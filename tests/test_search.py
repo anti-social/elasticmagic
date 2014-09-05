@@ -1,7 +1,7 @@
 from mock import Mock, MagicMock
 
 from elasticmagic import Index, Document, SearchQuery, Params, Term, Bool, Sort, agg
-from elasticmagic.types import String, Integer
+from elasticmagic.types import String, Integer, Float, Object
 from elasticmagic.expression import Fields, Field
 
 from .base import BaseTestCase
@@ -214,11 +214,22 @@ class SearchQueryTest(BaseTestCase):
             return {id: CarObject(int(id)) for id in ids}
         obj_mapper = Mock(wraps=_obj_mapper)
 
+        class NameDocument(Document):
+            first = Field(String)
+            last = Field(String)
+
+        class CarSellerDocument(Document):
+            name = Field(Object(NameDocument))
+            rating = Field(Float)
+        
         class CarDocument(Document):
             __doc_type__ = 'car'
+
             vendor = Field(String)
             model = Field(String)
             year = Field(Integer)
+            seller = Field(Object(CarSellerDocument))
+            
 
             # @staticmethod
             # def _instance_mapper(ids):
@@ -264,12 +275,9 @@ class SearchQueryTest(BaseTestCase):
         es_index = Index(es_client, 'ads')
         sq = (
             es_index.search(
-                Bool(
-                    must=CarDocument.vendor == 'Subaru',
-                    should=[CarDocument.model.in_(['Imprezza', 'Forester']),
-                            CarDocument.year == 2004]
-                )
+                CarDocument.seller.name.first.match('Alex'),
             )
+            .filter(CarDocument.seller.rating > 4)
             .with_instance_mapper(obj_mapper)
         )
         results = sq.results
@@ -279,18 +287,13 @@ class SearchQueryTest(BaseTestCase):
             doc_type='car',
             body={
                 'query': {
-                    'bool': {
-                        'must': {
-                            'term': {'vendor': 'Subaru'}
+                    'filtered': {
+                        'query': {
+                            'match': {'seller.name.first': 'Alex'}
                         },
-                        'should': [
-                            {
-                                'terms': {'model': ['Imprezza', 'Forester']}
-                            },
-                            {
-                                'term': {'year': 2004}
-                            }
-                        ]
+                        'filter': {
+                            'range': {'seller.rating': {'gt': 4.0}}
+                        }
                     }
                 }
             }

@@ -12,6 +12,8 @@ def instantiate(typeobj, *args, **kwargs):
 
 
 class Type(object):
+    doc_cls = None
+
     def to_python(self, value):
         return value
 
@@ -135,7 +137,11 @@ class Nested(Object):
 
 class List(Type):
     def __init__(self, sub_type):
-        self.sub_type = sub_type
+        self.sub_type = instantiate(sub_type)
+
+    @property
+    def doc_cls(self):
+        return self.sub_type.doc_cls
 
     def to_python(self, value):
         if value is None:

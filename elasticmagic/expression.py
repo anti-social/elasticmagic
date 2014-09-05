@@ -13,8 +13,21 @@ OPERATORS = {
     operator.inv: 'inv',
 }
 
+
 class Expression(object):
-    _doc_types = ()
+    def _collect_doc_classes(self):
+        return []
+
+
+class Literal(object):
+    __visit_name__ = 'literal'
+
+    def __init__(self, obj):
+        self.obj = obj
+
+
+class QueryExpression(Expression):
+    __visit_name__ = 'query_expression'
 
     def __init__(self, *args, **kwargs):
         params = {}
@@ -42,6 +55,13 @@ class Expression(object):
     def to_dict(self):
         return self.compile().params
 
+    def _collect_doc_classes(self):
+        doc_classes = []
+        for v in self.params.values():
+            if hasattr(v, '_collect_doc_classes'):
+                doc_classes += v._collect_doc_classes()
+        return doc_classes
+
 
 class Params(Expression, collections.Mapping):
     __visit_name__ = 'params'
@@ -62,25 +82,29 @@ class Params(Expression, collections.Mapping):
         return key in self._params
 
 
-class QueryExpression(Expression):
-    __visit_name__ = 'query_expression'
+
+class FieldExpression(QueryExpression):
+    __visit_name__ = 'field_expression'
+
+    def __init__(self, field, **kwargs):
+        super(FieldExpression, self).__init__(**kwargs)
+        self.field = _wrap_literal(field)
+
+    def _collect_doc_classes(self):
+        return super(FieldExpression, self)._collect_doc_classes() \
+            + self.field._collect_doc_classes()
 
 
-class FieldQuery(QueryExpression):
+class FieldQueryExpression(FieldExpression):
     __visit_name__ = 'field_query'
     __query_key__ = 'query'
 
     def __init__(self, field, query, **kwargs):
-        super(FieldQuery, self).__init__(**kwargs)
-        self.field = field
+        super(FieldQueryExpression, self).__init__(field, **kwargs)
         self.query = query
 
-    @property
-    def _doc_types(self):
-        return self.field._doc_types
 
-
-class Term(FieldQuery):
+class Term(FieldQueryExpression):
     __query_name__ = 'term'
     __query_key__ = 'value'
 
@@ -88,22 +112,17 @@ class Term(FieldQuery):
         super(Term, self).__init__(field, value, boost=boost, **kwargs)
 
 
-class Terms(QueryExpression):
+class Terms(FieldExpression):
     __visit_name__ = 'terms'
 
     def __init__(self, field, terms, minimum_should_match=None, boost=None, **kwargs):
         super(Terms, self).__init__(
-            minimum_should_match=minimum_should_match, boost=boost, **kwargs
+            field, minimum_should_match=minimum_should_match, boost=boost, **kwargs
         )
-        self.field = field
         self.terms = terms
 
-    @property
-    def _doc_types(self):
-        return self.field._doc_types
 
-
-class Match(FieldQuery):
+class Match(FieldQueryExpression):
     __query_name__ = 'match'
 
     def __init__(self, field, query,
@@ -141,14 +160,13 @@ class MultiMatch(QueryExpression):
         self.query = query
         self.fields = fields
 
-    @property
-    def _doc_types(self):
-        return list(chain(f._doc_types for f in self.fields))
-
+    def _collect_doc_classes(self):
+        return super(MultiMatch, self)._collect_doc_classes() \
+            + list(chain(f._collect_doc_classes() for f in self.fields))
 
 
 class MatchAll(QueryExpression):
-    __query_name__ = 'match_all'
+    __visit_name__ = 'match_all'
 
     def __init__(self, boost=None, **kwargs):
         super(MatchAll, self).__init__(boost=boost, **kwargs)
@@ -164,9 +182,8 @@ class NamedParam(collections.Sequence):
     def __getitem__(self, index):
         return self.expressions[index]
 
-    @property
-    def _doc_types(self):
-        return set(chain(e._doc_types for e in self.expressions))
+    def _collect_doc_classes(self):
+        return set(chain(e._collect_doc_classes() for e in self.expressions))
 
 
 class Must(NamedParam):
@@ -218,7 +235,7 @@ class Boosting(QueryExpression):
         )
 
 
-class Common(FieldQuery):
+class Common(FieldQueryExpression):
     __query_name__ = 'common'
 
     def __init__(
@@ -258,19 +275,18 @@ class Filtered(QueryExpression):
         super(Filtered, self).__init__(filter=filter, query=query, strategy=strategy, **kwargs)
 
 
-class Range(QueryExpression):
+class Range(FieldExpression):
     __visit_name__ = 'range'
 
     def __init__(self, field, gte=None, gt=None, lte=None, lt=None, boost=None, **kwargs):
-        super(Range, self).__init__(gte=gte, gt=gt, lte=lte, lt=lt, boost=boost, **kwargs)
-        self.field = field
+        super(Range, self).__init__(field, gte=gte, gt=gt, lte=lte, lt=lt, boost=boost, **kwargs)
 
     @property
     def _doc_types(self):
         return self.field._doc_types
 
 
-class Prefix(FieldQuery):
+class Prefix(FieldQueryExpression):
     __query_name__ = 'prefix'
     __query_key__ = 'value'
 
@@ -390,8 +406,13 @@ class _Fields(object):
         if self._parent:
             if isinstance(self._parent, Document):
                 return getattr(self._parent, name)
-            if self._parent._doc_cls and hasattr(self._parent._doc_cls, name):
-                return getattr(self._parent._doc_cls, name)
+            if isinstance(self._parent, Field):
+                if self._parent._type.doc_cls:
+                    base_field = getattr(self._parent._type.doc_cls, name)
+                    full_name = '{}.{}'.format(self._parent._name, base_field._name)
+                    return Field(full_name, base_field._type,
+                                 _doc_cls=self._parent._doc_cls,
+                                 _attr_name=full_name)
             return Field('{}.{}'.format(self._parent._name, name))
         return Field(name)
         
@@ -406,77 +427,10 @@ class _Fields(object):
 Fields = _Fields
 
 
-class Field(Expression):
-    __visit_name__ = 'field'
-
-    def __init__(self, *args):
-        self._name = None
-        self._type = None
-        self._doc_cls = None
-        self._attr_name = None
-
-        if len(args) == 1:
-            if isinstance(args[0], string_types):
-                self._name = args[0]
-            elif (
-                    isinstance(args[0], Type) or (
-                        inspect.isclass(args[0]) and issubclass(args[0], Type)
-                    )
-            ):
-                self._type = args[0]
-            else:
-                raise TypeError('Argument must be string or field type: %s found' % args[0].__class__.__name__)
-        elif len(args) == 2:
-            self._name, self._type = args
-        else:
-            raise TypeError('Takes 1 or 2 positional arguments: %s given' % len(args))
-
-        if self._type is None:
-            self._type = Type()
-        self._type = instantiate(self._type)
-
-    def _bind(self, doc_cls, name):
-        self._doc_cls = doc_cls
-        self._attr_name = name
-        if not self._name:
-            self._name = name
-
-    @property
-    def fields(self):
-        return _Fields(self)
-
-    f = fields
-
-    def __getattr__(self, name):
-        return getattr(self.fields, name)
-
-    def __get__(self, obj, type=None):
-        if obj is None:
-            return self
-
-        dict_ = obj.__dict__
-        if self._attr_name in obj.__dict__:
-            return dict_[self._attr_name]
-        dict_[self._attr_name] = None
-        return None
+class FieldOperators(object):
+    def _get_field(self):
+        raise NotImplementedError()
         
-    # def __set__(self, obj, value):
-    #     if self.type is not None:
-    #         value = self.type.to_python(value)
-    #     obj.__dict__[self._name] = value
-
-    @property
-    def _doc_types(self):
-        if self._doc_cls:
-            return [self._doc_cls]
-        return []
-
-    def _to_python(self, value):
-        return self._type.to_python(value)
-
-    def _to_dict(self, value):
-        return self._type.to_dict(value)
-
     def __eq__(self, other):
         if other is None:
             return self.missing()
@@ -541,9 +495,80 @@ class Field(Expression):
         return BoostExpression(self, weight)
 
 
-class DynamicField(Field):
-    def __init__(self, name, type):
-        super(DynamicField, self).__init__(name, type)
+class Field(Expression, FieldOperators):
+    __visit_name__ = 'field'
+
+    def __init__(self, *args, **kwargs):
+        self._name = None
+        self._type = None
+        self._doc_cls = kwargs.pop('_doc_cls', None)
+        self._attr_name = kwargs.pop('_attr_name', None)
+
+        if len(args) == 1:
+            if isinstance(args[0], string_types):
+                self._name = args[0]
+            elif (
+                    isinstance(args[0], Type) or (
+                        inspect.isclass(args[0]) and issubclass(args[0], Type)
+                    )
+            ):
+                self._type = args[0]
+            else:
+                raise TypeError('Argument must be string or field type: %s found' % args[0].__class__.__name__)
+        elif len(args) == 2:
+            self._name, self._type = args
+        else:
+            raise TypeError('Takes 1 or 2 positional arguments: %s given' % len(args))
+
+        if self._type is None:
+            self._type = Type()
+        self._type = instantiate(self._type)
+
+    def _bind(self, doc_cls, name):
+        self._doc_cls = doc_cls
+        self._attr_name = name
+        if not self._name:
+            self._name = name
+
+    def _get_field(self):
+        return self
+
+    @property
+    def fields(self):
+        return _Fields(self)
+
+    f = fields
+
+    def __getattr__(self, name):
+        return getattr(self.fields, name)
+
+    def __get__(self, obj, type=None):
+        if obj is None:
+            return self
+
+        dict_ = obj.__dict__
+        if self._attr_name in obj.__dict__:
+            return dict_[self._attr_name]
+        dict_[self._attr_name] = None
+        return None
+        
+    # def __set__(self, obj, value):
+    #     if self.type is not None:
+    #         value = self.type.to_python(value)
+    #     obj.__dict__[self._name] = value
+
+    def _collect_doc_classes(self):
+        if self._type.doc_cls:
+            return [self._type.doc_cls]
+        if self._doc_cls:
+            return [self._doc_cls]
+        return []
+
+    def _to_python(self, value):
+        return self._type.to_python(value)
+
+    def _to_dict(self, value):
+        return self._type.to_dict(value)
 
 
 class BoostExpression(Expression):
@@ -556,19 +581,6 @@ class BoostExpression(Expression):
     @property
     def _doc_types(self):
         return self.expr._doc_types
-
-
-class FieldExpression(Expression):
-    __visit_name__ = 'field_expression'
-
-    def __init__(self, field, other, operator):
-        self.field = field
-        self.other = other
-        self.operator = operator
-
-    @property
-    def _doc_types(self):
-        return self.field._doc_types
 
 
 class Compiled(object):
@@ -602,51 +614,40 @@ class Compiled(object):
                 res[key] = self.visit(v)
         return res
 
+    def visit_literal(self, expr):
+        return expr.obj
+
     def visit_field(self, field):
         return field._name
 
-    def visit_boost_expression(self, boost):
-        return '{}^{}'.format(self.visit(boost.expr), self.visit(boost.weight))
-
-    def visit_field_expression(self, expr, key=None, params=None):
-        if expr.operator == operator.eq:
-            if key:
-                options = {
-                    key: expr.other
-                }
-                if params:
-                    options.update(params)
-                return {
-                    self.visit(expr.field): options
-                }
-            else:
-                return {self.visit(expr.field): expr.other}
+    def visit_boost_expression(self, expr):
+        return '{}^{}'.format(self.visit(expr.expr), self.visit(expr.weight))
 
     def visit_query_expression(self, expr):
         return {
             expr.__query_name__: self.visit(expr.params)
         }
 
-    def visit_field_query(self, fq):
-        if fq.params:
-            params = {fq.__query_key__: self.visit(fq.query)}
-            params.update(fq.params)
+    def visit_field_query(self, expr):
+        if expr.params:
+            params = {expr.__query_key__: self.visit(expr.query)}
+            params.update(expr.params)
             return {
-                fq.__query_name__: {
-                    self.visit(fq.field): params
+                expr.__query_name__: {
+                    self.visit(expr.field): params
                 }
             }
         else:
             return {
-                fq.__query_name__: {
-                    self.visit(fq.field): self.visit(fq.query)
+                expr.__query_name__: {
+                    self.visit(expr.field): self.visit(expr.query)
                 }
             }
 
-    def visit_range(self, range):
+    def visit_range(self, expr):
         return {
             'range': {
-                self.visit(range.field): self.visit(range.params)
+                self.visit(expr.field): self.visit(expr.params)
             }
         }
 
@@ -666,6 +667,9 @@ class Compiled(object):
         return {
             'multi_match': params
         }
+
+    def visit_match_all(self, expr):
+        return {'match_all': self.visit(expr.params)}
 
     def visit_query(self, expr):
         params = {
@@ -747,3 +751,9 @@ class Compiled(object):
         if query._offset is not None:
             params['from'] = query._offset
         return params
+
+
+def _wrap_literal(obj):
+    if not isinstance(obj, Expression):
+        return Literal(obj)
+    return obj

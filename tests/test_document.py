@@ -5,12 +5,13 @@ import dateutil
 from elasticmagic.types import Type, String, Integer, Date, Object, List
 from elasticmagic.compat import string_types
 from elasticmagic.document import Document
-from elasticmagic.expression import Field, DynamicField
+from elasticmagic.expression import Field
 
 from .base import BaseTestCase
 
 
 class GroupDocument(Document):
+    id = Field(Integer)
     name = Field(String)
 
 class TagDocument(Document):
@@ -26,12 +27,32 @@ class TestDocument(Document):
     unused = Field(String)
 
     __dynamic_fields__ = [
-        DynamicField('attr_*', Integer),
+        Field('attr_*', Integer),
     ]
 
 
 class DocumentTestCase(BaseTestCase):
     def test_document(self):
+        class GroupDocument(Document):
+            id = Field(Integer)
+            name = Field(String)
+
+        class TagDocument(Document):
+            id = Field(Integer)
+            name = Field(String)
+
+        class TestDocument(Document):
+            name = Field('test_name', String())
+            status = Field(Integer)
+            group = Field(Object(GroupDocument))
+            tags = Field(List(Object(TagDocument)))
+            date_created = Field(Date)
+            unused = Field(String)
+
+            __dynamic_fields__ = [
+                Field('attr_*', Integer),
+            ]
+
         self.assertIsInstance(TestDocument._id, Field)
         self.assertIsInstance(TestDocument._id._type, String)
         self.assertIsInstance(TestDocument.name, Field)
@@ -40,12 +61,14 @@ class DocumentTestCase(BaseTestCase):
         self.assertIsInstance(TestDocument.status._type, Integer)
         self.assertIsInstance(TestDocument.group, Field)
         self.assertIsInstance(TestDocument.group._type, Object)
-        self.assertIsInstance(TestDocument.group.f.name, Field)
-        self.assertIsInstance(TestDocument.group.f.name._type, String)
-        self.assertIsInstance(TestDocument.group.f.missing, Field)
-        self.assertIsInstance(TestDocument.group.f.missing._type, Type)
+        self.assertIsInstance(TestDocument.group.name, Field)
+        self.assertEqual(TestDocument.group.name._name, 'group.name')
+        self.assertIsInstance(TestDocument.group.name._type, String)
+        self.assertEqual(TestDocument.group.name._collect_doc_classes(), [TestDocument])
+        self.assertRaises(AttributeError, lambda: TestDocument.group.f.missing)
         self.assertIsInstance(TestDocument.attr_2, Field)
         self.assertIsInstance(TestDocument.attr_2._type, Integer)
+        self.assertRaises(AttributeError, lambda: TestDocument.fake_attr_1)
 
         doc = TestDocument()
         self.assertIs(doc._id, None)

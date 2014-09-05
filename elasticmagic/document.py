@@ -34,7 +34,7 @@ class DocumentMeta(type):
         if field:
             # setattr(cls, name, field)
             return field
-        raise AttributeError("No such field: '%s'" % name)
+        raise AttributeError("'%s' document has no field '%s'" % (cls.__name__, name))
 
     def _from_dynamic_field(cls, name):
         for dyn_field in cls.__dynamic_fields__:

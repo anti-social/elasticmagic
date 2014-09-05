@@ -110,7 +110,7 @@ class SearchQuery(object):
         if self.doc_cls:
             doc_classes = [self.doc_cls]
         else:
-            doc_classes = self._collect_documents()
+            doc_classes = self._collect_doc_classes()
         if len(doc_classes) != 1:
             raise ValueError('Cannot determine document type')
 
@@ -123,15 +123,15 @@ class SearchQuery(object):
                       doc_cls=doc_cls,
                       instance_mapper=self._instance_mapper)
 
-    def _collect_documents(self):
+    def _collect_doc_classes(self):
         doc_types = set()
         for expr in chain([self._q],
                           self._fields,
                           [f for f, m in self._filters],
                           self._order_by,
                           self._aggregations.values()):
-            if expr:# and hasattr(expr, '_doc_types'):
-                doc_types.update(expr._doc_types)
+            if expr and hasattr(expr, '_collect_doc_classes'):
+                doc_types.update(expr._collect_doc_classes())
         return doc_types
 
     def __iter__(self):

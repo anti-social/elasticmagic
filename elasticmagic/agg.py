@@ -1,8 +1,8 @@
-from .expression import Expression, Params
+from .expression import QueryExpression, Params
 from .util import _with_clone, cached_property
 
 
-class AggExpression(Expression):
+class AggExpression(QueryExpression):
     __visit_name__ = 'agg'
 
     def __init__(self, **kwargs):
