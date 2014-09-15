@@ -309,10 +309,15 @@ class Global(SingleBucketAgg):
 
 
 class Filter(SingleBucketAgg):
+    __visit_name__ = 'filter_agg'
     __agg_name__ = 'filter'
 
     def __init__(self, filter, **kwargs):
-        super(Filter, self).__init__(filter=filter, **kwargs)
+        super(Filter, self).__init__(**kwargs)
+        self.filter = filter
+
+    def clone(self):
+        return self.__class__(self.filter, aggs=self._aggs, **self.params)
 
 
 class Missing(SingleBucketAgg):

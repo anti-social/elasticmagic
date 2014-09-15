@@ -732,7 +732,12 @@ class Compiled(object):
         if agg._aggs:
             params['aggregations'] = self.visit(agg._aggs)
         return params
-        
+
+    def visit_filter_agg(self, agg):
+        params = self.visit_bucket_agg(agg)
+        params[agg.__agg_name__] = self.visit(agg.filter)
+        return params
+
     def visit_search_query(self, query):
         params = {}
         q = query._q

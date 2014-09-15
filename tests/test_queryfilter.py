@@ -27,7 +27,7 @@ def type_mapper(values):
 
 
 class QueryFilterTest(BaseTestCase):
-    def test_facet(self):
+    def test_facet_filter(self):
         f = Fields()
 
         qf = QueryFilter()
@@ -125,18 +125,14 @@ class QueryFilterTest(BaseTestCase):
                         "aggregations": {
                             "qf": {
                                 "filter": {
-                                    "filter": {
-                                        "query": {
-                                            "term": {"name": "test"}
-                                        }
+                                    "query": {
+                                        "term": {"name": "test"}
                                     }
                                 },
                                 "aggregations": {
                                     "type": {
                                         "filter": {
-                                            "filter": {
-                                                "term": {"vendor": "Subaru"}
-                                            }
+                                            "term": {"vendor": "Subaru"}
                                         },
                                         "aggregations": {
                                             "type": {
@@ -146,9 +142,7 @@ class QueryFilterTest(BaseTestCase):
                                     },
                                     "vendor": {
                                         "filter": {
-                                            "filter": {
-                                                "terms": {"type": [0, 1]}
-                                            }
+                                            "terms": {"type": [0, 1]}
                                         },
                                         "aggregations": {
                                             "vendor": {
@@ -158,12 +152,10 @@ class QueryFilterTest(BaseTestCase):
                                     },
                                     "model": {
                                         "filter": {
-                                            "filter": {
-                                                "and": [
-                                                    {"terms": {"type": [0, 1]}},
-                                                    {"term": {"vendor": "Subaru"}}
-                                                ]
-                                            }
+                                            "and": [
+                                                {"terms": {"type": [0, 1]}},
+                                                {"term": {"vendor": "Subaru"}}
+                                            ]
                                         },
                                         "aggregations": {
                                             "model": {
@@ -258,9 +250,7 @@ class QueryFilterTest(BaseTestCase):
                             "price_max": {"max": {"field": "price"}},
                             "disp": {
                                 "filter": {
-                                    "filter": {
-                                        "range": {"price": {"lte": 10000}}
-                                    }
+                                    "range": {"price": {"lte": 10000}}
                                 },
                                 "aggregations": {
                                     "disp_min": {"min": {"field": "engine_displacement"}},

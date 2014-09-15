@@ -1,21 +1,34 @@
-import unittest
 from mock import Mock, patch
 
-from elasticmagic import agg, Term
+from elasticmagic import agg, Params, Term
 from elasticmagic.expression import Fields
 
+from .base import BaseTestCase
 
-class AggregationTest(unittest.TestCase):
+
+class AggregationTest(BaseTestCase):
     def test_aggs(self):
         f = Fields()
 
         a = agg.Avg(f.price)
+        self.assert_expression(
+            a,
+            {
+                "avg": {"field": "price"}
+            }
+        )
         a.process_results({
             'value': 75.3
         })
         self.assertAlmostEqual(a.value, 75.3)
 
         a = agg.Stats(f.grade)
+        self.assert_expression(
+            a,
+            {
+                "stats": {"field": "grade"}
+            }
+        )
         a.process_results(
             {
                 "count": 6,
@@ -32,6 +45,12 @@ class AggregationTest(unittest.TestCase):
         self.assertEqual(a.sum, 471)
 
         a = agg.ExtendedStats(f.grade)
+        self.assert_expression(
+            a,
+            {
+                "extended_stats": {"field": "grade"}
+            }
+        )
         a.process_results(
             {
                 "count": 6,
@@ -54,6 +73,15 @@ class AggregationTest(unittest.TestCase):
         self.assertAlmostEqual(a.std_deviation, 14.774302013969987)
 
         a = agg.Percentiles(f.load_time, percents=[95, 99, 99.9])
+        self.assert_expression(
+            a,
+            {
+                "percentiles": {
+                    "field": "load_time",
+                    "percents": [95, 99, 99.9]
+                }
+            }
+        )
         a.process_results(
             {
                 "values": {
@@ -69,6 +97,15 @@ class AggregationTest(unittest.TestCase):
         )
 
         a = agg.PercentileRanks(f.load_time, values=[15, 30])
+        self.assert_expression(
+            a,
+            {
+                "percentile_ranks": {
+                    "field": "load_time",
+                    "values": [15, 30]
+                }
+            }
+        )
         a.process_results(
             {
                 "values": {
@@ -82,7 +119,19 @@ class AggregationTest(unittest.TestCase):
             {'15': 92, '30': 100},
         )
 
+        a = agg.Global()
+        self.assert_expression(a, {"global": {}})
+
+        a = agg.Filter(f.company == 1)
+        self.assert_expression(a, {"filter": {"term": {"company": 1}}})
+
         a = agg.Terms(f.status)
+        self.assert_expression(
+            a,
+            {
+                "terms": {"field": "status"}
+            }
+        )
         a.process_results(
             {
                 'buckets': [
@@ -110,6 +159,12 @@ class AggregationTest(unittest.TestCase):
         self.assertEqual(a.buckets[5].doc_count, 46)
 
         a = agg.SignificantTerms(f.crime_type)
+        self.assert_expression(
+            a,
+            {
+                "significant_terms": {"field": "crime_type"}
+            }
+        )
         a.process_results(
             {
                 "doc_count": 47347,
@@ -140,6 +195,17 @@ class AggregationTest(unittest.TestCase):
         self.assertEqual(a.buckets[1].bg_count, 53182)
 
         a = agg.Filters([Term(f.body, 'error'), Term(f.body, 'warning')])
+        self.assert_expression(
+            a,
+            {
+                "filters": {
+                    "filters": [
+                        {"term": {"body": "error"}},
+                        {"term": {"body": "warning"}}
+                    ]
+                }
+            }
+        )
         a.process_results(
             {
                 "buckets": [
@@ -158,7 +224,18 @@ class AggregationTest(unittest.TestCase):
         self.assertIs(a.buckets[1].key, None)
         self.assertEqual(a.buckets[1].doc_count, 439)
 
-        a = agg.Filters({'errors': Term(f.body, 'error'), 'warnings': Term(f.body, 'warning')})
+        a = agg.Filters(Params(errors=Term(f.body, 'error'), warnings=Term(f.body, 'warning')))
+        self.assert_expression(
+            a,
+            {
+                "filters": {
+                    "filters": {
+                        "errors": {"term": {"body": "error"}},
+                        "warnings": {"term": {"body": "warning"}}
+                    }
+                }
+            }
+        )
         a.process_results(
             {
                 "buckets": {
@@ -178,6 +255,15 @@ class AggregationTest(unittest.TestCase):
         self.assertEqual(a.buckets[1].doc_count, 439)
 
         a = agg.Nested(f.resellers, aggs={'min_price': agg.Min(f.resellers.price)})
+        self.assert_expression(
+            a,
+            {
+                "nested": {"path": "resellers"},
+                "aggregations": {
+                    "min_price": {"min": {"field": "resellers.price"}}
+                }
+            }
+        )
         a.process_results(
             {
                 "min_price": {
@@ -200,6 +286,24 @@ class AggregationTest(unittest.TestCase):
                     }
                 ),
                 'price_avg': agg.Avg(f.price),
+            }
+        )
+        self.assert_expression(
+            a,
+            {
+                "global": {},
+                "aggregations": {
+                    "selling_type": {
+                        "terms": {"field": "selling_type"},
+                        "aggregations": {
+                            "price_avg": {"avg": {"field": "price"}},
+                            "price_min": {"min": {"field": "price"}},
+                            "price_max": {"max": {"field": "price"}},
+                            "price_hist": {"histogram": {"field": "price", "interval": 50}},
+                        }
+                    },
+                    "price_avg": {"avg": {"field": "price"}}
+                }
             }
         )
         a.process_results(
@@ -275,6 +379,7 @@ class AggregationTest(unittest.TestCase):
         self.assertEqual(a.get_aggregation('price_avg').value, 56.3)
 
         return
+
         a = agg.Global(
             aggs={
                 'selling_type': agg.Terms(
