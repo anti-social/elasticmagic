@@ -54,9 +54,10 @@ class Document(with_metaclass(DocumentMeta)):
             self._type = _hit.get('_type')
             self._id = _hit.get('_id')
             self._score = _hit.get('_score')
-            source = _hit['_source']
-            for field in self._fields:
-                setattr(self, field._attr_name, field._to_python(source.get(field._name)))
+            source = _hit.get('_source')
+            if source:
+                for field in self._fields:
+                    setattr(self, field._attr_name, field._to_python(source.get(field._name)))
 
         for fkey, fvalue in kwargs.items():
             setattr(self, fkey, fvalue)

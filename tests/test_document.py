@@ -33,26 +33,6 @@ class TestDocument(Document):
 
 class DocumentTestCase(BaseTestCase):
     def test_document(self):
-        class GroupDocument(Document):
-            id = Field(Integer)
-            name = Field(String)
-
-        class TagDocument(Document):
-            id = Field(Integer)
-            name = Field(String)
-
-        class TestDocument(Document):
-            name = Field('test_name', String())
-            status = Field(Integer)
-            group = Field(Object(GroupDocument))
-            tags = Field(List(Object(TagDocument)))
-            date_created = Field(Date)
-            unused = Field(String)
-
-            __dynamic_fields__ = [
-                Field('attr_*', Integer),
-            ]
-
         self.assertIsInstance(TestDocument._id, Field)
         self.assertIsInstance(TestDocument._id._type, String)
         self.assertIsInstance(TestDocument.name, Field)
@@ -128,6 +108,14 @@ class DocumentTestCase(BaseTestCase):
         self.assertEqual(hit_doc.date_created,
                          datetime.datetime(2014, 8, 14, 14, 5, 28, 789000, dateutil.tz.tzutc()))
         self.assertIs(hit_doc.unused, None)
+
+        hit_doc = TestDocument(
+            _hit={
+                '_id':'123'
+            }
+        )
+        self.assertEqual(hit_doc._id, '123')
+        self.assertIs(hit_doc.name, None)
 
         doc = TestDocument(_id=123, name='Test name', status=0,
                            group=GroupDocument(name='Test group'),
