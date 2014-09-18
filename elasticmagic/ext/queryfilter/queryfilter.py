@@ -158,7 +158,18 @@ class FacetFilter(BaseFilter):
             terms_agg = terms_agg.get_aggregation(self.name)
         for bucket in terms_agg.buckets:
             selected = bucket.key in values
-            self.values.append(FacetValue(bucket, selected))
+            self.add_value(FacetValue(bucket, selected))
+
+    def add_value(self, fv):
+        self.all_values.append(fv)
+        self.values_map[fv.value] = fv
+        if fv.selected:
+            self.selected_values.append(fv)
+        else:
+            self.values.append(fv)
+
+    def get_value(self, value):
+        return self.values_map.get(value)
 
 
 class FacetValue(object):
