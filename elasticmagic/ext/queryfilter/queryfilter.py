@@ -82,11 +82,12 @@ class BaseFilter(object):
 
 
 class FacetFilter(BaseFilter):
-    def __init__(self, name, field, type=None, instance_mapper=None):
+    def __init__(self, name, field, type=None, instance_mapper=None, **kwargs):
         self.name = name
         self.field = field
         self.type = instantiate(type or self.field._type)
         self.instance_mapper = instance_mapper
+        self.agg_kwargs = kwargs
 
         self.values = []
         self.selected_values = []
@@ -116,7 +117,7 @@ class FacetFilter(BaseFilter):
             if self.name not in tags:
                 filters.append(filt)
 
-        terms_agg = agg.Terms(self.field, instance_mapper=self.instance_mapper)
+        terms_agg = agg.Terms(self.field, instance_mapper=self.instance_mapper, **self.agg_kwargs)
         if filters:
             main_agg = main_agg.aggs(
                 **{self.name: agg.Filter(And(*filters), aggs={self.name: terms_agg})}

@@ -1,6 +1,6 @@
 from mock import MagicMock
 
-from elasticmagic import SearchQuery, Term, Index
+from elasticmagic import agg, SearchQuery, Term, Index
 from elasticmagic.types import Integer, Float
 from elasticmagic.expression import Fields
 from elasticmagic.ext.queryfilter import QueryFilter, FacetFilter, RangeFilter
@@ -32,7 +32,7 @@ class QueryFilterTest(BaseTestCase):
 
         qf = QueryFilter()
         qf.add_filter(FacetFilter('type', f.type, instance_mapper=type_mapper, type=Integer))
-        qf.add_filter(FacetFilter('vendor', f.vendor))
+        qf.add_filter(FacetFilter('vendor', f.vendor, aggs={'min_price': agg.Min(f.price)}))
         qf.add_filter(FacetFilter('model', f.model))
 
         es_client = MagicMock()
@@ -73,7 +73,9 @@ class QueryFilterTest(BaseTestCase):
                                     "buckets": [
                                         {
                                             "key": "Subaru",
-                                            "doc_count": 2153
+                                            "doc_count": 2153,
+                                            "min_price": {"value": 4000}
+                                                ,
                                         },
                                     ]
                                 }
@@ -144,7 +146,12 @@ class QueryFilterTest(BaseTestCase):
                                         },
                                         "aggregations": {
                                             "vendor": {
-                                                "terms": {"field": "vendor"}
+                                                "terms": {"field": "vendor"},
+                                                "aggregations": {
+                                                    "min_price": {
+                                                        "min": {"field": "price"}
+                                                    }
+                                                }
                                             }
                                         }
                                     },
@@ -190,6 +197,7 @@ class QueryFilterTest(BaseTestCase):
         self.assertEqual(vendor_filter.values[0].value, 'Subaru')
         self.assertEqual(vendor_filter.values[0].count, 2153)
         self.assertEqual(vendor_filter.values[0].selected, True)
+        self.assertEqual(vendor_filter.values[0].bucket.get_aggregation('min_price').value, 4000)
         model_filter = qf.get_filter('model')
         self.assertEqual(len(model_filter.values), 2)
         self.assertEqual(model_filter.values[0].value, 'Imprezza')
