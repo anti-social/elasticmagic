@@ -60,9 +60,12 @@ class BaseCodec(object):
 
 
 class SimpleCodec(BaseCodec):
-    DEFAULT_OPERATOR = 'exact'
-    DEFAULT_OP_SEP = '__'
-    DEFAULT_VAL_SEP = ':'
+    VALUES_SEP = ';'
+    RANGE_SEP = ':'
+
+    NULL_VAL = 'null'
+    TRUE_VAL = 'true'
+    FALSE_VAL = 'false'
 
     PROCESSOR_FACTORIES = {
         Float: lambda type: partial(to_float, type=type),
@@ -92,7 +95,7 @@ class SimpleCodec(BaseCodec):
 
     def decode_value(self, value, typelist=None):
         typelist = [instantiate(t) for t in wrap_list(typelist or [])]
-        raw_values = force_unicode(value).split(self.DEFAULT_VAL_SEP)
+        raw_values = force_unicode(value).split(self.VALUES_SEP)
         decoded_values = []
         for v, type in zip_longest(raw_values, typelist):
             if type is None:
@@ -106,48 +109,42 @@ class SimpleCodec(BaseCodec):
             if v is None:
                 continue
             try:
-                # null is special value
-                if v == 'null':
+                if v == self.NULL_VAL:
                     decoded_values.append(None)
                 else:
-                    decoded_values.append(to_python(v))
+                    vals = v.split(self.RANGE_SEP)
+                    if len(vals) > 1:
+                        decoded_values.append(tuple((to_python(w) if w else None) for w in vals))
+                    else:
+                        decoded_values.append(to_python(v))
             except ValueError:
                 pass
         return decoded_values
         
     
     def decode(self, params, types=None):
-        """Returns {name: [(operator1, [value1]), (operator2, [value21, value22])], ...}"""
         params = self._normalize_params(params)
         types = types or {}
         data = defaultdict(list)
-        # sort is needed to pass tests
-        for p, v in sorted(starmap(lambda p, v: (force_unicode(p), v), params.items())):
-            ops = p.split(self.DEFAULT_OP_SEP)
-            name = ops[0]
-            if len(ops) == 1:
-                op = self.DEFAULT_OPERATOR
-            else:
-                op = self.DEFAULT_OP_SEP.join(ops[1:])
-
+        for name, v in params.items():
             for w in wrap_list(v):
                 decoded_values = self.decode_value(w, types.get(name))
                 if decoded_values:
-                    data[name].append((op, decoded_values))
+                    data[name].append(decoded_values)
 
         return dict(data)
 
     def _encode_value(self, value):
         if value is None:
-            return 'null'
+            return self.NULL_VAL
         if value is True:
-            return 'true'
+            return self.TRUE_VAL
         if value is False:
-            return 'false'
+            return self.FALSE_VAL
         return force_unicode(value)
         
     def encode_value(self, value, typelist=None):
-        return self.DEFAULT_VAL_SEP.join(self._encode_value(v) for v in wrap_list(value))
+        return self.VALUES_SEP.join(self._encode_value(v) for v in wrap_list(value))
 
     def encode(self, values, types=None):
         params = defaultdict(list)

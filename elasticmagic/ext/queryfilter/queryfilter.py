@@ -1,6 +1,4 @@
-import operator
-from itertools import chain, groupby
-from collections import defaultdict
+from itertools import chain
 
 from elasticmagic import Term, Terms, Query, And, Or, agg
 from elasticmagic.types import String, instantiate
@@ -14,21 +12,11 @@ def exact_op(f, values):
     return f.in_(values)
 
 
-OPERATORS = {
-    'exact': exact_op,
-    'gte': operator.ge,
-    'gt': operator.gt,
-    'lte': operator.le,
-    'lt': operator.lt,
-    # 'isnull': isnull_op,
-}
-
-
 class QueryFilter(object):
-    DEFAULT_NAME = 'qf'
+    NAME = 'qf'
 
     def __init__(self, name=None, codec=None):
-        self.name = name or self.DEFAULT_NAME
+        self.name = name or self.NAME
         self.codec = codec or SimpleCodec()
         self.filters = []
         self._params = {}
@@ -113,20 +101,13 @@ class FacetFilter(BaseFilter):
         if not params:
             return search_query
 
-        ops = defaultdict(list)
-        for op, v in params:
-            ops[op].append(v[0])
-
-        filts = []
-        for op, values in ops.items():
-            op_func = OPERATORS.get(op)
-            filts.append(op_func(self.field, values))
-
-        if len(filts) == 1:
-            filt = filts[0]
+        values = list(chain(*params))
+        if len(values) == 1:
+            expr = self.field == values[0]
         else:
-            filt = Or(*filts)
-        return search_query.filter(filt, tags=[self.name])
+            expr = self.field.in_(values)
+
+        return search_query.filter(expr, tags=[self.name])
 
     def _apply_agg(self, main_agg, search_query):
         filters = []
@@ -146,7 +127,7 @@ class FacetFilter(BaseFilter):
         return main_agg
         
     def _process_agg(self, main_agg, params):
-        values = set(chain(*(v for op, v in params if op == 'exact')))
+        values = list(chain(*params))
         terms_agg = main_agg.get_aggregation(self.name)
         if terms_agg.get_aggregation(self.name):
             terms_agg = terms_agg.get_aggregation(self.name)
@@ -159,14 +140,8 @@ class FacetValue(object):
     def __init__(self, bucket, selected):
         self.bucket = bucket
         self.selected = selected
-
-    @property
-    def value(self):
-        return self.bucket.key
-
-    @property
-    def count(self):
-        return self.bucket.doc_count
+        self.value = self.bucket.key
+        self.count = self.bucket.doc_count
 
     @property
     def instance(self):
@@ -193,16 +168,13 @@ class RangeFilter(BaseFilter):
         if not params:
             return search_query
 
-        ops = defaultdict(list)
-        for op, v in params:
-            ops[op].append(v[0])
+        values = params[0][0]
+        if isinstance(values, tuple):
+            from_, to = values
+        else:
+            from_, to = values, values
 
-        filts = []
-        for op, values in ops.items():
-            op_func = OPERATORS.get(op)
-            filts.append(op_func(self.field, values))
-
-        return search_query.filter(*filts, tags=[self.name])
+        return search_query.filter(self.field.range(gte=from_, lte=to), tags=[self.name])
 
     def _apply_agg(self, main_agg, search_query):
         filters = []

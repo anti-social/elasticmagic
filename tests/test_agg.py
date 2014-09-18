@@ -378,32 +378,6 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(price_hist_agg.buckets[3].doc_count, 2)
         self.assertEqual(a.get_aggregation('price_avg').value, 56.3)
 
-        return
-
-        a = agg.Global(
-            aggs={
-                'selling_type': agg.Terms(
-                    f.selling_type,
-                    aggs={
-                        'price_avg': agg.Avg(f.price),
-                        'price_min': agg.Min(f.price),
-                        'price_max': agg.Max(f.price),
-                    }
-                )
-            }
-        )
-        a = agg.Global(
-            selling_type=agg.Terms(
-                f.selling_type,
-                price_avg=agg.Avg(f.price),
-                price_min=agg.Min(f.price),
-                price_max=agg.Max(f.price),
-            )
-        )
-        # a = agg.Global(
-        #     agg.Terms('selling_type', f.selling_type, aggs=)
-        # )
-
     def test_instance_mapper(self):
         class _Gender(object):
             def __init__(self, key, title):
@@ -576,4 +550,3 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(gender_agg.buckets[1].doc_count, 225)
         self.assertEqual(gender_agg.buckets[1].instance.title, 'Male')
         self.assertEqual(gender_mapper.call_count, 2)
-        

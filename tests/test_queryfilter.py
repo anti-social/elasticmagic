@@ -95,9 +95,7 @@ class QueryFilterTest(BaseTestCase):
                             }
                         }
                     }
-                },
-                "timed_out": False,
-                "took": 154
+                }
             }
         )
         es_index = Index(es_client, 'ads')
@@ -231,7 +229,7 @@ class QueryFilterTest(BaseTestCase):
         qf.add_filter(RangeFilter('disp', es_index.car.engine_displacement, type=Float))
 
         sq = es_index.search()
-        sq = qf.apply(sq, {'price__lte': ['10000']})
+        sq = qf.apply(sq, {'price': [':10000']})
         self.assert_expression(
             sq,
             {
@@ -270,3 +268,48 @@ class QueryFilterTest(BaseTestCase):
         disp_filter = qf.get_filter('disp')
         self.assertAlmostEqual(disp_filter.min, 1.6)
         self.assertAlmostEqual(disp_filter.max, 3.0)
+        
+    # def test_nested(self):
+    #     f = Fields()
+
+    #     qf = QueryFilter()
+    #     qf.add_filter(
+    #         FacetFilter('cat', f.category, type=Integer,
+    #                     filters=[FacetFilter('manu', f.manufacturer),
+    #                              FacetFilter('manu_country', f.manufacturer_country)])
+    #     )
+
+    #     sq = SearchQuery()
+    #     sq = qf.apply(sq, {'cat__manu': ['1:thl', '2:china', '3']})
+    #     self.assert_expression(
+    #         sq,
+    #         {
+    #             "query": {
+    #                 "filtered": {
+    #                     "filter": {
+    #                         "or": [
+    #                             {
+    #                                 "and": [
+    #                                     {
+    #                                         "term": {"category": 1},
+    #                                         "term": {"manufacturer": "thl"}
+    #                                     }
+    #                                 ]
+    #                             },
+    #                             {
+    #                                 "and": [
+    #                                     {
+    #                                         "term": {"category": 2},
+    #                                         "term": {"manufacturer_country": "china"},
+    #                                     }
+    #                                 ]
+    #                             },
+    #                             {
+    #                                 "term": {"category": 3}
+    #                             }
+    #                         ]
+    #                     }
+    #                 }
+    #             }
+    #         }
+    #     )

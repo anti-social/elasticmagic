@@ -10,26 +10,31 @@ class SimpleCodecTest(unittest.TestCase):
         self.assertEqual(
             codec.decode({'country': ['ru', 'ua', 'null']}),
             {
-                'country': [('exact', ['ru']), ('exact', ['ua']), ('exact', [None])],
-                # 'country': [('exact', ['ru']), ('exact', ['ua']), ('isnull', [True])],
+                'country': [['ru'], ['ua'], [None]],
             }
         )
         self.assertEqual(
-            codec.decode({'manu': ['1:nokia:true', '2:samsung:false']}, {'manu': [Integer, None, Boolean]}),
+            codec.decode({'manu': ['1;nokia;true', '2;samsung;false']}, {'manu': [Integer, None, Boolean]}),
             {
-                'manu': [('exact', [1, 'nokia', True]), ('exact', [2, 'samsung', False])],
+                'manu': [[1, 'nokia', True], [2, 'samsung', False]],
             }
         )
         self.assertEqual(
             codec.decode({'is_active': ['true']}, {'is_active': Boolean}),
             {
-                'is_active': [('exact', [True])],
+                'is_active': [[True]],
             }
         )
         self.assertEqual(
-            codec.decode((('price__gte', ['100.1', 'Inf']), ('price__lte', ['200', 'NaN'])), {'price': Float}),
+            codec.decode([('price', ['100.1:200'])], {'price': Float}),
             {
-                'price': [('gte', [100.1]), ('lte', [200])],
+                'price': [[(100.1, 200)]],
+            }
+        )
+        self.assertEqual(
+            codec.decode([('price', ['100.1:', 'Inf:', ':200', ':NaN'])], {'price': Float}),
+            {
+                'price': [[(100.1, None)], [(None, 200)]],
             }
         )
         self.assertRaises(TypeError, lambda: codec.decode(''))
