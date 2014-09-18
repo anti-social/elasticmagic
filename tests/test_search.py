@@ -86,6 +86,16 @@ class SearchQueryTest(BaseTestCase):
                 "_source": ["name", "company"]
             }
         )
+        self.assert_expression(
+            SearchQuery().fields(f.name, f.company).fields(None),
+            {}
+        )
+        self.assert_expression(
+            SearchQuery().fields(f.name, f.company).fields(False),
+            {
+                "_source": False
+            }
+        )
 
     def test_aggregations(self):
         f = Fields()

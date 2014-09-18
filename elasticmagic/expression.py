@@ -738,6 +738,19 @@ class Compiled(object):
         params[agg.__agg_name__] = self.visit(agg.filter)
         return params
 
+
+    def visit_source(self, expr):
+        if expr.include or expr.exclude:
+            params = {}
+            if expr.include:
+                params['include'] = self.visit(expr.include)
+            if expr.exclude:
+                params['exclude'] = self.visit(expr.exclude)
+            return params
+        if expr.fields is False:
+            return False
+        return [self.visit(f) for f in expr.fields]
+
     def visit_search_query(self, query):
         params = {}
         q = query._q
@@ -747,8 +760,8 @@ class Compiled(object):
             params['query'] = self.visit(q)
         if query._order_by:
             params['sort'] = [self.visit(o) for o in query._order_by]
-        if query._fields:
-            params['_source'] = [self.visit(f) for f in query._fields]
+        if query._source:
+            params['_source'] = self.visit(query._source)
         if query._aggregations:
             params['aggregations'] = self.visit(query._aggregations)
         if query._limit is not None:

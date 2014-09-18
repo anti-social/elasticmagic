@@ -2,17 +2,26 @@ from itertools import chain
 
 from .util import _with_clone, cached_property
 from .result import Result
-from .expression import Params, Compiled
+from .expression import Expression, Params, Compiled
 
 
 __all__ = ['SearchQuery']
+
+
+class Source(Expression):
+    __visit_name__ = 'source'
+
+    def __init__(self, fields, include=None, exclude=None):
+        self.fields = fields
+        self.include = include
+        self.exclude = exclude
 
 
 class SearchQuery(object):
     __visit_name__ = 'search_query'
 
     _q = None
-    _fields = ()
+    _source = None
     _filters = ()
     _order_by = ()
     _aggregations = Params()
@@ -39,12 +48,19 @@ class SearchQuery(object):
         return Compiled(self).params
 
     @_with_clone
-    def fields(self, *fields):
-        self._fields = fields
+    def source(self, *args, **kwargs):
+        if len(args) == 1 and args[0] is None:
+            del self._source
+        elif len(args) == 1 and args[0] is False:
+            self._source = Source(args[0], **kwargs)
+        else:
+            self._source = Source(args, **kwargs)
+
+    fields = source
 
     @_with_clone
     def add_fields(self, *fields):
-        self._fields = self._fields + fields
+        self._source = self._source + fields
 
     @_with_clone
     def filter(self, *filters, **meta):
@@ -126,7 +142,7 @@ class SearchQuery(object):
     def _collect_doc_classes(self):
         doc_types = set()
         for expr in chain([self._q],
-                          self._fields,
+                          [self._source],
                           [f for f, m in self._filters],
                           self._order_by,
                           self._aggregations.values()):
