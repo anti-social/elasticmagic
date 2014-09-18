@@ -30,10 +30,12 @@ class QueryFilterTest(BaseTestCase):
     def test_facet_filter(self):
         f = Fields()
 
-        qf = QueryFilter()
-        qf.add_filter(FacetFilter('type', f.type, instance_mapper=type_mapper, type=Integer))
-        qf.add_filter(FacetFilter('vendor', f.vendor, aggs={'min_price': agg.Min(f.price)}))
-        qf.add_filter(FacetFilter('model', f.model))
+        class CarQueryFilter(QueryFilter):
+            type = FacetFilter(f.type, instance_mapper=type_mapper, type=Integer)
+            vendor = FacetFilter(f.vendor, aggs={'min_price': agg.Min(f.price)})
+            model = FacetFilter(f.model)
+
+        qf = CarQueryFilter()
 
         es_client = MagicMock()
         es_client.search = MagicMock(
@@ -178,7 +180,7 @@ class QueryFilterTest(BaseTestCase):
 
         qf.process_results(sq.results)
 
-        type_filter = qf.get_filter('type')
+        type_filter = qf.type
         self.assertEqual(len(type_filter.values), 3)
         self.assertEqual(type_filter.values[0].value, 0)
         self.assertEqual(type_filter.values[0].count, 744)
@@ -192,13 +194,13 @@ class QueryFilterTest(BaseTestCase):
         self.assertEqual(type_filter.values[2].count, 162)
         self.assertEqual(type_filter.values[2].selected, True)
         self.assertEqual(type_filter.values[2].instance.title, 'Station Wagon')
-        vendor_filter = qf.get_filter('vendor')
+        vendor_filter = qf.vendor
         self.assertEqual(len(vendor_filter.values), 1)
         self.assertEqual(vendor_filter.values[0].value, 'Subaru')
         self.assertEqual(vendor_filter.values[0].count, 2153)
         self.assertEqual(vendor_filter.values[0].selected, True)
         self.assertEqual(vendor_filter.values[0].bucket.get_aggregation('min_price').value, 4000)
-        model_filter = qf.get_filter('model')
+        model_filter = qf.model
         self.assertEqual(len(model_filter.values), 2)
         self.assertEqual(model_filter.values[0].value, 'Imprezza')
         self.assertEqual(model_filter.values[0].count, 1586)
@@ -206,6 +208,7 @@ class QueryFilterTest(BaseTestCase):
         self.assertEqual(model_filter.values[1].value, 'Forester')
         self.assertEqual(model_filter.values[1].count, 456)
         self.assertEqual(model_filter.values[1].selected, False)
+
 
     def test_range_filter(self):
         es_client = MagicMock()
@@ -232,9 +235,11 @@ class QueryFilterTest(BaseTestCase):
         )
         es_index = Index(es_client, 'ads')
 
-        qf = QueryFilter()
-        qf.add_filter(RangeFilter('price', es_index.car.price, type=Integer))
-        qf.add_filter(RangeFilter('disp', es_index.car.engine_displacement, type=Float))
+        class CarQueryFilter(QueryFilter):
+            price = RangeFilter(es_index.car.price, type=Integer)
+            disp = RangeFilter(es_index.car.engine_displacement, type=Float)
+
+        qf = CarQueryFilter()
 
         sq = es_index.search()
         sq = qf.apply(sq, {'price': [':10000']})
@@ -270,10 +275,10 @@ class QueryFilterTest(BaseTestCase):
         )
 
         qf.process_results(sq.results)
-        price_filter = qf.get_filter('price')
+        price_filter = qf.price
         self.assertEqual(price_filter.min, 7500)
         self.assertEqual(price_filter.max, 25800)
-        disp_filter = qf.get_filter('disp')
+        disp_filter = qf.disp
         self.assertAlmostEqual(disp_filter.min, 1.6)
         self.assertAlmostEqual(disp_filter.max, 3.0)
         

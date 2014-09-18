@@ -2,6 +2,7 @@ from itertools import chain
 
 from elasticmagic import Term, Terms, Query, And, Or, agg
 from elasticmagic.types import String, instantiate
+from elasticmagic.compat import string_types, with_metaclass
 
 from .codec import SimpleCodec
 
@@ -16,26 +17,33 @@ class QueryFilter(object):
     NAME = 'qf'
 
     def __init__(self, name=None, codec=None):
-        self.name = name or self.NAME
-        self.codec = codec or SimpleCodec()
-        self.filters = []
+        self._name = name or self.NAME
+        self._codec = codec or SimpleCodec()
+
+        self._filters = []
         self._params = {}
+
+        for filt_name in dir(self):
+            unbound_filter = getattr(self, filt_name)
+            if isinstance(unbound_filter, UnboundFilter):
+                self.add_filter(unbound_filter.bind(filt_name))
 
     @property
     def _filter_types(self):
         types = {}
-        for filt in self.filters:
+        for filt in self._filters:
             types[filt.name] = filt._types
         return types
 
     def add_filter(self, filter):
-        self.filters.append(filter)
+        self._filters.append(filter)
+        setattr(self, filter.name, filter)
 
     def apply(self, search_query, params):
-        self._params = self.codec.decode(params, self._filter_types)
+        self._params = self._codec.decode(params, self._filter_types)
 
         # First filter query
-        for f in self.filters:
+        for f in self._filters:
             search_query = f._apply_filter(search_query, self._params.get(f.name) or [])
 
         # disable all filters for aggregations
@@ -45,32 +53,49 @@ class QueryFilter(object):
             main_agg = agg.Global()
 
         # then add aggregations
-        for f in self.filters:
+        for f in self._filters:
             main_agg = f._apply_agg(main_agg, search_query)
 
         if search_query._q:
-            global_agg = agg.Global().aggs(**{self.name: main_agg})
+            global_agg = agg.Global().aggs(**{self._name: main_agg})
         else:
             global_agg = main_agg
-        return search_query.aggregations(**{self.name: global_agg})
+        return search_query.aggregations(**{self._name: global_agg})
 
     def process_results(self, results):
-        global_agg = results.get_aggregation(self.name)
-        if global_agg.get_aggregation(self.name):
-            main_agg = global_agg.get_aggregation(self.name)
+        global_agg = results.get_aggregation(self._name)
+        if global_agg.get_aggregation(self._name):
+            main_agg = global_agg.get_aggregation(self._name)
         else:
             main_agg = global_agg
 
-        for f in self.filters:
+        for f in self._filters:
             f._process_agg(main_agg, self._params.get(f.name) or [])
 
     def get_filter(self, name):
-        for f in self.filters:
-            if f.name == name:
-                return f
+        return getattr(self, name, None)
+
+
+class UnboundFilter(object):
+    def __init__(self, filter_cls, args, kwargs):
+        self.filter_cls = filter_cls
+        self.args = args
+        self.kwargs = kwargs
+
+    def bind(self, name):
+        return self.filter_cls(name, *self.args, **self.kwargs)
 
 
 class BaseFilter(object):
+    def __new__(cls, *args, **kwargs):
+        if len(args) == 1:
+            return UnboundFilter(cls, args, kwargs)
+        return super(BaseFilter, cls).__new__(cls, *args, **kwargs)
+
+    def __init__(self, name, field):
+        self.name = name
+        self.field = field
+
     def _apply_filter(self, search_query, params):
         raise NotImplementedError()
 
@@ -83,8 +108,7 @@ class BaseFilter(object):
 
 class FacetFilter(BaseFilter):
     def __init__(self, name, field, type=None, instance_mapper=None, **kwargs):
-        self.name = name
-        self.field = field
+        super(FacetFilter, self).__init__(name, field)
         self.type = instantiate(type or self.field._type)
         self.instance_mapper = instance_mapper
         self.agg_kwargs = kwargs
@@ -152,14 +176,13 @@ class FacetValue(object):
 class RangeFilter(BaseFilter):
 
     def __init__(self, name, field, type=None):
-        self.name = name
-        self.field = field
+        super(RangeFilter, self).__init__(name, field)
         self.type = instantiate(type or self.field._type)
         self.min = None
         self.max = None
 
-        self._min_agg_name = '{}_min'.format(self.name)
-        self._max_agg_name = '{}_max'.format(self.name)
+        self._min_agg_name = '{}_min'.format
+        self._max_agg_name = '{}_max'.format
 
     @property
     def _types(self):
@@ -185,8 +208,8 @@ class RangeFilter(BaseFilter):
                 filters.append(filt)
 
         stat_aggs = {
-            self._min_agg_name: agg.Min(self.field),
-            self._max_agg_name: agg.Max(self.field),
+            self._min_agg_name(self.name): agg.Min(self.field),
+            self._max_agg_name(self.name): agg.Max(self.field),
         }
         if filters:
             main_agg = main_agg.aggs(
@@ -203,5 +226,5 @@ class RangeFilter(BaseFilter):
         else:
             base_agg = main_agg
 
-        self.min = base_agg.get_aggregation(self._min_agg_name).value
-        self.max = base_agg.get_aggregation(self._max_agg_name).value
+        self.min = base_agg.get_aggregation(self._min_agg_name(self.name)).value
+        self.max = base_agg.get_aggregation(self._max_agg_name(self.name)).value
