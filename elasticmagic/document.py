@@ -1,9 +1,25 @@
 import fnmatch
 
-from .types import String
+from .types import String, Integer, Date
 from .expression import Field, Fields
 from .util import cached_property
 from .compat import with_metaclass
+
+
+MAPPING_FIELD_TYPES = {
+    '_uid': String,
+    '_id': String,
+    '_type': String,
+    '_source': String,
+    '_all': String,
+    '_analyzer': String,
+    '_parent': String,
+    '_routing': String,
+    '_index': String,
+    '_size': Integer,
+    '_timestamp': Date,
+    # '_ttl': Timedelta,
+}
 
 
 class DocumentMeta(type):
@@ -13,8 +29,9 @@ class DocumentMeta(type):
         cls._fields = []
         cls._fields_map = {}
 
-        if not hasattr(cls, '_id'):
-            cls._id = Field(String())
+        for mapping_field_name, mapping_field_type in MAPPING_FIELD_TYPES.items():
+            if not hasattr(cls, mapping_field_name):
+                setattr(cls, mapping_field_name, Field(mapping_field_type))
 
         for field_name in dir(cls):
             # _id doesn't indexed, so do not add it in _fields
@@ -50,14 +67,14 @@ class Document(with_metaclass(DocumentMeta)):
     def __init__(self, _hit=None, _result=None, **kwargs):
         self._index = self._type = self._id = self._score = None
         if _hit:
-            self._index = _hit.get('_index')
-            self._type = _hit.get('_type')
-            self._id = _hit.get('_id')
             self._score = _hit.get('_score')
-            source = _hit.get('_source')
-            if source:
+            for mapping_field_name in MAPPING_FIELD_TYPES:
+                setattr(self, mapping_field_name, _hit.get(mapping_field_name))
+            if self._source:
                 for field in self._fields:
-                    setattr(self, field._attr_name, field._to_python(source.get(field._name)))
+                    if field._name not in MAPPING_FIELD_TYPES:
+                        field_value = field._to_python(self._source.get(field._name))
+                        setattr(self, field._attr_name, field_value)
 
         for fkey, fvalue in kwargs.items():
             setattr(self, fkey, fvalue)
@@ -67,6 +84,8 @@ class Document(with_metaclass(DocumentMeta)):
     def to_dict(self):
         res = {}
         for key, value in self.__dict__.items():
+            if key in MAPPING_FIELD_TYPES:
+                continue
             if value is None or value == '' or value == []:
                 continue
 
@@ -80,10 +99,6 @@ class Document(with_metaclass(DocumentMeta)):
                 res[field._attr_name] = field._to_dict(value)
 
         return res
-
-    @classmethod
-    def instance_mapper(self):
-        return {}
 
     @cached_property
     def instance(self):
