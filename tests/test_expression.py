@@ -1,7 +1,7 @@
 from elasticmagic import (
     Term, Terms, Exists, Missing, Match, MatchAll, MultiMatch, Range,
     Bool, Must, MustNot, Should, Query, And, Or, Not, Sort,
-    Boosting, Common, ConstantScore, DisMax, Filtered, Prefix,
+    Boosting, Common, ConstantScore, DisMax, Filtered, Ids, Prefix,
 )
 from elasticmagic.expression import Fields, Compiled
 
@@ -240,6 +240,16 @@ class ExpressionTestCase(BaseTestCase):
                     "filter": {
                         "range": { "created": { "gte": "now - 1d / d" }}
                     }
+                }
+            }
+        )
+
+        self.assert_expression(
+            Ids(['1', '4', '100'], type="my_type"),
+            {
+                "ids": {
+                    "type": "my_type",
+                    "values": ["1", "4", "100"]
                 }
             }
         )

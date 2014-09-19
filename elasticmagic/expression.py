@@ -275,6 +275,13 @@ class Filtered(QueryExpression):
         super(Filtered, self).__init__(filter=filter, query=query, strategy=strategy, **kwargs)
 
 
+class Ids(QueryExpression):
+    __query_name__ = 'ids'
+
+    def __init__(self, values, type=None, **kwargs):
+        super(Ids, self).__init__(values=values, type=type, **kwargs)
+
+
 class Range(FieldExpression):
     __visit_name__ = 'range'
 
