@@ -8,7 +8,7 @@ from .base import BaseTestCase
 
 
 class SearchQueryTest(BaseTestCase):
-    def test_search(self):
+    def test_search_query_compile(self):
         f = Fields()
 
         self.assert_expression(
@@ -214,7 +214,7 @@ class SearchQueryTest(BaseTestCase):
             }
         )
 
-    def test_index_search(self):
+    def test_search_index(self):
         class CarObject(object):
             def __init__(self, id):
                 self.id = id
@@ -240,13 +240,6 @@ class SearchQueryTest(BaseTestCase):
             year = Field(Integer)
             seller = Field(Object(CarSellerDocument))
             
-
-            # @staticmethod
-            # def _instance_mapper(ids):
-            #     return {id: CarObject(int(id)) for id in ids}
-
-            # instance_mapper = Mock(wraps=_obj_mapper)
-
         es_client = MagicMock()
         es_client.search = MagicMock(
             return_value={
@@ -333,3 +326,39 @@ class SearchQueryTest(BaseTestCase):
         self.assertEqual(doc.instance.id, 987321)
         self.assertEqual(doc.instance.name, '987321:987321')
         self.assertEqual(obj_mapper.call_count, 1)
+
+    def test_delete(self):
+        es_client = MagicMock()
+        es_index = Index(es_client, 'ads')
+
+        es_index.query(es_index.car.vendor == 'Focus').delete()
+        es_client.delete_by_query.assert_called_with(
+            index='ads',
+            doc_type='car',
+            body={
+                'query': {
+                    'term': {'vendor': 'Focus'}
+                }
+            }
+        )
+
+        es_index.query(es_index.car.vendor == 'Focus') \
+                .filter(es_index.car.status == 0) \
+                .limit(20) \
+                .delete()
+        es_client.delete_by_query.assert_called_with(
+            index='ads',
+            doc_type='car',
+            body={
+                "query": {
+                    "filtered": {
+                        "query": {
+                            "term": {"vendor": "Focus"}
+                        },
+                        "filter": {
+                            "term": {"status": 0}
+                        }
+                    }
+                }
+            }
+        )

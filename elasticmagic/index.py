@@ -4,6 +4,7 @@ from .util import to_camel_case
 from .search import SearchQuery
 from .result import Result
 from .document import DynamicDocument
+from .expression import Params
 
 
 class Index(object):
@@ -51,7 +52,7 @@ class Index(object):
 
     def delete(self, q, doc_type):
         return self._client.delete_by_query(
-            index=self._name, doc_type=doc_type, body=q.to_dict()
+            index=self._name, doc_type=doc_type, body=Params(query=q).to_dict()
         )
 
     def flush(self):
