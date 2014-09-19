@@ -117,7 +117,7 @@ class SearchQuery(object):
         self._instance_mapper = instance_mapper
 
     def count(self):
-        sq = self.aggregation(None).order_by(None).limit(0)
+        sq = self.aggregations(None).order_by(None).limit(0)
         return sq.results.total
 
     def get_doc_cls(self):
