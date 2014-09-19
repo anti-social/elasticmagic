@@ -18,6 +18,12 @@ class Expression(object):
     def _collect_doc_classes(self):
         return []
 
+    def compile(self):
+        return Compiled(self)
+
+    def to_dict(self):
+        return self.compile().params
+
 
 class Literal(object):
     __visit_name__ = 'literal'
@@ -48,12 +54,6 @@ class QueryExpression(Expression):
                 else:
                     params[param_name] = tuple(expr.expressions)
         self.params = Params(params)
-
-    def compile(self):
-        return Compiled(self)
-
-    def to_dict(self):
-        return self.compile().params
 
     def _collect_doc_classes(self):
         doc_classes = []
@@ -738,7 +738,6 @@ class Compiled(object):
         params[agg.__agg_name__] = self.visit(agg.filter)
         return params
 
-
     def visit_source(self, expr):
         if expr.include or expr.exclude:
             params = {}
@@ -753,9 +752,7 @@ class Compiled(object):
 
     def visit_search_query(self, query):
         params = {}
-        q = query._q
-        if query._filters:
-            q = Filtered(query=q, filter=And(*[f for f, m in query._filters]))
+        q = query.get_filtered_query()
         if q is not None:
             params['query'] = self.visit(q)
         if query._order_by:

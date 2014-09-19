@@ -103,7 +103,7 @@ class QueryFilterTest(BaseTestCase):
             }
         )
         es_index = Index(es_client, 'ads')
-        sq = es_index.search(Term(es_index.car.name, 'test'))
+        sq = es_index.query(Term(es_index.car.name, 'test'))
         sq = qf.apply(sq, {'type': ['0', '1'], 'vendor': ['Subaru']})
         self.assert_expression(
             sq,
@@ -259,7 +259,7 @@ class QueryFilterTest(BaseTestCase):
 
         qf = CarQueryFilter()
 
-        sq = es_index.search()
+        sq = es_index.query()
         sq = qf.apply(sq, {'price': [':10000']})
         self.assert_expression(
             sq,

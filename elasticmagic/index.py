@@ -2,6 +2,7 @@ from collections import defaultdict
 
 from .util import to_camel_case
 from .search import SearchQuery
+from .result import Result
 from .document import DynamicDocument
 
 
@@ -24,9 +25,19 @@ class Index(object):
             )
         return self._doc_cls_cache[name]
 
-    def search(self, *args, **kwargs):
+    def query(self, *args, **kwargs):
         kwargs['index'] = self
         return SearchQuery(*args, **kwargs)
+
+    # Methods that do requests to elasticsearch
+
+    def search(self, q, doc_type, doc_cls=None, aggregations=None, instance_mapper=None):
+        raw_result = self._client.search(
+            index=self._name, doc_type=doc_type, body=q.to_dict()
+        )
+        return Result(raw_result, aggregations,
+                      doc_cls=doc_cls,
+                      instance_mapper=instance_mapper)
 
     def add(self, docs):
         actions = []
@@ -37,6 +48,11 @@ class Index(object):
                 doc.to_dict()
             ])
         self._client.bulk(index=self._name, body=actions)
+
+    def delete(self, q, doc_type):
+        return self._client.delete_by_query(
+            index=self._name, doc_type=doc_type, body=q.to_dict()
+        )
 
     def flush(self):
         # TODO: flush modified documents

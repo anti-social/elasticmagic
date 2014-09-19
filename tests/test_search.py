@@ -8,7 +8,7 @@ from .base import BaseTestCase
 
 
 class SearchQueryTest(BaseTestCase):
-    def test(self):
+    def test_search(self):
         f = Fields()
 
         self.assert_expression(
@@ -284,7 +284,7 @@ class SearchQueryTest(BaseTestCase):
         )
         es_index = Index(es_client, 'ads')
         sq = (
-            es_index.search(
+            es_index.query(
                 CarDocument.seller.name.first.match('Alex'),
             )
             .filter(CarDocument.seller.rating > 4)

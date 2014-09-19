@@ -2,10 +2,10 @@ from .document import Document
 
 
 class Result(object):
-    def __init__(self, raw_result, aggregations,
+    def __init__(self, raw_result, aggregations=None,
                  doc_cls=None, instance_mapper=None):
         self.raw = raw_result
-        self._query_aggs = aggregations
+        self._query_aggs = aggregations or {}
         self.doc_cls = doc_cls or Document
         self.instance_mapper = instance_mapper or self.doc_cls.instance_mapper
 
@@ -16,8 +16,9 @@ class Result(object):
 
         self.aggregations = {}
         for agg_name, agg_data in raw_result.get('aggregations', {}).items():
-            agg_instance = self.aggregations[agg_name] = self._query_aggs[agg_name].clone()
-            agg_instance.process_results(agg_data)
+            if agg_name in self._query_aggs:
+                agg_instance = self.aggregations[agg_name] = self._query_aggs[agg_name].clone()
+                agg_instance.process_results(agg_data)
 
     def __iter__(self):
         return iter(self.hits)

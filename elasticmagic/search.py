@@ -2,7 +2,7 @@ from itertools import chain
 
 from .util import _with_clone, cached_property
 from .result import Result
-from .expression import Expression, Params, Compiled
+from .expression import Expression, Params, Filtered, And, Compiled
 
 
 __all__ = ['SearchQuery']
@@ -120,24 +120,32 @@ class SearchQuery(object):
         sq = self.aggregation(None).order_by(None).limit(0)
         return sq.results.total
 
-    @cached_property
-    def results(self):
-        client = self.index._client
+    def get_doc_cls(self):
         if self.doc_cls:
             doc_classes = [self.doc_cls]
         else:
             doc_classes = self._collect_doc_classes()
         if len(doc_classes) != 1:
-            raise ValueError('Cannot determine document type')
+            raise ValueError('Cannot determine document class')
 
-        doc_cls = doc_classes.pop()
+        return iter(doc_classes).next()
+        
+    def get_filtered_query(self):
+        if self._filters:
+            return Filtered(query=self._q, filter=And(*[f for f, m in self._filters]))
+        return self._q
+
+    @cached_property
+    def results(self):
+        doc_cls = self.get_doc_cls()
         doc_type = self.doc_type or doc_cls.__doc_type__
-        raw_result = client.search(index=self.index._name,
-                                   doc_type=doc_type,
-                                   body=self.to_dict())
-        return Result(raw_result, self._aggregations,
-                      doc_cls=doc_cls,
-                      instance_mapper=self._instance_mapper)
+        return self.index.search(self, doc_type, doc_cls=doc_cls,
+                                 aggregations=self._aggregations,
+                                 instance_mapper=self._instance_mapper)
+
+    def delete(self):
+        doc_type = self.doc_type or self.get_doc_cls().__doc_type__
+        return self.index.delete(self.get_filtered_query(), doc_type)
 
     def _collect_doc_classes(self):
         doc_types = set()
