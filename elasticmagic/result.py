@@ -1,13 +1,17 @@
 from .document import Document
 
 
+def _nop_instance_mapper(ids):
+    return {}
+
+
 class Result(object):
     def __init__(self, raw_result, aggregations=None,
                  doc_cls=None, instance_mapper=None):
         self.raw = raw_result
         self._query_aggs = aggregations or {}
         self.doc_cls = doc_cls or Document
-        self.instance_mapper = instance_mapper or self.doc_cls.instance_mapper
+        self.instance_mapper = instance_mapper or _nop_instance_mapper
 
         self.total = raw_result['hits']['total']
         self.hits = []
