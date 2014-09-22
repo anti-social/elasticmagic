@@ -44,8 +44,11 @@ class Index(object):
         actions = []
         for doc in docs:
             doc_type = doc.__doc_type__
+            doc_meta = {'_type': doc_type, '_id': doc._id}
+            if doc._routing:
+                doc_meta['_routing'] = doc._routing
             actions.extend([
-                {'index': {'_type': doc_type, '_id': doc._id}},
+                {'index': doc_meta},
                 doc.to_dict()
             ])
         self._client.bulk(index=self._name, body=actions)
