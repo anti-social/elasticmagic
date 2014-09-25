@@ -35,6 +35,10 @@ class QueryFilter(object):
             types[filt.name] = filt._types
         return types
 
+    @property
+    def filters(self):
+        return self._filters
+
     def add_filter(self, filter):
         self._filters.append(filter)
         setattr(self, filter.name, filter)
@@ -189,6 +193,8 @@ class RangeFilter(BaseFilter):
     def __init__(self, name, field, type=None):
         super(RangeFilter, self).__init__(name, field)
         self.type = instantiate(type or self.field._type)
+        self.from_value = None
+        self.to_value = None
         self.min = None
         self.max = None
 
@@ -205,11 +211,14 @@ class RangeFilter(BaseFilter):
 
         values = params[0][0]
         if isinstance(values, tuple):
-            from_, to = values
+            self.from_value, self.to_value = values
         else:
-            from_, to = values, values
+            self.from_value, self.to_value = values, values
 
-        return search_query.filter(self.field.range(gte=from_, lte=to), tags=[self.name])
+        return search_query.filter(
+            self.field.range(gte=self.from_value, lte=self.to_value),
+            tags=[self.name]
+        )
 
     def _apply_agg(self, main_agg, search_query):
         filters = []

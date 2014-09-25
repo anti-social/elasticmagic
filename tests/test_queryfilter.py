@@ -296,9 +296,13 @@ class QueryFilterTest(BaseTestCase):
         price_filter = qf.price
         self.assertEqual(price_filter.min, 7500)
         self.assertEqual(price_filter.max, 25800)
+        self.assertIs(price_filter.from_value, None)
+        self.assertEqual(price_filter.to_value, 10000)
         disp_filter = qf.disp
         self.assertAlmostEqual(disp_filter.min, 1.6)
         self.assertAlmostEqual(disp_filter.max, 3.0)
+        self.assertIs(disp_filter.from_value, None)
+        self.assertIs(disp_filter.to_value, None)
         
     # def test_nested(self):
     #     f = Fields()
