@@ -29,6 +29,7 @@ class SearchQuery(object):
     _offset = None
 
     _instance_mapper = None
+    _iter_instances = False
 
     def __init__(self, q=None, index=None, doc_cls=None, doc_type=None):
         if q is not None:
@@ -101,6 +102,10 @@ class SearchQuery(object):
     from_ = offset
 
     @_with_clone
+    def instances(self):
+        self._iter_instances = True
+
+    @_with_clone
     def with_index(self, index):
         self.index = index
 
@@ -159,7 +164,36 @@ class SearchQuery(object):
         return doc_types
 
     def __iter__(self):
+        if self._iter_instances:
+            return iter(doc.instance for doc in self.results.hits if doc.instance)
         return iter(self.results)
+
+    def __len__(self):
+        return len(self.results.hits)
+
+    def __getitem__(self, k):
+        if not isinstance(k, (slice, int)):
+            raise TypeError
+
+        if 'results' in self.__dict__:
+            docs = self.results.hits[k]
+        else:
+            if isinstance(k, slice):
+                start, stop = k.start, k.stop
+                clone = self.clone()
+                if start is not None:
+                    clone._offset = start
+                if stop is not None:
+                    if start is None:
+                        clone._limit = stop
+                    else:
+                        clone._limit = stop - start
+                return clone
+            else:
+                docs = self.results.hits[k]
+        if self._iter_instances:
+            return [doc.instance for doc in docs if doc.instance]
+        return docs
 
 
 # es_client = Elasticsearch()

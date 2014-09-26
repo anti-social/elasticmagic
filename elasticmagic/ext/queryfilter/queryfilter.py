@@ -2,7 +2,7 @@ from itertools import chain
 
 from elasticmagic import Term, Terms, Query, And, Or, agg
 from elasticmagic.types import String, instantiate
-from elasticmagic.compat import string_types, with_metaclass
+from elasticmagic.compat import text_type, string_types, with_metaclass
 
 from .codec import SimpleCodec
 
@@ -40,6 +40,7 @@ class QueryFilter(object):
         return self._filters
 
     def add_filter(self, filter):
+        filter.qf = self
         self._filters.append(filter)
         setattr(self, filter.name, filter)
 
@@ -99,6 +100,7 @@ class BaseFilter(object):
     def __init__(self, name, field):
         self.name = name
         self.field = field
+        self.qf = None
 
     def _apply_filter(self, search_query, params):
         raise NotImplementedError()
@@ -162,7 +164,7 @@ class FacetFilter(BaseFilter):
             terms_agg = terms_agg.get_aggregation(self.name)
         for bucket in terms_agg.buckets:
             selected = bucket.key in values
-            self.add_value(FacetValue(bucket, selected))
+            self.add_value(FacetValue(bucket, selected, self))
 
     def add_value(self, fv):
         self.all_values.append(fv)
@@ -177,15 +179,37 @@ class FacetFilter(BaseFilter):
 
 
 class FacetValue(object):
-    def __init__(self, bucket, selected):
+    def __init__(self, bucket, selected, filter):
         self.bucket = bucket
         self.selected = selected
+        self.filter = filter
         self.value = self.bucket.key
         self.count = self.bucket.doc_count
 
     @property
     def instance(self):
         return self.bucket.instance
+
+    @property
+    def filter_name(self):
+        return self.filter.name
+
+    @property
+    def filter_value(self):
+        return self.filter.qf._codec.encode_value(self.value)
+
+    @property
+    def count_text(self):
+        return text_type(self.count)
+
+    @property
+    def title(self):
+        if self.instance:
+            return text_type(self.instance)
+        return text_type(self.value)
+
+    def __unicode__(self):
+        return self.title
 
 
 class RangeFilter(BaseFilter):
