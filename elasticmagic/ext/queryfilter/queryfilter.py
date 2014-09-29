@@ -49,7 +49,7 @@ class QueryFilter(object):
 
         # First filter query
         for f in self._filters:
-            search_query = f._apply_filter(search_query, self._params.get(f.name) or [])
+            search_query = f._apply_filter(search_query, self._params.get(f.name) or {})
 
         # disable all filters for aggregations
         if search_query._q:
@@ -75,7 +75,7 @@ class QueryFilter(object):
             main_agg = global_agg
 
         for f in self._filters:
-            f._process_agg(main_agg, self._params.get(f.name) or [])
+            f._process_agg(main_agg, self._params.get(f.name) or {})
 
     def get_filter(self, name):
         return getattr(self, name, None)
@@ -129,10 +129,11 @@ class FacetFilter(BaseFilter):
         return [self.type]
 
     def _apply_filter(self, search_query, params):
-        if not params:
+        values = params.get('exact')
+        if not values:
             return search_query
 
-        values = list(chain(*params))
+        values = list(chain(*values))
         if len(values) == 1:
             expr = self.field == values[0]
         else:
@@ -158,7 +159,8 @@ class FacetFilter(BaseFilter):
         return main_agg
         
     def _process_agg(self, main_agg, params):
-        values = list(chain(*params))
+        values = params.get('exact', [])
+        values = list(chain(*values))
         terms_agg = main_agg.get_aggregation(self.name)
         if terms_agg.get_aggregation(self.name):
             terms_agg = terms_agg.get_aggregation(self.name)
@@ -222,22 +224,21 @@ class RangeFilter(BaseFilter):
         self.min = None
         self.max = None
 
-        self._min_agg_name = '{}_min'.format
-        self._max_agg_name = '{}_max'.format
+        self._min_agg_name = '{}.min'.format
+        self._max_agg_name = '{}.max'.format
 
     @property
     def _types(self):
         return [self.type]
 
     def _apply_filter(self, search_query, params):
-        if not params:
+        from_values = params.get('gte')
+        to_values = params.get('lte')
+        if from_values is None and to_values is None:
             return search_query
 
-        values = params[0][0]
-        if isinstance(values, tuple):
-            self.from_value, self.to_value = values
-        else:
-            self.from_value, self.to_value = values, values
+        self.from_value = from_values[0][0] if from_values else None
+        self.to_value = to_values[0][0] if to_values else None
 
         return search_query.filter(
             self.field.range(gte=self.from_value, lte=self.to_value),

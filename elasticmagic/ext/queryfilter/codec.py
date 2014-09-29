@@ -60,12 +60,14 @@ class BaseCodec(object):
 
 
 class SimpleCodec(BaseCodec):
-    VALUES_SEP = ';'
-    RANGE_SEP = ':'
+    OP_SEP = '__'
+    VALUES_SEP = ':'
 
     NULL_VAL = 'null'
     TRUE_VAL = 'true'
     FALSE_VAL = 'false'
+
+    DEFAULT_OP = 'exact'
 
     PROCESSOR_FACTORIES = {
         Float: lambda type: partial(to_float, type=type),
@@ -112,11 +114,7 @@ class SimpleCodec(BaseCodec):
                 if v == self.NULL_VAL:
                     decoded_values.append(None)
                 else:
-                    vals = v.split(self.RANGE_SEP)
-                    if len(vals) > 1:
-                        decoded_values.append(tuple((to_python(w) if w else None) for w in vals))
-                    else:
-                        decoded_values.append(to_python(v))
+                    decoded_values.append(to_python(v))
             except ValueError:
                 pass
         return decoded_values
@@ -125,14 +123,20 @@ class SimpleCodec(BaseCodec):
     def decode(self, params, types=None):
         params = self._normalize_params(params)
         types = types or {}
-        data = defaultdict(list)
+        decoded_params = {}
         for name, v in params.items():
+            name, _, op = name.partition(self.OP_SEP)
+            if not op:
+                op = self.DEFAULT_OP
             for w in wrap_list(v):
                 decoded_values = self.decode_value(w, types.get(name))
                 if decoded_values:
-                    data[name].append(decoded_values)
+                    decoded_params \
+                        .setdefault(name, {}) \
+                        .setdefault(op, []) \
+                        .append(decoded_values)
 
-        return dict(data)
+        return decoded_params
 
     def _encode_value(self, value):
         if value is None:

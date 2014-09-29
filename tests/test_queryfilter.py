@@ -240,12 +240,12 @@ class QueryFilterTest(BaseTestCase):
                 "aggregations": {
                     "qf": {
                         "doc_count": 128,
-                        "price_min": {"value": 7500},
-                        "price_max": {"value": 25800},
+                        "price.min": {"value": 7500},
+                        "price.max": {"value": 25800},
                         "disp": {
                             "doc_count": 237,
-                            "disp_min": {"value": 1.6},
-                            "disp_max": {"value": 3.0}
+                            "disp.min": {"value": 1.6},
+                            "disp.max": {"value": 3.0}
                         }
                     }
                 }
@@ -260,7 +260,7 @@ class QueryFilterTest(BaseTestCase):
         qf = CarQueryFilter()
 
         sq = es_index.query()
-        sq = qf.apply(sq, {'price': [':10000']})
+        sq = qf.apply(sq, {'price__lte': ['10000']})
         self.assert_expression(
             sq,
             {
@@ -275,15 +275,15 @@ class QueryFilterTest(BaseTestCase):
                     "qf": {
                         "global": {},
                         "aggregations": {
-                            "price_min": {"min": {"field": "price"}},
-                            "price_max": {"max": {"field": "price"}},
+                            "price.min": {"min": {"field": "price"}},
+                            "price.max": {"max": {"field": "price"}},
                             "disp": {
                                 "filter": {
                                     "range": {"price": {"lte": 10000}}
                                 },
                                 "aggregations": {
-                                    "disp_min": {"min": {"field": "engine_displacement"}},
-                                    "disp_max": {"max": {"field": "engine_displacement"}}
+                                    "disp.min": {"min": {"field": "engine_displacement"}},
+                                    "disp.max": {"max": {"field": "engine_displacement"}}
                                 }
                             }
                         }
