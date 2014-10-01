@@ -613,10 +613,7 @@ class Compiled(object):
         for k, v in params.items():
             key = self.visit(k)
             if isinstance(v, (list, tuple)):
-                if len(v) == 1:
-                    res[key] = self.visit(v[0])
-                else:
-                    res[key] = [self.visit(w) for w in v]
+                res[key] = [self.visit(w) for w in v]
             else:
                 res[key] = self.visit(v)
         return res

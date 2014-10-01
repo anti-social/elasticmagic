@@ -167,7 +167,7 @@ class SearchQueryTest(BaseTestCase):
                                         "last_activity_date": "desc"
                                     },
                                     "_source": {
-                                        "include": "title"
+                                        "include": ["title"]
                                     },
                                     "size" : 1
                                 }

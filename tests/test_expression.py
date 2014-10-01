@@ -53,6 +53,14 @@ class ExpressionTestCase(BaseTestCase):
         )
 
         self.assert_expression(
+            Terms(f.status, [0]),
+            {
+                "terms": {
+                    "status": [0]
+                }
+            }
+        )
+        self.assert_expression(
             Terms(f.tags, ['blue', 'pill'], minimum_should_match=1),
             {
                 "terms": {
@@ -119,14 +127,18 @@ class ExpressionTestCase(BaseTestCase):
             ),
             {
                 "bool": {
-                    "must": {
-                        "term": {"user": "kimchy"}
-                    },
-                    "must_not": {
-                        "range": {
-                            "age": {"from": 10, "to": 20}
+                    "must": [
+                        {
+                            "term": {"user": "kimchy"}
                         }
-                    },
+                    ],
+                    "must_not": [
+                        {
+                            "range": {
+                                "age": {"from": 10, "to": 20}
+                            }
+                        }
+                    ],
                     "should": [
                         {
                             "term": {"tag" : "wow"}
@@ -244,6 +256,14 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
 
+        self.assert_expression(
+            Ids(['123456']),
+            {
+                "ids": {
+                    "values": ["123456"]
+                }
+            }
+        )
         self.assert_expression(
             Ids(['1', '4', '100'], type="my_type"),
             {
