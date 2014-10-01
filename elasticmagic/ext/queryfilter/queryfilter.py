@@ -231,14 +231,19 @@ class RangeFilter(BaseFilter):
     def _types(self):
         return [self.type]
 
-    def _apply_filter(self, search_query, params):
+    def _get_from_value(self, params):
         from_values = params.get('gte')
-        to_values = params.get('lte')
-        if from_values is None and to_values is None:
-            return search_query
+        return from_values[0][0] if from_values else None
 
-        self.from_value = from_values[0][0] if from_values else None
-        self.to_value = to_values[0][0] if to_values else None
+    def _get_to_value(self, params):
+        to_values = params.get('lte')
+        return to_values[0][0] if to_values else None
+
+    def _apply_filter(self, search_query, params):
+        self.from_value = self._get_from_value(params)
+        self.to_value = self._get_to_value(params)
+        if self.from_value is None and self.to_value is None:
+            return search_query
 
         return search_query.filter(
             self.field.range(gte=self.from_value, lte=self.to_value),
