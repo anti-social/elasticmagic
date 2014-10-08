@@ -4,6 +4,7 @@ from elasticmagic import agg, SearchQuery, Term, Index
 from elasticmagic.types import Integer, Float
 from elasticmagic.expression import Fields
 from elasticmagic.ext.queryfilter import QueryFilter, FacetFilter, RangeFilter
+from elasticmagic.ext.queryfilter import OrderingFilter, OrderingValue
 
 from .base import BaseTestCase
 
@@ -304,6 +305,68 @@ class QueryFilterTest(BaseTestCase):
         self.assertIs(disp_filter.from_value, None)
         self.assertIs(disp_filter.to_value, None)
         
+    def test_ordering(self):
+        es_client = MagicMock()
+        es_index = Index(es_client, 'ads')
+
+        class CarQueryFilter(QueryFilter):
+            sort = OrderingFilter(
+                OrderingValue(
+                    'popularity',
+                    [es_index.car.popularity.desc(),
+                     es_index.car.opinion_count.desc(missing='_last')],
+                ),
+                OrderingValue('price', [es_index.car.price]),
+                OrderingValue('-price', [es_index.car.price.desc()]),
+                default='popularity',
+            )
+
+        sq = es_index.query()
+
+        qf = CarQueryFilter()
+        self.assert_expression(
+            qf.apply(sq, {}),
+            {
+                "aggregations": {
+                    "qf": {
+                        "global": {}
+                    }
+                },
+                "sort": [
+                    {
+                        "popularity": "desc"
+                    },
+                    {
+                        "opinion_count": {"order": "desc", "missing": "_last"}
+                    }
+                ]
+            }
+        )
+
+        self.assertEqual(qf.sort.selected_value.value, 'popularity')
+        self.assertEqual(qf.sort.selected_value.selected, True)
+        self.assertEqual(qf.sort.get_value('price').selected, False)
+        self.assertEqual(qf.sort.get_value('-price').selected, False)
+
+        qf = CarQueryFilter()
+        self.assert_expression(
+            qf.apply(sq, {'sort': ['price']}),
+            {
+                "aggregations": {
+                    "qf": {
+                        "global": {}
+                    }
+                },
+                "sort": [
+                    "price"
+                ]
+            }
+        )
+        self.assertEqual(qf.sort.selected_value.value, 'price')
+        self.assertEqual(qf.sort.selected_value.selected, True)
+        self.assertEqual(qf.sort.get_value('popularity').selected, False)
+        self.assertEqual(qf.sort.get_value('-price').selected, False)
+
     # def test_nested(self):
     #     f = Fields()
 

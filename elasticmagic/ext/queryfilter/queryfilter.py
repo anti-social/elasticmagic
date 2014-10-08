@@ -19,14 +19,18 @@ class QueryFilter(object):
     def __init__(self, name=None, codec=None):
         self._name = name or self.NAME
         self._codec = codec or SimpleCodec()
-
         self._filters = []
+
         self._params = {}
+        self._state = {}
+        self._data = {}
 
         for filt_name in dir(self):
             unbound_filter = getattr(self, filt_name)
             if isinstance(unbound_filter, UnboundFilter):
                 self.add_filter(unbound_filter.bind(filt_name))
+
+        self.reset()
 
     @property
     def _filter_types(self):
@@ -34,6 +38,25 @@ class QueryFilter(object):
         for filt in self._filters:
             types[filt.name] = filt._types
         return types
+
+    def _set_selected(self, name, value):
+        self._state.setdefault(name, {})[value] = True
+
+    def _selected(self, name, value):
+        return self._state.get(name, {}).get(value, False)
+
+    def _set_value_data(self, name, value, data):
+        self._data.setdefault(name, {})[value] = data
+
+    def _value_data(self, name, value):
+        return self._data.get(name, {}).get(value, {})
+
+    def reset(self):
+        self._params = {}
+        self._state = {}
+        self._data = {}
+        for filt in self._filters:
+            filt._reset()
 
     @property
     def filters(self):
@@ -93,14 +116,20 @@ class UnboundFilter(object):
 
 class BaseFilter(object):
     def __new__(cls, *args, **kwargs):
-        if len(args) == 1:
+        if args and not isinstance(args[0], string_types):
             return UnboundFilter(cls, args, kwargs)
         return super(BaseFilter, cls).__new__(cls, *args, **kwargs)
 
-    def __init__(self, name, field):
+    def __init__(self, name):
         self.name = name
-        self.field = field
         self.qf = None
+
+    def _reset(self):
+        pass
+
+    @property
+    def _types(self):
+        return []
 
     def _apply_filter(self, search_query, params):
         raise NotImplementedError()
@@ -112,13 +141,43 @@ class BaseFilter(object):
         pass
 
 
-class FacetFilter(BaseFilter):
+class FieldFilter(BaseFilter):
+    def __init__(self, name, field):
+        super(FieldFilter, self).__init__(name)
+        self.field = field
+
+
+class BaseFilterValue(object):
+    def __init__(self, value):
+        self.value = value
+        self.filter = None
+
+    def bind(self, filter):
+        self.filter = filter
+        return self
+
+    @property
+    def data(self):
+        return self.filter.qf._value_data(self.filter.name, self.value)
+
+    @property
+    def selected(self):
+        return self.filter.qf._selected(self.filter.name, self.value)
+
+
+class FacetFilter(FieldFilter):
     def __init__(self, name, field, type=None, instance_mapper=None, **kwargs):
         super(FacetFilter, self).__init__(name, field)
         self.type = instantiate(type or self.field._type)
         self.instance_mapper = instance_mapper
         self.agg_kwargs = kwargs
 
+        self.values = []
+        self.selected_values = []
+        self.all_values = []
+        self.values_map = {}
+
+    def _reset(self):
         self.values = []
         self.selected_values = []
         self.all_values = []
@@ -165,8 +224,10 @@ class FacetFilter(BaseFilter):
         if terms_agg.get_aggregation(self.name):
             terms_agg = terms_agg.get_aggregation(self.name)
         for bucket in terms_agg.buckets:
-            selected = bucket.key in values
-            self.add_value(FacetValue(bucket, selected, self))
+            if bucket.key in values:
+                self.qf._set_selected(self.name, bucket.key)
+            self.qf._set_value_data(self.name, bucket.key, {'bucket': bucket})
+            self.add_value(FacetValue(bucket.key).bind(self))
 
     def add_value(self, fv):
         self.all_values.append(fv)
@@ -180,17 +241,22 @@ class FacetFilter(BaseFilter):
         return self.values_map.get(value)
 
 
-class FacetValue(object):
-    def __init__(self, bucket, selected, filter):
-        self.bucket = bucket
-        self.selected = selected
-        self.filter = filter
-        self.value = self.bucket.key
-        self.count = self.bucket.doc_count
+class FacetValue(BaseFilterValue):
+    @property
+    def bucket(self):
+        return self.data.get('bucket')
+
+    @property
+    def count(self):
+        bucket = self.bucket
+        if bucket:
+            return self.bucket.doc_count
 
     @property
     def instance(self):
-        return self.bucket.instance
+        bucket = self.bucket
+        if bucket:
+            return self.bucket.instance
 
     @property
     def filter_name(self):
@@ -214,7 +280,7 @@ class FacetValue(object):
         return self.title
 
 
-class RangeFilter(BaseFilter):
+class RangeFilter(FieldFilter):
 
     def __init__(self, name, field, type=None):
         super(RangeFilter, self).__init__(name, field)
@@ -226,6 +292,12 @@ class RangeFilter(BaseFilter):
 
         self._min_agg_name = '{}.min'.format
         self._max_agg_name = '{}.max'.format
+
+    def _reset(self):
+        self.from_value = None
+        self.to_value = None
+        self.min = None
+        self.max = None
 
     @property
     def _types(self):
@@ -278,3 +350,50 @@ class RangeFilter(BaseFilter):
 
         self.min = base_agg.get_aggregation(self._min_agg_name(self.name)).value
         self.max = base_agg.get_aggregation(self._max_agg_name(self.name)).value
+
+
+class OrderingValue(BaseFilterValue):
+    def __init__(self, value, orderings, **kwargs):
+        super(OrderingValue, self).__init__(value)
+        self.orderings = orderings
+        self.opts = kwargs
+
+    def __unicode__(self):
+        return unicode(self.opts.get('title', self.value))
+
+    def _apply(self, query):
+        return query.order_by(*self.orderings)
+
+
+class OrderingFilter(BaseFilter):
+    def __init__(self, name, *values, **kwargs):
+        super(OrderingFilter, self).__init__(name)
+        self.values = values
+        for ordering_value in self.values:
+            ordering_value.filter = self
+        self.default_value = self.get_value(kwargs.get('default')) or self.values[0]
+        self.selected_value = None
+
+    def get_value(self, value):
+        for ordering_value in self.values:
+            if ordering_value.value == value:
+                return ordering_value
+
+    def _reset(self):
+        self.selected_value = None
+
+    def _apply_filter(self, search_query, params):
+        values = params.get('exact')
+
+        ordering_value = None
+        if values:
+            ordering_value = self.get_value(values[0][0])
+        if not ordering_value:
+            ordering_value = self.default_value
+
+        self.selected_value = ordering_value
+        self.qf._set_selected(self.name, ordering_value.value)
+        return ordering_value._apply(search_query)
+
+    def _apply_agg(self, main_agg, search_query):
+        return main_agg
