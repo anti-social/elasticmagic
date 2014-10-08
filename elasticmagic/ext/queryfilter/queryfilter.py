@@ -177,6 +177,8 @@ class FacetFilter(FieldFilter):
         self.all_values = []
         self.values_map = {}
 
+        self._filter_agg_name = '{}.filter'.format
+
     def _reset(self):
         self.values = []
         self.selected_values = []
@@ -210,7 +212,7 @@ class FacetFilter(FieldFilter):
         terms_agg = agg.Terms(self.field, instance_mapper=self.instance_mapper, **self.agg_kwargs)
         if filters:
             main_agg = main_agg.aggs(
-                **{self.name: agg.Filter(And(*filters), aggs={self.name: terms_agg})}
+                **{self._filter_agg_name(self.name): agg.Filter(And(*filters), aggs={self.name: terms_agg})}
             )
         else:
             main_agg = main_agg.aggs(**{self.name: terms_agg})
@@ -220,9 +222,12 @@ class FacetFilter(FieldFilter):
     def _process_agg(self, main_agg, params):
         values = params.get('exact', [])
         values = list(chain(*values))
-        terms_agg = main_agg.get_aggregation(self.name)
-        if terms_agg.get_aggregation(self.name):
-            terms_agg = terms_agg.get_aggregation(self.name)
+        if main_agg.get_aggregation(self._filter_agg_name(self.name)):
+            terms_agg = main_agg \
+                .get_aggregation(self._filter_agg_name(self.name)) \
+                .get_aggregation(self.name)
+        else:
+            terms_agg = main_agg.get_aggregation(self.name)
         for bucket in terms_agg.buckets:
             if bucket.key in values:
                 self.qf._set_selected(self.name, bucket.key)
@@ -290,6 +295,7 @@ class RangeFilter(FieldFilter):
         self.min = None
         self.max = None
 
+        self._filter_agg_name = '{}.filter'.format
         self._min_agg_name = '{}.min'.format
         self._max_agg_name = '{}.max'.format
 
@@ -335,7 +341,7 @@ class RangeFilter(FieldFilter):
         }
         if filters:
             main_agg = main_agg.aggs(
-                **{self.name: agg.Filter(And(*filters), aggs=stat_aggs)}
+                **{self._filter_agg_name(self.name): agg.Filter(And(*filters), aggs=stat_aggs)}
             )
         else:
             main_agg = main_agg.aggs(**stat_aggs)
@@ -343,8 +349,8 @@ class RangeFilter(FieldFilter):
         return main_agg
 
     def _process_agg(self, main_agg, params):
-        if main_agg.get_aggregation(self.name):
-            base_agg = main_agg.get_aggregation(self.name)
+        if main_agg.get_aggregation(self._filter_agg_name(self.name)):
+            base_agg = main_agg.get_aggregation(self._filter_agg_name(self.name))
         else:
             base_agg = main_agg
 

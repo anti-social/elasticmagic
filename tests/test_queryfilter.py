@@ -51,7 +51,7 @@ class QueryFilterTest(BaseTestCase):
                         "doc_count": 7254,
                         "qf": {
                             "doc_count": 2180,
-                            "type": {
+                            "type.filter": {
                                 "doc_count": 1298,
                                 "type": {
                                     "buckets": [
@@ -70,7 +70,7 @@ class QueryFilterTest(BaseTestCase):
                                     ]
                                 }
                             },
-                            "vendor": {
+                            "vendor.filter": {
                                 "doc_count": 2153,
                                 "vendor": {
                                     "buckets": [
@@ -83,7 +83,7 @@ class QueryFilterTest(BaseTestCase):
                                     ]
                                 }
                             },
-                            "model": {
+                            "model.filter": {
                                 "doc_count": 2153,
                                 "model": {
                                     "buckets": [
@@ -133,7 +133,7 @@ class QueryFilterTest(BaseTestCase):
                                     }
                                 },
                                 "aggregations": {
-                                    "type": {
+                                    "type.filter": {
                                         "filter": {
                                             "term": {"vendor": "Subaru"}
                                         },
@@ -143,7 +143,7 @@ class QueryFilterTest(BaseTestCase):
                                             }
                                         }
                                     },
-                                    "vendor": {
+                                    "vendor.filter": {
                                         "filter": {
                                             "terms": {"type": [0, 1]}
                                         },
@@ -158,7 +158,7 @@ class QueryFilterTest(BaseTestCase):
                                             }
                                         }
                                     },
-                                    "model": {
+                                    "model.filter": {
                                         "filter": {
                                             "and": [
                                                 {"terms": {"type": [0, 1]}},
@@ -243,7 +243,7 @@ class QueryFilterTest(BaseTestCase):
                         "doc_count": 128,
                         "price.min": {"value": 7500},
                         "price.max": {"value": 25800},
-                        "disp": {
+                        "disp.filter": {
                             "doc_count": 237,
                             "disp.min": {"value": 1.6},
                             "disp.max": {"value": 3.0}
@@ -278,7 +278,7 @@ class QueryFilterTest(BaseTestCase):
                         "aggregations": {
                             "price.min": {"min": {"field": "price"}},
                             "price.max": {"max": {"field": "price"}},
-                            "disp": {
+                            "disp.filter": {
                                 "filter": {
                                     "range": {"price": {"lte": 10000}}
                                 },
