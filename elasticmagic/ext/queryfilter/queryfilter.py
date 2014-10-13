@@ -364,14 +364,14 @@ class FacetQueryValue(BaseFilterValue):
         self.expr = expr
 
     @property
-    def bucket(self):
-        return self.data.get('bucket')
+    def agg(self):
+        return self.data.get('agg')
 
     @property
     def count(self):
-        bucket = self.bucket
-        if bucket:
-            return self.bucket.doc_count
+        agg = self.agg
+        if agg:
+            return self.agg.doc_count
 
 
 class FacetQueryFilter(BaseFilter):
@@ -383,6 +383,7 @@ class FacetQueryFilter(BaseFilter):
         self.values_map = {fv.value: fv for fv in self.values}
 
         self._filter_agg_name = '{}.filter'.format
+        self._agg_name = '{}:{}'.format
 
     def get_value(self, value):
         return self.values_map.get(value)
@@ -410,29 +411,35 @@ class FacetQueryFilter(BaseFilter):
             if self.name not in tags:
                 filters.append(filt)
 
-        filters_agg = agg.Filters(Params({fv.value: fv.expr for fv in self.values}))
+        filter_aggs_map = {}
+        for fv in self.values:
+            filter_aggs_map[self._agg_name(self.name, fv.value)] = agg.Filter(fv.expr)
+
         if filters:
             main_agg = main_agg.aggs(
-                **{self._filter_agg_name(self.name): agg.Filter(And(*filters), aggs={self.name: filters_agg})}
+                **{
+                    self._filter_agg_name(self.name): agg.Filter(
+                        And(*filters), aggs=filter_aggs_map
+                    )
+                }
             )
         else:
-            main_agg = main_agg.aggs(**{self.name: filters_agg})
+            main_agg = main_agg.aggs(**filter_aggs_map)
 
         return main_agg
 
     def _process_agg(self, main_agg, params):
         values = params.get('exact', [])
         values = list(chain(*values))
-        if main_agg.get_aggregation(self.name):
-            filters_agg = main_agg.get_aggregation(self.name)
+        if main_agg.get_aggregation(self._filter_agg_name(self.name)):
+            filters_agg = main_agg.get_aggregation(self._filter_agg_name(self.name))
         else:
-            filters_agg = main_agg \
-                .get_aggregation(self._filter_agg_name(self.name)) \
-                .get_aggregation(self.name)
-        for bucket in filters_agg.buckets:
-            if bucket.key in values:
-                self.qf._set_selected(self.name, bucket.key)
-            self.qf._set_value_data(self.name, bucket.key, {'bucket': bucket})
+            filters_agg = main_agg
+        for fv in self.values:
+            filt_agg = filters_agg.get_aggregation(self._agg_name(self.name, fv.value))
+            if fv.value in values:
+                self.qf._set_selected(self.name, fv.value)
+            self.qf._set_value_data(self.name, fv.value, {'agg': filt_agg})
 
 
 class OrderingValue(BaseFilterValue):

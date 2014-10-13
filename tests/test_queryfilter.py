@@ -318,21 +318,15 @@ class QueryFilterTest(BaseTestCase):
                 "aggregations": {
                     "qf": {
                         "doc_count": 931,
-                        "is_new": {
-                            "buckets": {
-                                "true": {"doc_count": 82}
-                            }
+                        "is_new:true": {
+                            "doc_count": 82
                         },
                         "price.filter": {
                             "doc_count": 82,
-                            "price": {
-                                "buckets": {
-                                    "*-10000": {"doc_count": 11},
-                                    "10000-20000": {"doc_count": 16},
-                                    "20000-30000": {"doc_count": 23},
-                                    "30000-*": {"doc_count": 32}
-                                }
-                            }
+                            "price:*-10000": {"doc_count": 11},
+                            "price:10000-20000": {"doc_count": 16},
+                            "price:20000-30000": {"doc_count": 23},
+                            "price:30000-*": {"doc_count": 32}
                         }
                     }
                 }
@@ -369,11 +363,9 @@ class QueryFilterTest(BaseTestCase):
                     "qf": {
                         "global": {},
                         "aggregations": {
-                            "is_new": {
-                                "filters": {
-                                    "filters": {
-                                        "true": {"term": {"state": "new"}}
-                                    }
+                            "is_new:true": {
+                                "filter": {
+                                    "term": {"state": "new"}
                                 }
                             },
                             "price.filter": {
@@ -381,22 +373,24 @@ class QueryFilterTest(BaseTestCase):
                                     "term": {"state": "new"}
                                 },
                                 "aggregations": {
-                                    "price": {
-                                        "filters": {
-                                            "filters": {
-                                                "*-10000": {
-                                                    "range": {"price": {"lte": 10000}}
-                                                },
-                                                "10000-20000": {
-                                                    "range": {"price": {"gt": 10000, "lte": 20000}}
-                                                },
-                                                "20000-30000": {
-                                                    "range": {"price": {"gt": 20000, "lte": 30000}}
-                                                },
-                                                "30000-*": {
-                                                    "range": {"price": {"gt": 30000}}
-                                                }
-                                            }
+                                    "price:*-10000": {
+                                        "filter": {
+                                            "range": {"price": {"lte": 10000}}
+                                        }
+                                    },
+                                    "price:10000-20000": {
+                                        "filter": {
+                                            "range": {"price": {"gt": 10000, "lte": 20000}}
+                                        }
+                                    },
+                                    "price:20000-30000": {
+                                        "filter": {
+                                            "range": {"price": {"gt": 20000, "lte": 30000}}
+                                        }
+                                    },
+                                    "price:30000-*": {
+                                        "filter": {
+                                            "range": {"price": {"gt": 30000}}
                                         }
                                     }
                                 }
