@@ -4,6 +4,7 @@ from elasticmagic import agg, SearchQuery, Term, Index
 from elasticmagic.types import Integer, Float
 from elasticmagic.expression import Fields
 from elasticmagic.ext.queryfilter import QueryFilter, FacetFilter, RangeFilter
+from elasticmagic.ext.queryfilter import FacetQueryFilter, FacetQueryValue
 from elasticmagic.ext.queryfilter import OrderingFilter, OrderingValue
 
 from .base import BaseTestCase
@@ -305,6 +306,119 @@ class QueryFilterTest(BaseTestCase):
         self.assertIs(disp_filter.from_value, None)
         self.assertIs(disp_filter.to_value, None)
         
+    def test_facet_query_filter(self):
+        es_client = MagicMock()
+        es_client.search = MagicMock(
+            return_value={
+                "hits": {
+                    "hits": [],
+                    "max_score": 1.829381,
+                    "total": 893
+                },
+                "aggregations": {
+                    "qf": {
+                        "doc_count": 931,
+                        "is_new": {
+                            "buckets": {
+                                "true": {"doc_count": 82}
+                            }
+                        },
+                        "price.filter": {
+                            "doc_count": 82,
+                            "price": {
+                                "buckets": {
+                                    "*-10000": {"doc_count": 11},
+                                    "10000-20000": {"doc_count": 16},
+                                    "20000-30000": {"doc_count": 23},
+                                    "30000-*": {"doc_count": 32}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        )
+        es_index = Index(es_client, 'ads')
+
+        class CarQueryFilter(QueryFilter):
+            is_new = FacetQueryFilter(
+                FacetQueryValue('true', es_index.car.state == 'new')
+            )
+            price = FacetQueryFilter(
+                FacetQueryValue('*-10000', es_index.car.price <= 10000),
+                FacetQueryValue('10000-20000', es_index.car.price.range(gt=10000, lte=20000)),
+                FacetQueryValue('20000-30000', es_index.car.price.range(gt=20000, lte=30000)),
+                FacetQueryValue('30000-*', es_index.car.price.range(gt=30000)),
+            )
+
+        qf = CarQueryFilter()
+
+        sq = es_index.query()
+        sq = qf.apply(sq, {'is_new': ['true', 'false']})
+        self.assert_expression(
+            sq,
+            {
+                "query": {
+                    "filtered": {
+                        "filter": {
+                            "term": {"state": "new"}
+                        }
+                    }
+                },
+                "aggregations": {
+                    "qf": {
+                        "global": {},
+                        "aggregations": {
+                            "is_new": {
+                                "filters": {
+                                    "filters": {
+                                        "true": {"term": {"state": "new"}}
+                                    }
+                                }
+                            },
+                            "price.filter": {
+                                "filter": {
+                                    "term": {"state": "new"}
+                                },
+                                "aggregations": {
+                                    "price": {
+                                        "filters": {
+                                            "filters": {
+                                                "*-10000": {
+                                                    "range": {"price": {"lte": 10000}}
+                                                },
+                                                "10000-20000": {
+                                                    "range": {"price": {"gt": 10000, "lte": 20000}}
+                                                },
+                                                "20000-30000": {
+                                                    "range": {"price": {"gt": 20000, "lte": 30000}}
+                                                },
+                                                "30000-*": {
+                                                    "range": {"price": {"gt": 30000}}
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        )
+
+        qf.process_results(sq.results)
+        self.assertEqual(qf.is_new.get_value('true').value, 'true')
+        self.assertEqual(qf.is_new.get_value('true').count, 82)
+        self.assertEqual(qf.price.get_value('*-10000').value, '*-10000')
+        self.assertEqual(qf.price.get_value('*-10000').count, 11)
+        self.assertEqual(qf.price.get_value('10000-20000').value, '10000-20000')
+        self.assertEqual(qf.price.get_value('10000-20000').count, 16)
+        self.assertEqual(qf.price.get_value('20000-30000').value, '20000-30000')
+        self.assertEqual(qf.price.get_value('20000-30000').count, 23)
+        self.assertEqual(qf.price.get_value('30000-*').value, '30000-*')
+        self.assertEqual(qf.price.get_value('30000-*').count, 32)
+
     def test_ordering(self):
         es_client = MagicMock()
         es_index = Index(es_client, 'ads')
@@ -367,7 +481,7 @@ class QueryFilterTest(BaseTestCase):
         self.assertEqual(qf.sort.get_value('popularity').selected, False)
         self.assertEqual(qf.sort.get_value('-price').selected, False)
 
-    # def test_nested(self):
+   # def test_nested(self):
     #     f = Fields()
 
     #     qf = QueryFilter()
