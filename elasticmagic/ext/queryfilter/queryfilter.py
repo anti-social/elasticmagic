@@ -258,6 +258,14 @@ class FacetValue(BaseFilterValue):
             return self.bucket.doc_count
 
     @property
+    def count_text(self):
+        if self.count is None:
+            return ''
+        if not self.selected and self.filter.selected_values:
+            return '+{}'.format(self.count)
+        return '{}'.format(self.count)
+
+    @property
     def instance(self):
         bucket = self.bucket
         if bucket:
@@ -270,10 +278,6 @@ class FacetValue(BaseFilterValue):
     @property
     def filter_value(self):
         return self.filter.qf._codec.encode_value(self.value)
-
-    @property
-    def count_text(self):
-        return text_type(self.count)
 
     @property
     def title(self):
@@ -376,8 +380,10 @@ class FacetQueryValue(BaseFilterValue):
 
     @property
     def count_text(self):
-        if not self.count:
+        if self.count is None:
             return ''
+        if not self.selected and self.filter.selected_values:
+            return '+{}'.format(self.count)
         return '{}'.format(self.count)
 
     @property
