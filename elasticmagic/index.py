@@ -1,5 +1,7 @@
 from collections import defaultdict
 
+from elasticsearch.client import IndicesClient
+
 from .util import to_camel_case
 from .search import SearchQuery
 from .result import Result
@@ -10,6 +12,7 @@ from .expression import Params
 class Index(object):
     def __init__(self, client, name):
         self._client = client
+        self._indices_client = IndicesClient(client)
         self._name = name
 
         self._doc_cls_cache = {}
@@ -58,6 +61,8 @@ class Index(object):
             index=self._name, doc_type=doc_type, body=Params(query=q).to_dict()
         )
 
+    def refresh(self):
+        return self._indices_client.refresh(index=self.name)
+        
     def flush(self):
-        # TODO: flush modified documents
-        pass
+        return self._indices_client.flush(index=self.name)

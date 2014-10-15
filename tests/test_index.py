@@ -35,4 +35,3 @@ class IndexTest(unittest.TestCase):
                 {'vendor': 'Subaru', 'model': 'VRX'}
             ]
         )
-        
