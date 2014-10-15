@@ -308,30 +308,6 @@ class QueryFilterTest(BaseTestCase):
         
     def test_facet_query_filter(self):
         es_client = MagicMock()
-        es_client.search = MagicMock(
-            return_value={
-                "hits": {
-                    "hits": [],
-                    "max_score": 1.829381,
-                    "total": 893
-                },
-                "aggregations": {
-                    "qf": {
-                        "doc_count": 931,
-                        "is_new:true": {
-                            "doc_count": 82
-                        },
-                        "price.filter": {
-                            "doc_count": 82,
-                            "price:*-10000": {"doc_count": 11},
-                            "price:10000-20000": {"doc_count": 16},
-                            "price:20000-30000": {"doc_count": 23},
-                            "price:30000-*": {"doc_count": 32}
-                        }
-                    }
-                }
-            }
-        )
         es_index = Index(es_client, 'ads')
 
         class CarQueryFilter(QueryFilter):
@@ -343,6 +319,7 @@ class QueryFilterTest(BaseTestCase):
                 FacetQueryValue('10000-20000', es_index.car.price.range(gt=10000, lte=20000)),
                 FacetQueryValue('20000-30000', es_index.car.price.range(gt=20000, lte=30000)),
                 FacetQueryValue('30000-*', es_index.car.price.range(gt=30000)),
+                aggs={'disp_avg': agg.Avg(es_index.car.engine_displacement)}
             )
 
         qf = CarQueryFilter()
@@ -376,21 +353,41 @@ class QueryFilterTest(BaseTestCase):
                                     "price:*-10000": {
                                         "filter": {
                                             "range": {"price": {"lte": 10000}}
+                                        },
+                                        "aggregations": {
+                                            "disp_avg": {
+                                                "avg": {"field": "engine_displacement"}
+                                            }
                                         }
                                     },
                                     "price:10000-20000": {
                                         "filter": {
                                             "range": {"price": {"gt": 10000, "lte": 20000}}
+                                        },
+                                        "aggregations": {
+                                            "disp_avg": {
+                                                "avg": {"field": "engine_displacement"}
+                                            }
                                         }
                                     },
                                     "price:20000-30000": {
                                         "filter": {
                                             "range": {"price": {"gt": 20000, "lte": 30000}}
+                                        },
+                                        "aggregations": {
+                                            "disp_avg": {
+                                                "avg": {"field": "engine_displacement"}
+                                            }
                                         }
                                     },
                                     "price:30000-*": {
                                         "filter": {
                                             "range": {"price": {"gt": 30000}}
+                                        },
+                                        "aggregations": {
+                                            "disp_avg": {
+                                                "avg": {"field": "engine_displacement"}
+                                            }
                                         }
                                     }
                                 }
@@ -401,17 +398,243 @@ class QueryFilterTest(BaseTestCase):
             }
         )
 
+        es_client.search = MagicMock(
+            return_value={
+                "hits": {
+                    "hits": [],
+                    "max_score": 1.829381,
+                    "total": 893
+                },
+                "aggregations": {
+                    "qf": {
+                        "doc_count": 931,
+                        "is_new:true": {
+                            "doc_count": 82
+                        },
+                        "price.filter": {
+                            "doc_count": 82,
+                            "price:*-10000": {
+                                "doc_count": 11,
+                                "disp_avg": {"value": 1.56}
+                            },
+                            "price:10000-20000": {
+                                "doc_count": 16,
+                                "disp_avg": {"value": 2.4}
+                            },
+                            "price:20000-30000": {
+                                "doc_count": 23,
+                                "disp_avg": {"value": 2.85}
+                            },
+                            "price:30000-*": {
+                                "doc_count": 32,
+                                "disp_avg": {"value": 2.92}
+                            }
+                        }
+                    }
+                }
+            }
+        )
         qf.process_results(sq.results)
+        self.assertEqual(len(qf.is_new.all_values), 1)
+        self.assertEqual(len(qf.is_new.selected_values), 1)
+        self.assertEqual(len(qf.is_new.values), 0)
         self.assertEqual(qf.is_new.get_value('true').value, 'true')
         self.assertEqual(qf.is_new.get_value('true').count, 82)
+        self.assertEqual(qf.is_new.get_value('true').selected, True)
+        self.assertEqual(len(qf.price.all_values), 4)
+        self.assertEqual(len(qf.price.selected_values), 0)
+        self.assertEqual(len(qf.price.values), 4)
         self.assertEqual(qf.price.get_value('*-10000').value, '*-10000')
         self.assertEqual(qf.price.get_value('*-10000').count, 11)
+        self.assertEqual(qf.price.get_value('*-10000').selected, False)
+        self.assertEqual(qf.price.get_value('*-10000').agg.get_aggregation('disp_avg').value, 1.56)
         self.assertEqual(qf.price.get_value('10000-20000').value, '10000-20000')
         self.assertEqual(qf.price.get_value('10000-20000').count, 16)
+        self.assertEqual(qf.price.get_value('10000-20000').selected, False)
+        self.assertEqual(qf.price.get_value('10000-20000').agg.get_aggregation('disp_avg').value, 2.4)
         self.assertEqual(qf.price.get_value('20000-30000').value, '20000-30000')
         self.assertEqual(qf.price.get_value('20000-30000').count, 23)
+        self.assertEqual(qf.price.get_value('20000-30000').selected, False)
+        self.assertEqual(qf.price.get_value('20000-30000').agg.get_aggregation('disp_avg').value, 2.85)
         self.assertEqual(qf.price.get_value('30000-*').value, '30000-*')
         self.assertEqual(qf.price.get_value('30000-*').count, 32)
+        self.assertEqual(qf.price.get_value('30000-*').selected, False)
+        self.assertEqual(qf.price.get_value('30000-*').agg.get_aggregation('disp_avg').value, 2.92)
+
+        qf = CarQueryFilter()
+        sq = es_index.query(es_index.car.year == 2014)
+        sq = qf.apply(sq, {'price': ['*-10000', '10000-20000', 'null']})
+        self.assert_expression(
+            sq,
+            {
+                "query": {
+                    "filtered": {
+                        "query": {
+                            "term": {"year": 2014}
+                        },
+                        "filter": {
+                            "or": [
+                                {
+                                    "range": {
+                                        "price": {"lte": 10000}
+                                    }
+                                },
+                                {
+                                    "range": {
+                                        "price": {"gt": 10000, "lte": 20000}
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                },
+                "aggregations": {
+                    "qf": {
+                        "global": {},
+                        "aggregations": {
+                            "qf": {
+                                "filter": {
+                                    "query": {
+                                        "term": {"year": 2014}
+                                    }
+                                },
+                                "aggregations": {
+                                    "is_new.filter": {
+                                        "filter": {
+                                            "or": [
+                                                {
+                                                    "range": {
+                                                        "price": {"lte": 10000}
+                                                    }
+                                                },
+                                                {
+                                                    "range": {
+                                                        "price": {"gt": 10000, "lte": 20000}
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                        "aggregations": {
+                                            "is_new:true": {
+                                                "filter": {
+                                                    "term": {"state": "new"}
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "price:*-10000": {
+                                        "filter": {
+                                            "range": {"price": {"lte": 10000}}
+                                        },
+                                        "aggregations": {
+                                            "disp_avg": {
+                                                "avg": {"field": "engine_displacement"}
+                                            }
+                                        }
+                                    },
+                                    "price:10000-20000": {
+                                        "filter": {
+                                            "range": {"price": {"gt": 10000, "lte": 20000}}
+                                        },
+                                        "aggregations": {
+                                            "disp_avg": {
+                                                "avg": {"field": "engine_displacement"}
+                                            }
+                                        }
+                                    },
+                                    "price:20000-30000": {
+                                        "filter": {
+                                            "range": {"price": {"gt": 20000, "lte": 30000}}
+                                        },
+                                        "aggregations": {
+                                            "disp_avg": {
+                                                "avg": {"field": "engine_displacement"}
+                                            }
+                                        }
+                                    },
+                                    "price:30000-*": {
+                                        "filter": {
+                                            "range": {"price": {"gt": 30000}}
+                                        },
+                                        "aggregations": {
+                                            "disp_avg": {
+                                                "avg": {"field": "engine_displacement"}
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        )
+
+        es_client.search = MagicMock(
+            return_value={
+                "hits": {
+                    "hits": [],
+                    "max_score": 1.0,
+                    "total": 514
+                },
+                "aggregations": {
+                    "qf": {
+                        "doc_count": 931,
+                        "qf": {
+                            "doc_count": 112,
+                            "is_new.filter": {
+                                "doc_count": 34,
+                                "is_new:true": {
+                                    "doc_count": 32
+                                }
+                            },
+                            "price:*-10000": {
+                                "doc_count": 7,
+                                "disp_avg": {"value": 1.43}
+                            },
+                            "price:10000-20000": {
+                                "doc_count": 11,
+                                "disp_avg": {"value": 1.98}
+                            },
+                            "price:20000-30000": {
+                                "doc_count": 6,
+                                "disp_avg": {"value": 2.14}
+                            },
+                            "price:30000-*": {
+                                "doc_count": 10,
+                                "disp_avg": {"value": 2.67}
+                            }
+                        }
+                    }
+                }
+            }
+        )
+        qf.process_results(sq.results)
+        self.assertEqual(len(qf.is_new.all_values), 1)
+        self.assertEqual(len(qf.is_new.selected_values), 0)
+        self.assertEqual(len(qf.is_new.values), 1)
+        self.assertEqual(qf.is_new.get_value('true').value, 'true')
+        self.assertEqual(qf.is_new.get_value('true').count, 32)
+        self.assertEqual(qf.is_new.get_value('true').selected, False)
+        self.assertEqual(len(qf.price.all_values), 4)
+        self.assertEqual(len(qf.price.selected_values), 2)
+        self.assertEqual(len(qf.price.values), 2)
+        self.assertEqual(qf.price.get_value('*-10000').value, '*-10000')
+        self.assertEqual(qf.price.get_value('*-10000').count, 7)
+        self.assertEqual(qf.price.get_value('*-10000').selected, True)
+        self.assertEqual(qf.price.get_value('*-10000').agg.get_aggregation('disp_avg').value, 1.43)
+        self.assertEqual(qf.price.get_value('10000-20000').value, '10000-20000')
+        self.assertEqual(qf.price.get_value('10000-20000').count, 11)
+        self.assertEqual(qf.price.get_value('10000-20000').selected, True)
+        self.assertEqual(qf.price.get_value('10000-20000').agg.get_aggregation('disp_avg').value, 1.98)
+        self.assertEqual(qf.price.get_value('20000-30000').value, '20000-30000')
+        self.assertEqual(qf.price.get_value('20000-30000').count, 6)
+        self.assertEqual(qf.price.get_value('20000-30000').selected, False)
+        self.assertEqual(qf.price.get_value('20000-30000').agg.get_aggregation('disp_avg').value, 2.14)
+        self.assertEqual(qf.price.get_value('30000-*').value, '30000-*')
+        self.assertEqual(qf.price.get_value('30000-*').count, 10)
+        self.assertEqual(qf.price.get_value('30000-*').selected, False)
+        self.assertEqual(qf.price.get_value('30000-*').agg.get_aggregation('disp_avg').value, 2.67)
 
     def test_ordering(self):
         es_client = MagicMock()

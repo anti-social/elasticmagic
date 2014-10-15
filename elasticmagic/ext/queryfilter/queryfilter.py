@@ -359,9 +359,10 @@ class RangeFilter(FieldFilter):
 
 
 class FacetQueryValue(BaseFilterValue):
-    def __init__(self, value, expr):
+    def __init__(self, value, expr, **opts):
         super(FacetQueryValue, self).__init__(value)
         self.expr = expr
+        self.opts = opts
 
     @property
     def agg(self):
@@ -373,17 +374,51 @@ class FacetQueryValue(BaseFilterValue):
         if agg:
             return self.agg.doc_count
 
+    @property
+    def count_text(self):
+        if not self.count:
+            return ''
+        return '{}'.format(self.count)
+
+    @property
+    def filter_name(self):
+        return self.filter.name
+
+    @property
+    def filter_value(self):
+        return self.value
+
+    @property
+    def title(self):
+        return text_type(self.opts.get('title', self.value))
+
+    def __unicode__(self):
+        return self.title
+
 
 class FacetQueryFilter(BaseFilter):
-    def __init__(self, name, *values):
+    def __init__(self, name, *values, **agg_kwargs):
         super(FacetQueryFilter, self).__init__(name)
-        self.values = values
-        for fv in self.values:
+        self._values = values
+        for fv in self._values:
             fv.bind(self)
-        self.values_map = {fv.value: fv for fv in self.values}
+        self.values_map = {fv.value: fv for fv in self._values}
+        self.agg_kwargs = agg_kwargs
 
         self._filter_agg_name = '{}.filter'.format
         self._agg_name = '{}:{}'.format
+
+    @property
+    def all_values(self):
+        return self._values
+
+    @property
+    def selected_values(self):
+        return [fv for fv in self._values if fv.selected]
+
+    @property
+    def values(self):
+        return [fv for fv in self._values if not fv.selected]
 
     def get_value(self, value):
         return self.values_map.get(value)
@@ -413,7 +448,7 @@ class FacetQueryFilter(BaseFilter):
 
         filter_aggs_map = {}
         for fv in self.values:
-            filter_aggs_map[self._agg_name(self.name, fv.value)] = agg.Filter(fv.expr)
+            filter_aggs_map[self._agg_name(self.name, fv.value)] = agg.Filter(fv.expr, **self.agg_kwargs)
 
         if filters:
             main_agg = main_agg.aggs(
