@@ -235,7 +235,6 @@ class QueryFilterTest(BaseTestCase):
         self.assertIs(model_filter.all_values[1], model_filter.values[1])
         self.assertIs(model_filter.all_values[1], model_filter.get_value('Forester'))
 
-
     def test_range_filter(self):
         es_client = MagicMock()
         es_client.search = MagicMock(

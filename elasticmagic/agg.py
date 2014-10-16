@@ -1,4 +1,5 @@
 from .expression import QueryExpression, Params
+from .types import instantiate, Type
 from .util import _with_clone, cached_property
 
 
@@ -152,8 +153,12 @@ class Cardinality(SingleValueMetricsAgg):
 
 
 class Bucket(object):
+    _typed_key = True
+
     def __init__(self, raw_data, aggs, parent):
         self.key = raw_data.get('key')
+        if self._typed_key:
+            self.key = parent._type.to_python(self.key)
         self.doc_count = raw_data['doc_count']
         self.parent = parent
         self.aggregations = {}
@@ -175,8 +180,9 @@ class Bucket(object):
 class MultiBucketAgg(BucketAgg):
     bucket_cls = Bucket
 
-    def __init__(self, instance_mapper=None, **kwargs):
+    def __init__(self, type=None, instance_mapper=None, **kwargs):
         super(MultiBucketAgg, self).__init__(**kwargs)
+        self._type = instantiate(type or Type)
         self._instance_mapper = instance_mapper
         self.buckets = []
         self.parent = None
@@ -186,7 +192,12 @@ class MultiBucketAgg(BucketAgg):
         return iter(self.buckets)
 
     def clone(self):
-        return self.__class__(aggs=self._aggs, instance_mapper=self._instance_mapper, **self.params)
+        return self.__class__(
+            type=self._type,
+            instance_mapper=self._instance_mapper,
+            aggs=self._aggs,
+            **self.params
+        )
 
     def process_results(self, raw_data):
         raw_buckets = raw_data.get('buckets', [])
@@ -234,13 +245,16 @@ class Terms(MultiBucketAgg):
             self, field=None, script=None, size=None, shard_size=None,
             order=None, min_doc_count=None, shard_min_doc_count=None,
             include=None, exclude=None, collect_mode=None,
-            execution_hint=None, aggs=None, **kwargs
+            execution_hint=None, type=None, instance_mapper=None, aggs=None,
+            **kwargs
     ):
+        type = type or (field._type if field else None)
         super(Terms, self).__init__(
             field=field, script=script, size=size, shard_size=shard_size,
             order=order, min_doc_count=min_doc_count, shard_min_doc_count=shard_min_doc_count,
             include=include, exclude=exclude, collect_mode=collect_mode,
-            execution_hint=execution_hint, aggs=aggs, **kwargs
+            execution_hint=execution_hint, type=type, instance_mapper=instance_mapper, aggs=aggs,
+            **kwargs
         )
 
 
@@ -265,10 +279,12 @@ class Histogram(MultiBucketAgg):
 
 
 class RangeBucket(Bucket):
+    _typed_key = False
+
     def __init__(self, raw_data, aggs, parent):
         super(RangeBucket, self).__init__(raw_data, aggs, parent)
-        self.from_ = raw_data.get('from')
-        self.to = raw_data.get('to')
+        self.from_ = self.parent._type.to_python(raw_data.get('from'))
+        self.to = self.parent._type.to_python(raw_data.get('to'))
 
 
 class Range(MultiBucketAgg):
@@ -276,8 +292,12 @@ class Range(MultiBucketAgg):
 
     bucket_cls = RangeBucket
 
-    def __init__(self, field=None, script=None, ranges=None, aggs=None, **kwargs):
-        super(Range, self).__init__(field=field, script=script, ranges=ranges, aggs=aggs, **kwargs)
+    def __init__(self, field=None, script=None, ranges=None, type=None, aggs=None, **kwargs):
+        type = type or (field._type if field else None)
+        super(Range, self).__init__(
+            field=field, script=script, ranges=ranges,
+            type=type, aggs=aggs, **kwargs
+        )
 
 
 class Filters(MultiBucketAgg):

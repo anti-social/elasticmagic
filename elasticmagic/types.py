@@ -96,7 +96,7 @@ class Boolean(Type):
     def to_python(self, value):
         if value is None:
             return None
-        elif value is False or value == 0 or value in ('false', 'off', 'no'):
+        elif value is False or value == 0 or value in ('false', 'F'):
             return False
         return True
 

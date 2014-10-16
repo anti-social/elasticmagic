@@ -1,7 +1,8 @@
 from mock import Mock, patch
 
-from elasticmagic import agg, Params, Term
-from elasticmagic.expression import Fields
+from elasticmagic import agg, Params, Term, Document
+from elasticmagic.types import Boolean
+from elasticmagic.expression import Field, Fields
 
 from .base import BaseTestCase
 
@@ -157,6 +158,50 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(a.buckets[4].doc_count, 9594)
         self.assertEqual(a.buckets[5].key, 5)
         self.assertEqual(a.buckets[5].doc_count, 46)
+
+        a = agg.Terms(f.is_visible, type=Boolean)
+        self.assert_expression(
+            a,
+            {
+                "terms": {"field": "is_visible"}
+            }
+        )
+        a.process_results(
+            {
+                'buckets': [
+                    {'doc_count': 7, 'key': 'T'},
+                    {'doc_count': 2, 'key': 'F'},
+                ]
+            }
+        )
+        self.assertEqual(len(a.buckets), 2)
+        self.assertEqual(a.buckets[0].key, True)
+        self.assertEqual(a.buckets[0].doc_count, 7)
+        self.assertEqual(a.buckets[1].key, False)
+        self.assertEqual(a.buckets[1].doc_count, 2)
+
+        class ProductDocument(Document):
+            is_visible = Field(Boolean)
+        a = agg.Terms(ProductDocument.is_visible)
+        self.assert_expression(
+            a,
+            {
+                "terms": {"field": "is_visible"}
+            }
+        )
+        a.process_results(
+            {
+                'buckets': [
+                    {'doc_count': 7, 'key': 'T'},
+                    {'doc_count': 2, 'key': 'F'},
+                ]
+            }
+        )
+        self.assertEqual(len(a.buckets), 2)
+        self.assertEqual(a.buckets[0].key, True)
+        self.assertEqual(a.buckets[0].doc_count, 7)
+        self.assertEqual(a.buckets[1].key, False)
+        self.assertEqual(a.buckets[1].doc_count, 2)
 
         a = agg.SignificantTerms(f.crime_type)
         self.assert_expression(
