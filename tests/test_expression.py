@@ -1,7 +1,7 @@
 from elasticmagic import (
     Term, Terms, Exists, Missing, Match, MatchAll, MultiMatch, Range,
     Bool, Must, MustNot, Should, Query, And, Or, Not, Sort,
-    Boosting, Common, ConstantScore, DisMax, Filtered, Ids, Prefix,
+    Boosting, Common, ConstantScore, FunctionScore, DisMax, Filtered, Ids, Prefix,
 )
 from elasticmagic.expression import Fields, Compiled
 
@@ -222,6 +222,26 @@ class ExpressionTestCase(BaseTestCase):
                         "term": { "user": "kimchy"}
                     },
                     "boost": 1.2
+                }
+            }
+        )
+        self.assert_expression(
+            FunctionScore(
+                query=MatchAll(),
+                field_value_factor={
+                    'field': f.popularity,
+                    'factor': 1.2,
+                    'modifier': 'sqrt',
+                }
+            ),
+            {
+                "function_score": {
+                    "query": {"match_all": {}},
+                    "field_value_factor": {
+                        "field": "popularity",
+                        "factor": 1.2,
+                        "modifier": "sqrt"
+                    }
                 }
             }
         )

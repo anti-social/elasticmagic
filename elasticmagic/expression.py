@@ -255,8 +255,25 @@ class Common(FieldQueryExpression):
 class ConstantScore(QueryExpression):
     __query_name__ = 'constant_score'
 
-    def __init__(self, filter=None, query=None, boost=None, **kwargs):
+    def __init__(self, query=None, filter=None, boost=None, **kwargs):
         super(ConstantScore, self).__init__(filter=filter, query=query, boost=boost, **kwargs)
+
+
+class FunctionScore(QueryExpression):
+    __query_name__ = 'function_score'
+
+    def __init__(
+            self, query=None, filter=None, boost=None,
+            script_score=None, boost_factor=None, random_score=None,
+            field_value_factor=None, linear=None, exp=None, gauss=None, functions=None,
+            max_boost=None, score_mode=None, boost_mode=None, **kwargs
+    ):
+        super(FunctionScore, self).__init__(
+            query=query, filter=filter, boost=boost,
+            script_score=script_score, boost_factor=boost_factor, random_score=random_score,
+            field_value_factor=field_value_factor, linear=linear, exp=exp, gauss=gauss, functions=functions,
+            max_boost=max_boost, score_mode=score_mode, boost_mode=boost_mode, **kwargs
+        )
 
 
 class DisMax(QueryExpression):
@@ -617,7 +634,9 @@ class Compiled(object):
         res = {}
         for k, v in params.items():
             key = self.visit(k)
-            if isinstance(v, (list, tuple)):
+            if isinstance(v, dict):
+                res[key] = {self.visit(kk): self.visit(w) for kk, w in v.items()}
+            elif isinstance(v, (list, tuple)):
                 res[key] = [self.visit(w) for w in v]
             else:
                 res[key] = self.visit(v)
