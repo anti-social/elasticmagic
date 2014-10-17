@@ -1,6 +1,6 @@
 from mock import Mock, MagicMock
 
-from elasticmagic import Index, Document, SearchQuery, Params, Term, Bool, Sort, agg
+from elasticmagic import Index, Document, SearchQuery, Params, Term, Bool, MultiMatch, Sort, agg
 from elasticmagic.types import String, Integer, Float, Object
 from elasticmagic.expression import Fields, Field
 
@@ -94,6 +94,62 @@ class SearchQueryTest(BaseTestCase):
             SearchQuery().fields(f.name, f.company).fields(False),
             {
                 "_source": False
+            }
+        )
+
+        self.assert_expression(
+            SearchQuery().boost_function({'random_score': {"seed": 1234}}),
+            {
+                "query": {
+                    "function_score": {
+                        "functions": [
+                            {
+                                "random_score": {"seed": 1234}
+                            }
+                        ],
+                    }
+                }
+            }
+        )
+        self.assert_expression(
+            (
+                SearchQuery(MultiMatch('Iphone 6', fields=[f.name, f.description]))
+                .boost_function({'_score': {"seed": 1234}})
+                .boost_function(None)
+                .boost_function({'field_value_factor': {'field': f.popularity,
+                                                        'factor': 1.2,
+                                                        'modifier': 'sqrt'}},
+                                boost_mode='sum')
+                .boost_function({'boost_factor': 3,
+                                 'filter': f.region == 12})
+            ),
+            {
+                "query": {
+                    "function_score": {
+                        "query": {
+                            "multi_match": {
+                                "query": "Iphone 6",
+                                "fields": ["name", "description"]
+                            }
+                        },
+                        "functions": [
+                            {
+                                "field_value_factor": {
+                                    "field": "popularity",
+                                    "factor": 1.2,
+                                    "modifier": "sqrt"
+                                }
+                            },
+                            {
+                                "filter": {
+                                    "term": {"region": 12}
+                                },
+                                "boost_factor": 3
+                            }
+                        ],
+                        "boost_mode": "sum"
+                    }
+                }
             }
         )
 

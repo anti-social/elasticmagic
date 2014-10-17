@@ -25,6 +25,8 @@ class SearchQuery(object):
     _filters = ()
     _order_by = ()
     _aggregations = Params()
+    _boost_functions = ()
+    _boost_params = Params()
     _limit = None
     _offset = None
 
@@ -88,6 +90,17 @@ class SearchQuery(object):
             self._aggregations = Params(dict(self._aggregations), **aggs)
 
     aggs = aggregations
+
+    @_with_clone
+    def boost_function(self, *args, **kwargs):
+        if args == (None,):
+            del self._boost_functions
+            del self._boost_params
+        else:
+            self._boost_functions = self._boost_functions + args
+            self._boost_params = Params(dict(self._boost_params), **kwargs)
+
+    bf = boost_function
 
     @_with_clone
     def limit(self, limit):

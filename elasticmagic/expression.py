@@ -628,19 +628,26 @@ class Compiled(object):
         if visit_name:
             visit_func = getattr(self, 'visit_{}'.format(visit_name))
             return visit_func(expr, **kwargs)
+
+        if isinstance(expr, dict):
+            return self.visit_dict(expr)
+
+        if isinstance(expr, (list, tuple)):
+            return self.visit_list(expr)
+
         return expr
 
     def visit_params(self, params):
         res = {}
         for k, v in params.items():
-            key = self.visit(k)
-            if isinstance(v, dict):
-                res[key] = {self.visit(kk): self.visit(w) for kk, w in v.items()}
-            elif isinstance(v, (list, tuple)):
-                res[key] = [self.visit(w) for w in v]
-            else:
-                res[key] = self.visit(v)
+            res[self.visit(k)] = self.visit(v)
         return res
+
+    def visit_dict(self, dct):
+        return {self.visit(k): self.visit(v) for k, v in dct.items()}
+
+    def visit_list(self, lst):
+        return [self.visit(v) for v in lst]
 
     def visit_literal(self, expr):
         return expr.obj
@@ -781,6 +788,8 @@ class Compiled(object):
     def visit_search_query(self, query):
         params = {}
         q = query.get_filtered_query()
+        if query._boost_functions:
+            q = FunctionScore(query=q, functions=query._boost_functions, **query._boost_params)
         if q is not None:
             params['query'] = self.visit(q)
         if query._order_by:
