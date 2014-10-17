@@ -153,17 +153,22 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
 
+        e = MultiMatch(
+            "Will Smith",
+            [self.index.star.title.boost(4), self.index.star.f._wildcard('*_name').boost(2)]
+        )
         self.assert_expression(
-            MultiMatch(
-                "Will Smith",
-                [f.title.boost(4), f._wildcard('*_name').boost(2)]
-            ),
+            e,
             {
                 "multi_match": {
                     "query": "Will Smith",
                     "fields": ["title^4", "*_name^2"]
                 }
             }
+        )
+        self.assertEqual(
+            e._collect_doc_classes(),
+            [self.index.star]
         )
 
         self.assert_expression(

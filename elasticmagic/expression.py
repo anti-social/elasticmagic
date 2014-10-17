@@ -162,7 +162,7 @@ class MultiMatch(QueryExpression):
 
     def _collect_doc_classes(self):
         return super(MultiMatch, self)._collect_doc_classes() \
-            + list(chain(f._collect_doc_classes() for f in self.fields))
+            + list(chain(*[f._collect_doc_classes() for f in self.fields]))
 
 
 class MatchAll(QueryExpression):
@@ -409,10 +409,10 @@ class _Fields(object):
 
     def _get_field(self, name):
         from .document import Document
-        
+
         if self._parent:
-            if isinstance(self._parent, Document):
-                return getattr(self._parent, name)
+            if inspect.isclass(self._parent) and issubclass(self._parent, Document):
+                return Field(name)
             if isinstance(self._parent, Field):
                 if self._parent._type.doc_cls:
                     base_field = getattr(self._parent._type.doc_cls, name)
@@ -547,6 +547,8 @@ class Field(Expression, FieldOperators):
     f = fields
 
     def __getattr__(self, name):
+        # if name.startswith('__'):
+        #     return super(Field, self).__getattr__(name)
         return getattr(self.fields, name)
 
     def __get__(self, obj, type=None):
@@ -588,6 +590,9 @@ class BoostExpression(Expression):
     @property
     def _doc_types(self):
         return self.expr._doc_types
+
+    def _collect_doc_classes(self):
+        return self.expr._collect_doc_classes()
 
 
 class Compiled(object):
