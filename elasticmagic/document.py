@@ -115,9 +115,7 @@ class DynamicDocumentMeta(DocumentMeta):
     f = fields
 
     def __getattr__(cls, name):
-        field = Field(name)
-        field._bind(cls, name)
-        return field
+        return Field(name, _doc_cls=cls, _attr_name=name, _fields=Fields(dynamic=True))
 
 
 class DynamicDocument(with_metaclass(DynamicDocumentMeta, Document)):

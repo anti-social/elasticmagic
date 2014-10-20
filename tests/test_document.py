@@ -2,9 +2,9 @@ import datetime
 
 import dateutil
 
-from elasticmagic.types import Type, String, Integer, Date, Object, List
+from elasticmagic.types import Type, String, Integer, Float, Date, Object, MultiField, List
 from elasticmagic.compat import string_types
-from elasticmagic.document import Document
+from elasticmagic.document import Document, DynamicDocument
 from elasticmagic.expression import Field
 
 from .base import BaseTestCase
@@ -22,6 +22,7 @@ class TestDocument(Document):
     name = Field('test_name', String())
     status = Field(Integer)
     group = Field(Object(GroupDocument))
+    price = Field(MultiField(Float, {'sort': Float}))
     tags = Field(List(Object(TagDocument)))
     date_created = Field(Date)
     unused = Field(String)
@@ -42,6 +43,11 @@ class DocumentTestCase(BaseTestCase):
         self.assertIsInstance(TestDocument.group, Field)
         self.assertIsInstance(TestDocument.group._type, Object)
         self.assertIsInstance(TestDocument.group.name, Field)
+        self.assertIsInstance(TestDocument.price, Field)
+        self.assertIsInstance(TestDocument.price._type, MultiField)
+        self.assertIsInstance(TestDocument.price.sort, Field)
+        self.assertIsInstance(TestDocument.price.sort._type, Float)
+        self.assertEqual(TestDocument.price.sort._collect_doc_classes(), [TestDocument])
         self.assertEqual(TestDocument.group.name._name, 'group.name')
         self.assertIsInstance(TestDocument.group.name._type, String)
         self.assertEqual(TestDocument.group.name._collect_doc_classes(), [TestDocument])
@@ -66,6 +72,7 @@ class DocumentTestCase(BaseTestCase):
 
         doc = TestDocument(_id=123, name='Test name', status=0,
                            group=GroupDocument(name='Test group'),
+                           price=99.99,
                            tags=[TagDocument(id=1, name='Test tag'),
                                  TagDocument(id=2, name='Just tag')])
         self.assertIsInstance(doc._id, int)
@@ -76,6 +83,8 @@ class DocumentTestCase(BaseTestCase):
         self.assertEqual(doc.status, 0)
         self.assertIsInstance(doc.group, GroupDocument)
         self.assertIsInstance(doc.group.name, string_types)
+        self.assertIsInstance(doc.price, float)
+        self.assertAlmostEqual(doc.price, 99.99)
         self.assertEqual(doc.group.name, 'Test group')
         self.assertIsInstance(doc.tags, list)
         self.assertIsInstance(doc.tags[0].name, string_types)
@@ -88,6 +97,7 @@ class DocumentTestCase(BaseTestCase):
                     'test_name': 'Test name',
                     'status': 0,
                     'group': {'name': 'Test group'},
+                    'price': 101.5,
                     'tags': [{'id': 1, 'name': 'Test tag'},
                              {'id': 2, 'name': 'Just tag'}],
                     'date_created': '2014-08-14T14:05:28.789Z',
@@ -99,6 +109,7 @@ class DocumentTestCase(BaseTestCase):
         self.assertEqual(hit_doc.status, 0)
         self.assertIsInstance(hit_doc.group, GroupDocument)
         self.assertEqual(hit_doc.group.name, 'Test group')
+        self.assertAlmostEqual(hit_doc.price, 101.5)
         self.assertIsInstance(hit_doc.tags, list)
         self.assertIsInstance(hit_doc.tags[0], TagDocument)
         self.assertEqual(hit_doc.tags[0].id, 1)
@@ -119,6 +130,7 @@ class DocumentTestCase(BaseTestCase):
 
         doc = TestDocument(_id=123, name='Test name', status=0,
                            group=GroupDocument(name='Test group'),
+                           price=101.5,
                            tags=[TagDocument(id=1, name='Test tag'),
                                  TagDocument(id=2, name='Just tag')],
                            attr_3=45)
@@ -130,6 +142,7 @@ class DocumentTestCase(BaseTestCase):
                 'group': {
                     'name': 'Test group'
                 },
+                'price': 101.5,
                 'tags': [
                     {'id': 1, 'name': 'Test tag'},
                     {'id': 2, 'name': 'Just tag'},
@@ -164,17 +177,18 @@ class DocumentTestCase(BaseTestCase):
             }
         )
 
-
-# class ProductCompanyDoc(Document):
-#     id = Field(Integer)
-
-
-# class ProductDoc(Document):
-#     __doc_type__ = 'product'
-
-#     name = Field(String)
-#     keywords = Field(String)
-#     name_keywords = Field(String)
-#     description = Field(String)
-
-#     company = Field(Object(ProductCompanyDoc))
+    def test_dynamic_document(self):
+        self.assertIsInstance(DynamicDocument._id, Field)
+        self.assertIsInstance(DynamicDocument._id._type, String)
+        self.assertIsInstance(DynamicDocument.name, Field)
+        self.assertIsInstance(DynamicDocument.name._type, Type)
+        self.assertIsInstance(DynamicDocument.status, Field)
+        self.assertIsInstance(DynamicDocument.status._type, Type)
+        self.assertIsInstance(DynamicDocument.group, Field)
+        self.assertIsInstance(DynamicDocument.group._type, Type)
+        self.assertIsInstance(DynamicDocument.group.name, Field)
+        self.assertIsInstance(DynamicDocument.group.name._type, Type)
+        self.assert_expression(
+            DynamicDocument.group.name,
+            'group.name'
+        )

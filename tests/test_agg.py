@@ -9,7 +9,7 @@ from .base import BaseTestCase
 
 class AggregationTest(BaseTestCase):
     def test_aggs(self):
-        f = Fields()
+        f = Fields(dynamic=True)
 
         a = agg.Avg(f.price)
         self.assert_expression(

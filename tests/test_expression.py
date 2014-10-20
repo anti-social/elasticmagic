@@ -10,7 +10,7 @@ from .base import BaseTestCase
 
 class ExpressionTestCase(BaseTestCase):
     def test_expression(self):
-        f = Fields()
+        f = Fields(dynamic=True)
 
         self.assert_expression(
             Match(f.message, 'this is a test'),
@@ -464,11 +464,11 @@ class ExpressionTestCase(BaseTestCase):
         )
         self.assert_expression(
             Sort(
-                f.offer.price, 'asc', mode='avg',
+                f.offer.price.sort, 'asc', mode='avg',
                 nested_filter=Term(f.offer.color, 'blue')
             ),
             {
-                "offer.price": {
+                "offer.price.sort": {
                     "order": "asc",
                     "mode": "avg",
                     "nested_filter": {

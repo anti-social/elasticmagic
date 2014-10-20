@@ -12,13 +12,17 @@ def instantiate(typeobj, *args, **kwargs):
 
 
 class Type(object):
-    doc_cls = None
-
     def to_python(self, value):
         return value
 
     def to_dict(self, value):
         return value
+
+    def has_sub_fields(self):
+        return False
+
+    def sub_field(self, prefix, name, doc_cls):
+        raise NotImplementedError()
 
 
 class String(Type):
@@ -130,18 +134,47 @@ class Object(Type):
             return value.to_dict()
         return value
 
+    def has_sub_fields(self):
+        return True
+
+    def sub_field(self, prefix, name, doc_cls):
+        from .expression import Field
+
+        full_name = '{}.{}'.format(prefix, name)
+        return Field(full_name, getattr(self.doc_cls, name)._type,
+                     _doc_cls=doc_cls,
+                     _attr_name=full_name)
+
 
 class Nested(Object):
     pass
 
 
+class MultiField(Type):
+    def __init__(self, main_type, fields):
+        self.main_type = instantiate(main_type)
+        self.fields = fields
+
+    def to_python(self, value):
+        if value is None:
+            return None
+        return self.main_type.to_python(value)
+
+    def has_sub_fields(self):
+        return True
+
+    def sub_field(self, prefix, name, doc_cls):
+        from .expression import Field
+
+        full_name = '{}.{}'.format(prefix, name)
+        return Field(full_name, instantiate(self.fields[name]),
+                     _doc_cls=doc_cls,
+                     _attr_name=full_name)
+
+
 class List(Type):
     def __init__(self, sub_type):
         self.sub_type = instantiate(sub_type)
-
-    @property
-    def doc_cls(self):
-        return self.sub_type.doc_cls
 
     def to_python(self, value):
         if value is None:
@@ -156,3 +189,9 @@ class List(Type):
         if not isinstance(value, list):
             value = [value]
         return [self.sub_type.to_dict(v) for v in value]
+
+    def has_sub_fields(self):
+        return self.sub_type.has_sub_fields()
+
+    def sub_field(self, prefix, name, doc_cls):
+        return self.sub_type.sub_field(prefix, name, doc_cls)
