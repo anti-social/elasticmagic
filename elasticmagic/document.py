@@ -1,12 +1,12 @@
 import fnmatch
 
-from .types import String, Integer, Date
+from .types import String, Integer, Float, Date
 from .expression import Field, Fields
 from .util import cached_property
 from .compat import with_metaclass
 
 
-MAPPING_FIELD_TYPES = {
+SPECIAL_FIELD_TYPES = {
     '_uid': String,
     '_id': String,
     '_type': String,
@@ -19,6 +19,7 @@ MAPPING_FIELD_TYPES = {
     '_size': Integer,
     '_timestamp': Date,
     # '_ttl': Timedelta,
+    '_score': Float,
 }
 
 
@@ -29,9 +30,9 @@ class DocumentMeta(type):
         cls._fields = []
         cls._fields_map = {}
 
-        for mapping_field_name, mapping_field_type in MAPPING_FIELD_TYPES.items():
-            if not hasattr(cls, mapping_field_name):
-                setattr(cls, mapping_field_name, Field(mapping_field_type))
+        for field_name, field_type in SPECIAL_FIELD_TYPES.items():
+            if not hasattr(cls, field_name):
+                setattr(cls, field_name, Field(field_type))
 
         for field_name in dir(cls):
             # _id doesn't indexed, so do not add it in _fields
@@ -68,11 +69,11 @@ class Document(with_metaclass(DocumentMeta)):
         self._index = self._type = self._id = self._score = None
         if _hit:
             self._score = _hit.get('_score')
-            for mapping_field_name in MAPPING_FIELD_TYPES:
-                setattr(self, mapping_field_name, _hit.get(mapping_field_name))
+            for field_name in SPECIAL_FIELD_TYPES:
+                setattr(self, field_name, _hit.get(field_name))
             if self._source:
                 for field in self._fields:
-                    if field._name not in MAPPING_FIELD_TYPES:
+                    if field._name not in SPECIAL_FIELD_TYPES:
                         field_value = field._to_python(self._source.get(field._name))
                         setattr(self, field._attr_name, field_value)
 
@@ -84,7 +85,7 @@ class Document(with_metaclass(DocumentMeta)):
     def to_dict(self):
         res = {}
         for key, value in self.__dict__.items():
-            if key in MAPPING_FIELD_TYPES:
+            if key in SPECIAL_FIELD_TYPES:
                 continue
             if value is None or value == '' or value == []:
                 continue

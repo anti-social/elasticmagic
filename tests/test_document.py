@@ -36,6 +36,8 @@ class DocumentTestCase(BaseTestCase):
     def test_document(self):
         self.assertIsInstance(TestDocument._id, Field)
         self.assertIsInstance(TestDocument._id._type, String)
+        self.assertIsInstance(TestDocument._score, Field)
+        self.assertIsInstance(TestDocument._score._type, Float)
         self.assertIsInstance(TestDocument.name, Field)
         self.assertIsInstance(TestDocument.name._type, String)
         self.assertIsInstance(TestDocument.status, Field)
@@ -93,6 +95,7 @@ class DocumentTestCase(BaseTestCase):
         hit_doc = TestDocument(
             _hit={
                 '_id':'123',
+                '_score': 1.23,
                 '_source': {
                     'test_name': 'Test name',
                     'status': 0,
@@ -105,6 +108,7 @@ class DocumentTestCase(BaseTestCase):
             }
         )
         self.assertEqual(hit_doc._id, '123')
+        self.assertAlmostEqual(hit_doc._score, 1.23)
         self.assertEqual(hit_doc.name, 'Test name')
         self.assertEqual(hit_doc.status, 0)
         self.assertIsInstance(hit_doc.group, GroupDocument)
