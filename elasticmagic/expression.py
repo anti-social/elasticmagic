@@ -696,7 +696,7 @@ class Compiled(object):
             'query': self.visit(expr.query),
             'fields': [self.visit(f) for f in expr.fields],
         }
-        params.update(self.visit(params))
+        params.update(self.visit(expr.params))
         return {
             'multi_match': params
         }

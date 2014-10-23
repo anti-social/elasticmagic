@@ -155,14 +155,16 @@ class ExpressionTestCase(BaseTestCase):
 
         e = MultiMatch(
             "Will Smith",
-            [self.index.star.title.boost(4), self.index.star.f._wildcard('*_name').boost(2)]
+            [self.index.star.title.boost(4), self.index.star.f._wildcard('*_name').boost(2)],
+            minimum_should_match='100%'
         )
         self.assert_expression(
             e,
             {
                 "multi_match": {
                     "query": "Will Smith",
-                    "fields": ["title^4", "*_name^2"]
+                    "fields": ["title^4", "*_name^2"],
+                    "minimum_should_match": "100%"
                 }
             }
         )
