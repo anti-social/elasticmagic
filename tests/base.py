@@ -12,7 +12,8 @@ class BaseTestCase(unittest.TestCase):
         self.maxDiff = None
 
     def setUp(self):
-        self.index = Index(MagicMock(), 'test')
+        self.client = MagicMock()
+        self.index = Index(self.client, 'test')
 
     def assert_expression(self, expr, params):
         c = Compiled(expr)

@@ -13,7 +13,7 @@ class SearchQueryWrapper(object):
             raise ValueError('__getitem__ without slicing not supported')
         self.sliced_query = self.query[range]
         self.items = list(self.sliced_query)
-        self.count = len(self.sliced_query)
+        self.count = self.sliced_query.results.total
         return self.items
 
     def __iter__(self):
