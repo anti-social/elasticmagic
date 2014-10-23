@@ -786,8 +786,6 @@ class Compiled(object):
     def visit_search_query(self, query):
         params = {}
         q = query.get_filtered_query()
-        if query._boost_functions:
-            q = FunctionScore(query=q, functions=query._boost_functions, **query._boost_params)
         if q is not None:
             params['query'] = self.visit(q)
         if query._order_by:

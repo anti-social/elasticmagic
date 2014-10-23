@@ -114,6 +114,7 @@ class SearchQueryTest(BaseTestCase):
         self.assert_expression(
             (
                 SearchQuery(MultiMatch('Iphone 6', fields=[f.name, f.description]))
+                .filter(f.status == 0)
                 .boost_function({'_score': {"seed": 1234}})
                 .boost_function(None)
                 .boost_function({'field_value_factor': {'field': f.popularity,
@@ -125,29 +126,36 @@ class SearchQueryTest(BaseTestCase):
             ),
             {
                 "query": {
-                    "function_score": {
+                    "filtered": {
                         "query": {
-                            "multi_match": {
-                                "query": "Iphone 6",
-                                "fields": ["name", "description"]
+                            "function_score": {
+                                "query": {
+                                    "multi_match": {
+                                        "query": "Iphone 6",
+                                        "fields": ["name", "description"]
+                                    }
+                                },
+                                "functions": [
+                                    {
+                                        "field_value_factor": {
+                                            "field": "popularity",
+                                            "factor": 1.2,
+                                            "modifier": "sqrt"
+                                        }
+                                    },
+                                    {
+                                        "filter": {
+                                            "term": {"region": 12}
+                                        },
+                                        "boost_factor": 3
+                                    }
+                                ],
+                                "boost_mode": "sum"
                             }
                         },
-                        "functions": [
-                            {
-                                "field_value_factor": {
-                                    "field": "popularity",
-                                    "factor": 1.2,
-                                    "modifier": "sqrt"
-                                }
-                            },
-                            {
-                                "filter": {
-                                    "term": {"region": 12}
-                                },
-                                "boost_factor": 3
-                            }
-                        ],
-                        "boost_mode": "sum"
+                        "filter": {
+                            "term": {"status": 0}
+                        }
                     }
                 }
             }

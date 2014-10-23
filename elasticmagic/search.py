@@ -2,7 +2,7 @@ from itertools import chain
 
 from .util import _with_clone, cached_property
 from .result import Result
-from .expression import Expression, Params, Filtered, And, Compiled
+from .expression import Expression, Params, Filtered, And, FunctionScore, Compiled
 
 
 __all__ = ['SearchQuery']
@@ -148,11 +148,21 @@ class SearchQuery(object):
             raise ValueError('Cannot determine document class')
 
         return iter(doc_classes).next()
-        
-    def get_filtered_query(self):
-        if self._filters:
-            return Filtered(query=self._q, filter=And(*[f for f, m in self._filters]))
+
+    def get_query(self, wrap_function_score=True):
+        if wrap_function_score and self._boost_functions:
+            return FunctionScore(
+                query=self._q,
+                functions=self._boost_functions,
+                **self._boost_params
+            )
         return self._q
+
+    def get_filtered_query(self, wrap_function_score=True):
+        q = self.get_query(wrap_function_score=wrap_function_score)
+        if self._filters:
+            return Filtered(query=q, filter=And(*[f for f, m in self._filters]))
+        return q
 
     @cached_property
     def results(self):
@@ -170,7 +180,7 @@ class SearchQuery(object):
     def delete(self, timeout=None, consistency=None, replication=None):
         doc_type = self.doc_type or self.get_doc_cls().__doc_type__
         return self.index.delete(
-            self.get_filtered_query(), doc_type,
+            self.get_filtered_query(wrap_function_score=False), doc_type,
             timeout=timeout, consistency=consistency, replication=replication,
         )
 
