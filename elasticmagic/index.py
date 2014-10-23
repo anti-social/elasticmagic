@@ -33,17 +33,21 @@ class Index(object):
         kwargs['index'] = self
         return SearchQuery(*args, **kwargs)
 
+    def _clean_params(self, params):
+        return {p: v for p, v in params.items() if v is not None}
+
     # Methods that do requests to elasticsearch
 
-    def search(self, q, doc_type, doc_cls=None, aggregations=None, instance_mapper=None):
+    def search(self, q, doc_type, routing=None, doc_cls=None, aggregations=None, instance_mapper=None):
+        params = self._clean_params({'routing': routing})
         raw_result = self._client.search(
-            index=self._name, doc_type=doc_type, body=q.to_dict()
+            index=self._name, doc_type=doc_type, body=q.to_dict(), **params
         )
         return Result(raw_result, aggregations,
                       doc_cls=doc_cls,
                       instance_mapper=instance_mapper)
 
-    def add(self, docs):
+    def add(self, docs, timeout=None, consistency=None, replication=None):
         actions = []
         for doc in docs:
             doc_type = doc.__doc_type__
@@ -54,11 +58,17 @@ class Index(object):
                 {'index': doc_meta},
                 doc.to_dict()
             ])
-        self._client.bulk(index=self._name, body=actions)
+        params = self._clean_params({'timeout': timeout,
+                                     'consistency': consistency,
+                                     'replication': replication})
+        self._client.bulk(index=self._name, body=actions, **params)
 
-    def delete(self, q, doc_type):
+    def delete(self, q, doc_type, timeout=None, consistency=None, replication=None):
+        params = self._clean_params({'timeout': timeout,
+                                     'consistency': consistency,
+                                     'replication': replication})
         return self._client.delete_by_query(
-            index=self._name, doc_type=doc_type, body=Params(query=q).to_dict()
+            index=self._name, doc_type=doc_type, body=Params(query=q).to_dict(), **params
         )
 
     def refresh(self):

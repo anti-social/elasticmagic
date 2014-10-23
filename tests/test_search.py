@@ -355,7 +355,7 @@ class SearchQueryTest(BaseTestCase):
                         }
                     }
                 }
-            }
+            },
         )
 
         self.assertEqual(len(sq.results.hits), 2)
@@ -395,13 +395,13 @@ class SearchQueryTest(BaseTestCase):
                 'query': {
                     'term': {'vendor': 'Focus'}
                 }
-            }
+            },
         )
 
         es_index.query(es_index.car.vendor == 'Focus') \
                 .filter(es_index.car.status == 0) \
                 .limit(20) \
-                .delete()
+                .delete(timeout='1m', replication='async')
         es_client.delete_by_query.assert_called_with(
             index='ads',
             doc_type='car',
@@ -416,5 +416,7 @@ class SearchQueryTest(BaseTestCase):
                         }
                     }
                 }
-            }
+            },
+            timeout='1m',
+            replication='async',
         )

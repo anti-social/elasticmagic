@@ -33,12 +33,13 @@ class SearchQuery(object):
     _instance_mapper = None
     _iter_instances = False
 
-    def __init__(self, q=None, index=None, doc_cls=None, doc_type=None):
+    def __init__(self, q=None, index=None, doc_cls=None, doc_type=None, routing=None):
         if q is not None:
             self._q = q
         self.index = index
         self.doc_cls = doc_cls
         self.doc_type = doc_type
+        self.routing = routing
 
     def clone(self):
         cls = self.__class__
@@ -157,13 +158,21 @@ class SearchQuery(object):
     def results(self):
         doc_cls = self.get_doc_cls()
         doc_type = self.doc_type or doc_cls.__doc_type__
-        return self.index.search(self, doc_type, doc_cls=doc_cls,
-                                 aggregations=self._aggregations,
-                                 instance_mapper=self._instance_mapper)
+        return self.index.search(
+            self,
+            doc_type,
+            routing=self.routing,
+            doc_cls=doc_cls,
+            aggregations=self._aggregations,
+            instance_mapper=self._instance_mapper,
+        )
 
-    def delete(self):
+    def delete(self, timeout=None, consistency=None, replication=None):
         doc_type = self.doc_type or self.get_doc_cls().__doc_type__
-        return self.index.delete(self.get_filtered_query(), doc_type)
+        return self.index.delete(
+            self.get_filtered_query(), doc_type,
+            timeout=timeout, consistency=consistency, replication=replication,
+        )
 
     def _collect_doc_classes(self):
         doc_types = set()

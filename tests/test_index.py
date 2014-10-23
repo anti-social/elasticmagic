@@ -33,5 +33,5 @@ class IndexTest(unittest.TestCase):
             body=[
                 {'index': {'_type': 'car', '_id': 'test_id', '_routing': 'Subaru'}},
                 {'vendor': 'Subaru', 'model': 'VRX'}
-            ]
+            ],
         )
