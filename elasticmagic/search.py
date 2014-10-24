@@ -17,6 +17,18 @@ class Source(Expression):
         self.exclude = exclude
 
 
+class Rescore(Expression):
+    __visit_name__ = 'rescore'
+
+    def __init__(self, query, window_size=None,
+                 query_weight=None, rescore_query_weight=None, score_mode=None):
+        self.query = query
+        self.window_size = window_size
+        self.query_weight = query_weight
+        self.rescore_query_weight = rescore_query_weight
+        self.score_mode = score_mode
+
+
 class SearchQuery(object):
     __visit_name__ = 'search_query'
 
@@ -29,6 +41,7 @@ class SearchQuery(object):
     _boost_params = Params()
     _limit = None
     _offset = None
+    _rescores = ()
 
     _instance_mapper = None
     _iter_instances = False
@@ -114,6 +127,18 @@ class SearchQuery(object):
         self._offset = offset
 
     from_ = offset
+
+    @_with_clone
+    def rescore(self, query, window_size=None,
+                query_weight=None, rescore_query_weight=None, score_mode=None):
+        if query is None:
+            del self._rescores
+            return
+        rescore = Rescore(
+            query, window_size=window_size, query_weight=query_weight,
+            rescore_query_weight=rescore_query_weight, score_mode=score_mode,
+        )
+        self._rescores = self._rescores + (rescore,)
 
     @_with_clone
     def instances(self):
@@ -231,27 +256,3 @@ class SearchQuery(object):
         if self._iter_instances:
             return [doc.instance for doc in docs if doc.instance]
         return docs
-
-
-# es_client = Elasticsearch()
-# es_index = Index(es_client, 'uaprom')
-
-# ## 1
-# class ProductDocument(Document):
-#     __doc_type__ = 'product'
-
-#     name = Field(String)
-
-# es_index.search().with_doc_type(ProductDocument)
-# es_index.search(ProductDocument.name.match('iphone 5'))
-
-# ## 2.1
-# class ProductDocument(Document):
-#     name = Field(String)
-
-# es_index.product.search()
-# es_index.product.search(ProductDocument.name.match('iphone 5'))
-
-# ## 2.2
-# es_index.search(doc_type='product')
-# es_index.search(ProductDocument.name.match('iphone 5'), doc_type='product')

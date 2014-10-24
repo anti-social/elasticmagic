@@ -1,6 +1,9 @@
 from mock import Mock, MagicMock
 
-from elasticmagic import Index, Document, SearchQuery, Params, Term, Bool, MultiMatch, Sort, agg
+from elasticmagic import (
+    Index, Document, SearchQuery, Params, Term, Bool, MultiMatch,
+    FunctionScore, Sort, agg
+)
 from elasticmagic.types import String, Integer, Float, Object
 from elasticmagic.expression import Fields, Field
 
@@ -158,6 +161,59 @@ class SearchQueryTest(BaseTestCase):
                         }
                     }
                 }
+            }
+        )
+
+        self.assert_expression(
+            SearchQuery(self.index.t.field1.match('the quick brown', type='boolean', operator='or'))
+            .rescore(self.index.t.field1.match('the quick brown', type='phrase', slop=2),
+                     window_size=100,
+                     query_weight=0.7,
+                     rescore_query_weight=1.2)
+            .rescore(FunctionScore(script_score={'script': "log10(doc['numeric'].value + 2)"}),
+                     window_size=10,
+                     score_mode='multiply'),
+            {
+                "query": {
+                    "match": {
+                        "field1": {
+                            "operator": "or",
+                            "query": "the quick brown",
+                            "type": "boolean"
+                        }
+                    }
+                },
+                "rescore": [
+                    {
+                        "window_size": 100,
+                        "query": {
+                        "rescore_query": {
+                            "match": {
+                                "field1": {
+                                    "query": "the quick brown",
+                                    "type": "phrase",
+                                    "slop": 2
+                                }
+                            }
+                        },
+                            "query_weight": 0.7,
+                            "rescore_query_weight": 1.2
+                        }
+                    },
+                    {
+                        "window_size": 10,
+                        "query": {
+                            "score_mode": "multiply",
+                            "rescore_query": {
+                                "function_score": {
+                                    "script_score": {
+                                        "script": "log10(doc['numeric'].value + 2)"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ]
             }
         )
 
