@@ -158,7 +158,7 @@ class Bucket(object):
     def __init__(self, raw_data, aggs, parent):
         self.key = raw_data.get('key')
         if self._typed_key:
-            self.key = parent._type.to_python(self.key)
+            self.key = parent._type.to_python_single(self.key)
         self.doc_count = raw_data['doc_count']
         self.parent = parent
         self.aggregations = {}
@@ -283,8 +283,8 @@ class RangeBucket(Bucket):
 
     def __init__(self, raw_data, aggs, parent):
         super(RangeBucket, self).__init__(raw_data, aggs, parent)
-        self.from_ = self.parent._type.to_python(raw_data.get('from'))
-        self.to = self.parent._type.to_python(raw_data.get('to'))
+        self.from_ = self.parent._type.to_python_single(raw_data.get('from'))
+        self.to = self.parent._type.to_python_single(raw_data.get('to'))
 
 
 class Range(MultiBucketAgg):

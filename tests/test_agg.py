@@ -1,7 +1,7 @@
 from mock import Mock, patch
 
 from elasticmagic import agg, Params, Term, Document
-from elasticmagic.types import Boolean
+from elasticmagic.types import Integer, Boolean, List
 from elasticmagic.expression import Field, Fields
 
 from .base import BaseTestCase
@@ -179,6 +179,27 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(a.buckets[0].doc_count, 7)
         self.assertEqual(a.buckets[1].key, False)
         self.assertEqual(a.buckets[1].doc_count, 2)
+
+        a = agg.Terms(f.category, type=List(Integer))
+        self.assert_expression(
+            a,
+            {
+                "terms": {"field": "category"}
+            }
+        )
+        a.process_results(
+            {
+                'buckets': [
+                    {'doc_count': 792, 'key': 28},
+                    {'doc_count': 185, 'key': 3},
+                ]
+            }
+        )
+        self.assertEqual(len(a.buckets), 2)
+        self.assertEqual(a.buckets[0].key, 28)
+        self.assertEqual(a.buckets[0].doc_count, 792)
+        self.assertEqual(a.buckets[1].key, 3)
+        self.assertEqual(a.buckets[1].doc_count, 185)
 
         class ProductDocument(Document):
             is_visible = Field(Boolean)

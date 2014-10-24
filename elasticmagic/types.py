@@ -15,6 +15,9 @@ class Type(object):
     def to_python(self, value):
         return value
 
+    def to_python_single(self, value):
+        return self.to_python(value)
+
     def to_dict(self, value):
         return value
 
@@ -182,6 +185,11 @@ class List(Type):
         if not isinstance(value, list):
             value = [value]
         return [self.sub_type.to_python(v) for v in value]
+
+    def to_python_single(self, value):
+        v = self.to_python(value)
+        if v:
+            return v[0]
 
     def to_dict(self, value):
         if value is None:
