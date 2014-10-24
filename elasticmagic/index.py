@@ -47,6 +47,12 @@ class Index(object):
                       doc_cls=doc_cls,
                       instance_mapper=instance_mapper)
 
+    def count(self, q, doc_type, routing=None):
+        params = self._clean_params({'routing': routing})
+        return self._client.count(
+            index=self._name, doc_type=doc_type, body={'query': q.to_dict()}, **params
+        )['count']
+
     def add(self, docs, timeout=None, consistency=None, replication=None):
         actions = []
         for doc in docs:

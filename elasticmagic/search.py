@@ -135,10 +135,6 @@ class SearchQuery(object):
     def with_instance_mapper(self, instance_mapper):
         self._instance_mapper = instance_mapper
 
-    def count(self):
-        sq = self.aggregations(None).order_by(None).limit(0)
-        return sq.results.total
-
     def get_doc_cls(self):
         if self.doc_cls:
             doc_classes = [self.doc_cls]
@@ -175,6 +171,15 @@ class SearchQuery(object):
             doc_cls=doc_cls,
             aggregations=self._aggregations,
             instance_mapper=self._instance_mapper,
+        )
+
+    def count(self):
+        doc_cls = self.get_doc_cls()
+        doc_type = self.doc_type or doc_cls.__doc_type__
+        return self.index.count(
+            self.get_filtered_query(wrap_function_score=False),
+            doc_type,
+            routing=self.routing,
         )
 
     def delete(self, timeout=None, consistency=None, replication=None):

@@ -278,6 +278,36 @@ class SearchQueryTest(BaseTestCase):
             }
         )
 
+    def test_count(self):
+        self.client.count.return_value = {
+            "count" : 2,
+            "_shards" : {
+                "total" : 5,
+                "successful" : 5,
+                "failed" : 0
+            }
+        }
+        self.assertEqual(
+            SearchQuery(index=self.index)
+            .filter(self.index.car.status == 1)
+            .boost_function({'boost_factor': 3})
+            .count(),
+            2
+        )
+        self.client.count.assert_called_with(
+            index='test',
+            doc_type='car',
+            body={
+                "query": {
+                    "filtered": {
+                        "filter": {
+                            "term": {"status": 1}
+                        }
+                    }
+                }
+            }
+        )
+
     def test_search_index(self):
         class CarObject(object):
             def __init__(self, id):
