@@ -815,6 +815,8 @@ class Compiled(object):
             params['from'] = query._offset
         if query._rescores:
             params['rescore'] = [self.visit(r) for r in query._rescores]
+        if query._post_filters:
+            params['post_filter'] = self.visit(And(*[f for f in query._post_filters]))
         return params
 
 

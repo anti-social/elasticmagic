@@ -217,6 +217,40 @@ class SearchQueryTest(BaseTestCase):
             }
         )
 
+        self.assert_expression(
+            SearchQuery().post_filter(self.index.shirt.color == 'red'),
+            {
+                "post_filter": {
+                    "term": {"color": "red"}
+                }
+            }
+        )
+        self.assert_expression(
+            SearchQuery()
+            .filter(self.index.shirt.brand == 'gucci')
+            .post_filter(self.index.shirt.color == 'red')
+            .post_filter(self.index.shirt.model == 't-shirt'),
+            {
+                "query": {
+                    "filtered": {
+                        "filter": {
+                            "term": {"brand": "gucci"}
+                        }
+                    }
+                },
+                "post_filter": {
+                    "and": [
+                        {
+                            "term": {"color": "red"}
+                        },
+                        {
+                            "term": {"model": "t-shirt"}
+                        }
+                    ]
+                }
+            }
+        )
+
     def test_aggregations(self):
         f = Fields()
 

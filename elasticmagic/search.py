@@ -35,6 +35,7 @@ class SearchQuery(object):
     _q = None
     _source = None
     _filters = ()
+    _post_filters = ()
     _order_by = ()
     _aggregations = Params()
     _boost_functions = ()
@@ -86,6 +87,10 @@ class SearchQuery(object):
         else:
             f = (filters[0], meta)
         self._filters = self._filters + (f,)
+
+    @_with_clone
+    def post_filter(self, *filters):
+        self._post_filters = self._post_filters + filters
 
     @_with_clone
     def order_by(self, *orders):
