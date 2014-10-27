@@ -183,8 +183,6 @@ class Bool(QueryExpression):
 
     @classmethod
     def must_not(cls, *expressions):
-        if len(expressions) == 1:
-            return expressions[0]
         return cls(must_not=expressions)
 
     @classmethod
