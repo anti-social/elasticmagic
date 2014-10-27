@@ -1,6 +1,6 @@
 from itertools import chain
 
-from elasticmagic import Params, Term, Terms, Query, And, Or, agg
+from elasticmagic import Params, Term, Terms, Query, Bool, And, Or, agg
 from elasticmagic.types import String, instantiate
 from elasticmagic.compat import text_type, string_types, with_metaclass
 
@@ -212,7 +212,7 @@ class FacetFilter(FieldFilter):
         terms_agg = agg.Terms(self.field, instance_mapper=self.instance_mapper, **self.agg_kwargs)
         if filters:
             main_agg = main_agg.aggs(
-                **{self._filter_agg_name(self.name): agg.Filter(And(*filters), aggs={self.name: terms_agg})}
+                **{self._filter_agg_name(self.name): agg.Filter(Bool.must(*filters), aggs={self.name: terms_agg})}
             )
         else:
             main_agg = main_agg.aggs(**{self.name: terms_agg})
@@ -345,7 +345,7 @@ class RangeFilter(FieldFilter):
         }
         if filters:
             main_agg = main_agg.aggs(
-                **{self._filter_agg_name(self.name): agg.Filter(And(*filters), aggs=stat_aggs)}
+                **{self._filter_agg_name(self.name): agg.Filter(Bool.must(*filters), aggs=stat_aggs)}
             )
         else:
             main_agg = main_agg.aggs(**stat_aggs)
@@ -460,7 +460,7 @@ class FacetQueryFilter(BaseFilter):
             main_agg = main_agg.aggs(
                 **{
                     self._filter_agg_name(self.name): agg.Filter(
-                        And(*filters), aggs=filter_aggs_map
+                        Bool.must(*filters), aggs=filter_aggs_map
                     )
                 }
             )

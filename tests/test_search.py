@@ -47,6 +47,36 @@ class SearchQueryTest(BaseTestCase):
                 }
             }
         )
+        self.assert_expression(
+            SearchQuery(Term(f.user, 'kimchy'))
+            .filter(f.age >= 16)
+            .filter(f.lang == 'English'),
+            {
+                "query": {
+                    "filtered": {
+                        "query": {
+                            "term": {"user": "kimchy"}
+                        },
+                        "filter": {
+                            "bool": {
+                                "must": [
+                                    {
+                                        "range": {
+                                            "age": {"gte": 16}
+                                        }
+                                    },
+                                    {
+                                        "term": {
+                                            "lang": "English"
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        )
 
         self.assert_expression(
             SearchQuery().order_by(

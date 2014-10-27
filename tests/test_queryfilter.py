@@ -116,10 +116,12 @@ class QueryFilterTest(BaseTestCase):
                             "term": {"name": "test"}
                         },
                         "filter": {
-                            "and": [
-                                {"terms": {"type": [0, 1]}},
-                                {"term": {"vendor": "Subaru"}}
-                            ]
+                            "bool": {
+                                "must": [
+                                    {"terms": {"type": [0, 1]}},
+                                    {"term": {"vendor": "Subaru"}}
+                                ]
+                            }
                         }
                     }
                 },
@@ -161,10 +163,12 @@ class QueryFilterTest(BaseTestCase):
                                     },
                                     "model.filter": {
                                         "filter": {
-                                            "and": [
-                                                {"terms": {"type": [0, 1]}},
-                                                {"term": {"vendor": "Subaru"}}
-                                            ]
+                                            "bool": {
+                                                "must": [
+                                                    {"terms": {"type": [0, 1]}},
+                                                    {"term": {"vendor": "Subaru"}}
+                                                ]
+                                            }
                                         },
                                         "aggregations": {
                                             "model": {

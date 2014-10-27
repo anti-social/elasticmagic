@@ -35,7 +35,7 @@ class Literal(object):
 class QueryExpression(Expression):
     __visit_name__ = 'query_expression'
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, **kwargs):
         params = {}
         for k, v in kwargs.items():
             if v is None:
@@ -43,16 +43,6 @@ class QueryExpression(Expression):
             if k.endswith('_') and not k.startswith('_'):
                 k = k.rstrip('_')
             params[k] = v
-        for expr in args:
-            if hasattr(expr, '__param_name__'):
-                param_name = expr.__param_name__
-                if param_name in params:
-                    if isinstance(params[param_name], (list, tuple)):
-                        params[param_name] = tuple(params[param_name]) + tuple(expr.expressions)
-                    else:
-                        params[param_name] = tuple(expr.expressions)
-                else:
-                    params[param_name] = tuple(expr.expressions)
         self.params = Params(params)
 
     def _collect_doc_classes(self):
@@ -172,57 +162,36 @@ class MatchAll(QueryExpression):
         super(MatchAll, self).__init__(boost=boost, **kwargs)
 
 
-class NamedParam(collections.Sequence):
-    def __init__(self, *expressions):
-        self.expressions = expressions
-
-    def __len__(self):
-        return len(self.expressions)
-
-    def __getitem__(self, index):
-        return self.expressions[index]
-
-    def _collect_doc_classes(self):
-        return set(chain(e._collect_doc_classes() for e in self.expressions))
-
-
-class Must(NamedParam):
-    __param_name__ = 'must'
-
-
-class MustNot(NamedParam):
-    __param_name__ = 'must_not'
-
-
-class Should(NamedParam):
-    __param_name__ = 'should'
-
-
 class Bool(QueryExpression):
     __query_name__ = 'bool'
 
-    # TODO: make for Python3
-    # def __init__(
-    #         self, *args, must=None, must_not=None, should=None,
-    #         minimum_should_match=None, boost=None, disable_coord=None,
-    #         **kwargs
-    # ):
-    #     super(Bool, self).__init__(
-    #         must=must, must_not=must_not, should=should,
-    #         minimum_should_match=minimum_should_match,
-    #         boost=boost, disable_coord=disable_coord, **kwargs)
+    def __init__(
+            self, must=None, must_not=None, should=None,
+            minimum_should_match=None, boost=None, disable_coord=None,
+            **kwargs
+    ):
+        super(Bool, self).__init__(
+            must=must, must_not=must_not, should=should,
+            minimum_should_match=minimum_should_match,
+            boost=boost, disable_coord=disable_coord, **kwargs)
 
-    @property
-    def _doc_types(self):
-        doc_types = set()
-        for expressions in [self.params.get('must', []),
-                            self.params.get('must_not', []),
-                            self.params.get('should', [])]:
-            if not isinstance(expressions, (tuple, list)):
-                expressions = [expressions]
-            for e in expressions:
-                doc_types.update(e._doc_types)
-        return doc_types
+    @classmethod
+    def must(cls, *expressions):
+        if len(expressions) == 1:
+            return expressions[0]
+        return cls(must=expressions)
+
+    @classmethod
+    def must_not(cls, *expressions):
+        if len(expressions) == 1:
+            return expressions[0]
+        return cls(must_not=expressions)
+
+    @classmethod
+    def should(cls, *expressions):
+        if len(expressions) == 1:
+            return expressions[0]
+        return cls(should=expressions)
 
 
 class Boosting(QueryExpression):

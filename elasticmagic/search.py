@@ -2,7 +2,7 @@ from itertools import chain
 
 from .util import _with_clone, cached_property
 from .result import Result
-from .expression import Expression, Params, Filtered, And, FunctionScore, Compiled
+from .expression import Expression, Params, Filtered, And, Bool, FunctionScore, Compiled
 
 
 __all__ = ['SearchQuery']
@@ -186,7 +186,7 @@ class SearchQuery(object):
         q = self.get_query(wrap_function_score=wrap_function_score)
         if self._filters:
             filters = list(chain(*[f for f, m in self._filters]))
-            return Filtered(query=q, filter=And(*filters))
+            return Filtered(query=q, filter=Bool.must(*filters))
         return q
 
     @cached_property

@@ -1,6 +1,6 @@
 from elasticmagic import (
     Term, Terms, Exists, Missing, Match, MatchAll, MultiMatch, Range,
-    Bool, Must, MustNot, Should, Query, And, Or, Not, Sort,
+    Bool, Query, And, Or, Not, Sort,
     Boosting, Common, ConstantScore, FunctionScore, DisMax, Filtered, Ids, Prefix,
 )
 from elasticmagic.expression import Fields, Compiled
@@ -110,41 +110,6 @@ class ExpressionTestCase(BaseTestCase):
                         },
                         {
                             "term": {"tag": {"value": "elasticsearch", "boost": 2.1}}
-                        }
-                    ],
-                    "minimum_should_match": 1,
-                    "boost": 1.0
-                }
-            }
-        )
-        self.assert_expression(
-            Bool(
-                Must(Term(f.user, 'kimchy')),
-                MustNot(Range(f.age, from_=10, to=20)),
-                Should(Term(f.tag, 'wow'), Term(f.tag, 'elasticsearch', boost=2.1)),
-                minimum_should_match=1,
-                boost=1.0,
-            ),
-            {
-                "bool": {
-                    "must": [
-                        {
-                            "term": {"user": "kimchy"}
-                        }
-                    ],
-                    "must_not": [
-                        {
-                            "range": {
-                                "age": {"from": 10, "to": 20}
-                            }
-                        }
-                    ],
-                    "should": [
-                        {
-                            "term": {"tag" : "wow"}
-                        },
-                        {
-                            "term": {"tag" : {"value": "elasticsearch", "boost": 2.1}}
                         }
                     ],
                     "minimum_should_match": 1,
