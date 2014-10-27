@@ -1,6 +1,6 @@
 from mock import MagicMock
 
-from elasticmagic import agg, SearchQuery, Term, Index
+from elasticmagic import agg, SearchQuery, Term, Match, Index
 from elasticmagic.types import Integer, Float
 from elasticmagic.expression import Fields
 from elasticmagic.ext.queryfilter import QueryFilter, FacetFilter, RangeFilter
@@ -39,73 +39,36 @@ class QueryFilterTest(BaseTestCase):
 
         qf = CarQueryFilter()
 
-        es_client = MagicMock()
-        es_client.search = MagicMock(
-            return_value={
-                "hits": {
-                    "hits": [],
-                    "max_score": 1.829381,
-                    "total": 893
-                },
+        sq = self.index.query()
+        sq = qf.apply(sq, {})
+        self.assert_expression(
+            sq,
+            {
                 "aggregations": {
-                    "qf": {
-                        "doc_count": 7254,
-                        "qf": {
-                            "doc_count": 2180,
-                            "type.filter": {
-                                "doc_count": 1298,
-                                "type": {
-                                    "buckets": [
-                                        {
-                                            "key": 0,
-                                            "doc_count": 744
-                                        },
-                                        {
-                                            "key": 2,
-                                            "doc_count": 392
-                                        },
-                                        {
-                                            "key": 1,
-                                            "doc_count": 162
-                                        }
-                                    ]
-                                }
-                            },
-                            "vendor.filter": {
-                                "doc_count": 2153,
-                                "vendor": {
-                                    "buckets": [
-                                        {
-                                            "key": "Subaru",
-                                            "doc_count": 2153,
-                                            "min_price": {"value": 4000}
-                                                ,
-                                        },
-                                    ]
-                                }
-                            },
-                            "model.filter": {
-                                "doc_count": 2153,
-                                "model": {
-                                    "buckets": [
-                                        {
-                                            "key": "Imprezza",
-                                            "doc_count": 1586
-                                        },
-                                        {
-                                            "key": "Forester",
-                                            "doc_count": 456
-                                        },
-                                    ]
-                                }
+                    "qf.type": {
+                        "terms": {"field": "type"}
+                    },
+                    "qf.vendor": {
+                        "terms": {"field": "vendor"},
+                        "aggregations": {
+                            "min_price": {
+                                "min": {"field": "price"}
                             }
                         }
+                    },
+                    "qf.model": {
+                        "terms": {"field": "model"}
                     }
                 }
             }
         )
-        es_index = Index(es_client, 'ads')
-        sq = es_index.query(Term(es_index.car.name, 'test'))
+        
+        sq = (
+            self.index.query(Match(self.index.car.name, 'test'))
+            .filter(self.index.car.status == 0)
+            .post_filter(self.index.car.date_created > 'now-1y',
+                         meta={'tags': {qf.get_name()}})
+        )
         sq = qf.apply(sq, {'type': ['0', '1'], 'vendor': ['Subaru']})
         self.assert_expression(
             sq,
@@ -113,8 +76,40 @@ class QueryFilterTest(BaseTestCase):
                 "query": {
                     "filtered": {
                         "query": {
-                            "term": {"name": "test"}
+                            "match": {"name": "test"}
                         },
+                        "filter": {
+                            "term": {"status": 0}
+                        }
+                    }
+                },
+                "aggregations": {
+                    "qf.type.filter": {
+                        "filter": {
+                            "term": {"vendor": "Subaru"}
+                        },
+                        "aggregations": {
+                            "qf.type": {
+                                "terms": {"field": "type"}
+                            }
+                        }
+                    },
+                    "qf.vendor.filter": {
+                        "filter": {
+                            "terms": {"type": [0, 1]}
+                        },
+                        "aggregations": {
+                            "qf.vendor": {
+                                "terms": {"field": "vendor"},
+                                "aggregations": {
+                                    "min_price": {
+                                        "min": {"field": "price"}
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "qf.model.filter": {
                         "filter": {
                             "bool": {
                                 "must": [
@@ -122,62 +117,77 @@ class QueryFilterTest(BaseTestCase):
                                     {"term": {"vendor": "Subaru"}}
                                 ]
                             }
+                        },
+                        "aggregations": {
+                            "qf.model": {
+                                "terms": {"field": "model"}
+                            }
                         }
                     }
                 },
+                "post_filter": {
+                    "and": [
+                        {"range": {"date_created": {"gt": "now-1y"}}},
+                        {"terms": {"type": [0, 1]}},
+                        {"term": {"vendor": "Subaru"}}
+                    ]
+                }
+            }
+        )
+
+        self.client.search = MagicMock(
+           return_value={
+                "hits": {
+                    "hits": [],
+                    "max_score": 1.829381,
+                    "total": 893
+                },
                 "aggregations": {
-                    "qf": {
-                        "global": {},
-                        "aggregations": {
-                            "qf": {
-                                "filter": {
-                                    "query": {
-                                        "term": {"name": "test"}
-                                    }
+                    "qf.type.filter": {
+                        "doc_count": 1298,
+                        "qf.type": {
+                            "buckets": [
+                                {
+                                    "key": 0,
+                                    "doc_count": 744
                                 },
-                                "aggregations": {
-                                    "type.filter": {
-                                        "filter": {
-                                            "term": {"vendor": "Subaru"}
-                                        },
-                                        "aggregations": {
-                                            "type": {
-                                                "terms": {"field": "type"}
-                                            }
-                                        }
-                                    },
-                                    "vendor.filter": {
-                                        "filter": {
-                                            "terms": {"type": [0, 1]}
-                                        },
-                                        "aggregations": {
-                                            "vendor": {
-                                                "terms": {"field": "vendor"},
-                                                "aggregations": {
-                                                    "min_price": {
-                                                        "min": {"field": "price"}
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    },
-                                    "model.filter": {
-                                        "filter": {
-                                            "bool": {
-                                                "must": [
-                                                    {"terms": {"type": [0, 1]}},
-                                                    {"term": {"vendor": "Subaru"}}
-                                                ]
-                                            }
-                                        },
-                                        "aggregations": {
-                                            "model": {
-                                                "terms": {"field": "model"}
-                                            }
-                                        }
-                                    },
+                                {
+                                    "key": 2,
+                                    "doc_count": 392
+                                },
+                                {
+                                    "key": 1,
+                                    "doc_count": 162
                                 }
-                            }
+                            ]
+                        }
+                    },
+                    "qf.vendor.filter": {
+                        "doc_count": 2153,
+                        "qf.vendor": {
+                            "buckets": [
+                                {
+                                    "key": "Subaru",
+                                    "doc_count": 2153,
+                                    "min_price": {"value": 4000}
+                                        ,
+                                },
+                            ]
+                        }
+                    },
+                    "qf.model.filter": {
+                        "doc_count": 2153,
+                        "qf.model": {
+                            "buckets": [
+                                {
+                                    "key": "Imprezza",
+                                    "doc_count": 1586
+                                },
+                                {
+                                    "key": "Forester",
+                                    "doc_count": 456
+                                },
+                            ]
                         }
                     }
                 }
@@ -240,8 +250,37 @@ class QueryFilterTest(BaseTestCase):
         self.assertIs(model_filter.all_values[1], model_filter.get_value('Forester'))
 
     def test_range_filter(self):
-        es_client = MagicMock()
-        es_client.search = MagicMock(
+        class CarQueryFilter(QueryFilter):
+            price = RangeFilter(self.index.car.price, type=Integer)
+            disp = RangeFilter(self.index.car.engine_displacement, type=Float)
+
+        qf = CarQueryFilter()
+
+        sq = self.index.query()
+        sq = qf.apply(sq, {'price__lte': ['10000']})
+        self.assert_expression(
+            sq,
+            {
+                "aggregations": {
+                    "qf.price.min": {"min": {"field": "price"}},
+                    "qf.price.max": {"max": {"field": "price"}},
+                    "qf.disp.filter": {
+                        "filter": {
+                            "range": {"price": {"lte": 10000}}
+                        },
+                        "aggregations": {
+                            "qf.disp.min": {"min": {"field": "engine_displacement"}},
+                            "qf.disp.max": {"max": {"field": "engine_displacement"}}
+                        }
+                    }
+                },
+                "post_filter": {
+                    "range": {"price": {"lte": 10000}}
+                }
+            }
+        )
+
+        self.client.search = MagicMock(
             return_value={
                 "hits": {
                     "hits": [],
@@ -249,61 +288,18 @@ class QueryFilterTest(BaseTestCase):
                     "total": 893
                 },
                 "aggregations": {
-                    "qf": {
-                        "doc_count": 128,
-                        "price.min": {"value": 7500},
-                        "price.max": {"value": 25800},
-                        "disp.filter": {
-                            "doc_count": 237,
-                            "disp.min": {"value": 1.6},
-                            "disp.max": {"value": 3.0}
-                        }
+                    "qf.price.min": {"value": 7500},
+                    "qf.price.max": {"value": 25800},
+                    "qf.disp.filter": {
+                        "doc_count": 237,
+                        "qf.disp.min": {"value": 1.6},
+                        "qf.disp.max": {"value": 3.0}
                     }
                 }
             }
         )
-        es_index = Index(es_client, 'ads')
-
-        class CarQueryFilter(QueryFilter):
-            price = RangeFilter(es_index.car.price, type=Integer)
-            disp = RangeFilter(es_index.car.engine_displacement, type=Float)
-
-        qf = CarQueryFilter()
-
-        sq = es_index.query()
-        sq = qf.apply(sq, {'price__lte': ['10000']})
-        self.assert_expression(
-            sq,
-            {
-                "query": {
-                    "filtered": {
-                        "filter": {
-                            "range": {"price": {"lte": 10000}}
-                        }
-                    }
-                },
-                "aggregations": {
-                    "qf": {
-                        "global": {},
-                        "aggregations": {
-                            "price.min": {"min": {"field": "price"}},
-                            "price.max": {"max": {"field": "price"}},
-                            "disp.filter": {
-                                "filter": {
-                                    "range": {"price": {"lte": 10000}}
-                                },
-                                "aggregations": {
-                                    "disp.min": {"min": {"field": "engine_displacement"}},
-                                    "disp.max": {"max": {"field": "engine_displacement"}}
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        )
-
         qf.process_results(sq.results)
+
         price_filter = qf.price
         self.assertEqual(price_filter.min, 7500)
         self.assertEqual(price_filter.max, 25800)
@@ -316,98 +312,86 @@ class QueryFilterTest(BaseTestCase):
         self.assertIs(disp_filter.to_value, None)
         
     def test_facet_query_filter(self):
-        es_client = MagicMock()
-        es_index = Index(es_client, 'ads')
-
         class CarQueryFilter(QueryFilter):
             is_new = FacetQueryFilter(
-                FacetQueryValue('true', es_index.car.state == 'new')
+                FacetQueryValue('true', self.index.car.state == 'new')
             )
             price = FacetQueryFilter(
-                FacetQueryValue('*-10000', es_index.car.price <= 10000),
-                FacetQueryValue('10000-20000', es_index.car.price.range(gt=10000, lte=20000)),
-                FacetQueryValue('20000-30000', es_index.car.price.range(gt=20000, lte=30000)),
-                FacetQueryValue('30000-*', es_index.car.price.range(gt=30000)),
-                aggs={'disp_avg': agg.Avg(es_index.car.engine_displacement)}
+                FacetQueryValue('*-10000', self.index.car.price <= 10000),
+                FacetQueryValue('10000-20000', self.index.car.price.range(gt=10000, lte=20000)),
+                FacetQueryValue('20000-30000', self.index.car.price.range(gt=20000, lte=30000)),
+                FacetQueryValue('30000-*', self.index.car.price.range(gt=30000)),
+                aggs={'disp_avg': agg.Avg(self.index.car.engine_displacement)}
             )
 
         qf = CarQueryFilter()
 
-        sq = es_index.query()
+        sq = self.index.query()
         sq = qf.apply(sq, {'is_new': ['true', 'false']})
         self.assert_expression(
             sq,
             {
-                "query": {
-                    "filtered": {
+                "aggregations": {
+                    "qf.is_new:true": {
                         "filter": {
                             "term": {"state": "new"}
                         }
-                    }
-                },
-                "aggregations": {
-                    "qf": {
-                        "global": {},
+                    },
+                    "qf.price.filter": {
+                        "filter": {
+                            "term": {"state": "new"}
+                        },
                         "aggregations": {
-                            "is_new:true": {
+                            "qf.price:*-10000": {
                                 "filter": {
-                                    "term": {"state": "new"}
-                                }
-                            },
-                            "price.filter": {
-                                "filter": {
-                                    "term": {"state": "new"}
+                                    "range": {"price": {"lte": 10000}}
                                 },
                                 "aggregations": {
-                                    "price:*-10000": {
-                                        "filter": {
-                                            "range": {"price": {"lte": 10000}}
-                                        },
-                                        "aggregations": {
-                                            "disp_avg": {
-                                                "avg": {"field": "engine_displacement"}
-                                            }
-                                        }
-                                    },
-                                    "price:10000-20000": {
-                                        "filter": {
-                                            "range": {"price": {"gt": 10000, "lte": 20000}}
-                                        },
-                                        "aggregations": {
-                                            "disp_avg": {
-                                                "avg": {"field": "engine_displacement"}
-                                            }
-                                        }
-                                    },
-                                    "price:20000-30000": {
-                                        "filter": {
-                                            "range": {"price": {"gt": 20000, "lte": 30000}}
-                                        },
-                                        "aggregations": {
-                                            "disp_avg": {
-                                                "avg": {"field": "engine_displacement"}
-                                            }
-                                        }
-                                    },
-                                    "price:30000-*": {
-                                        "filter": {
-                                            "range": {"price": {"gt": 30000}}
-                                        },
-                                        "aggregations": {
-                                            "disp_avg": {
-                                                "avg": {"field": "engine_displacement"}
-                                            }
-                                        }
+                                    "disp_avg": {
+                                        "avg": {"field": "engine_displacement"}
+                                    }
+                                }
+                            },
+                            "qf.price:10000-20000": {
+                                "filter": {
+                                    "range": {"price": {"gt": 10000, "lte": 20000}}
+                                },
+                                "aggregations": {
+                                    "disp_avg": {
+                                        "avg": {"field": "engine_displacement"}
+                                    }
+                                }
+                            },
+                            "qf.price:20000-30000": {
+                                "filter": {
+                                    "range": {"price": {"gt": 20000, "lte": 30000}}
+                                },
+                                "aggregations": {
+                                    "disp_avg": {
+                                        "avg": {"field": "engine_displacement"}
+                                    }
+                                }
+                            },
+                            "qf.price:30000-*": {
+                                "filter": {
+                                    "range": {"price": {"gt": 30000}}
+                                },
+                                "aggregations": {
+                                    "disp_avg": {
+                                        "avg": {"field": "engine_displacement"}
                                     }
                                 }
                             }
                         }
                     }
+                },
+                "post_filter": {
+                    "term": {"state": "new"}
                 }
             }
         )
 
-        es_client.search = MagicMock(
+        self.client.search = MagicMock(
             return_value={
                 "hits": {
                     "hits": [],
@@ -415,29 +399,26 @@ class QueryFilterTest(BaseTestCase):
                     "total": 893
                 },
                 "aggregations": {
-                    "qf": {
-                        "doc_count": 931,
-                        "is_new:true": {
-                            "doc_count": 82
+                    "qf.is_new:true": {
+                        "doc_count": 82
+                    },
+                    "qf.price.filter": {
+                        "doc_count": 82,
+                        "qf.price:*-10000": {
+                            "doc_count": 11,
+                            "disp_avg": {"value": 1.56}
                         },
-                        "price.filter": {
-                            "doc_count": 82,
-                            "price:*-10000": {
-                                "doc_count": 11,
-                                "disp_avg": {"value": 1.56}
-                            },
-                            "price:10000-20000": {
-                                "doc_count": 16,
-                                "disp_avg": {"value": 2.4}
-                            },
-                            "price:20000-30000": {
-                                "doc_count": 23,
-                                "disp_avg": {"value": 2.85}
-                            },
-                            "price:30000-*": {
-                                "doc_count": 32,
-                                "disp_avg": {"value": 2.92}
-                            }
+                        "qf.price:10000-20000": {
+                            "doc_count": 16,
+                            "disp_avg": {"value": 2.4}
+                        },
+                        "qf.price:20000-30000": {
+                            "doc_count": 23,
+                            "disp_avg": {"value": 2.85}
+                        },
+                        "qf.price:30000-*": {
+                            "doc_count": 32,
+                            "disp_avg": {"value": 2.92}
                         }
                     }
                 }
@@ -476,16 +457,16 @@ class QueryFilterTest(BaseTestCase):
         self.assertEqual(qf.price.get_value('30000-*').agg.get_aggregation('disp_avg').value, 2.92)
 
         qf = CarQueryFilter()
-        sq = es_index.query(es_index.car.year == 2014)
+        sq = self.index.query(self.index.car.year == 2014)
         sq = qf.apply(sq, {'price': ['*-10000', '10000-20000', 'null']})
         self.assert_expression(
             sq,
             {
                 "query": {
-                    "filtered": {
-                        "query": {
-                            "term": {"year": 2014}
-                        },
+                    "term": {"year": 2014}
+                },
+                "aggregations": {
+                    "qf.is_new.filter": {
                         "filter": {
                             "or": [
                                 {
@@ -499,92 +480,74 @@ class QueryFilterTest(BaseTestCase):
                                     }
                                 }
                             ]
-                        }
-                    }
-                },
-                "aggregations": {
-                    "qf": {
-                        "global": {},
+                        },
                         "aggregations": {
-                            "qf": {
+                            "qf.is_new:true": {
                                 "filter": {
-                                    "query": {
-                                        "term": {"year": 2014}
-                                    }
-                                },
-                                "aggregations": {
-                                    "is_new.filter": {
-                                        "filter": {
-                                            "or": [
-                                                {
-                                                    "range": {
-                                                        "price": {"lte": 10000}
-                                                    }
-                                                },
-                                                {
-                                                    "range": {
-                                                        "price": {"gt": 10000, "lte": 20000}
-                                                    }
-                                                }
-                                            ]
-                                        },
-                                        "aggregations": {
-                                            "is_new:true": {
-                                                "filter": {
-                                                    "term": {"state": "new"}
-                                                }
-                                            }
-                                        }
-                                    },
-                                    "price:*-10000": {
-                                        "filter": {
-                                            "range": {"price": {"lte": 10000}}
-                                        },
-                                        "aggregations": {
-                                            "disp_avg": {
-                                                "avg": {"field": "engine_displacement"}
-                                            }
-                                        }
-                                    },
-                                    "price:10000-20000": {
-                                        "filter": {
-                                            "range": {"price": {"gt": 10000, "lte": 20000}}
-                                        },
-                                        "aggregations": {
-                                            "disp_avg": {
-                                                "avg": {"field": "engine_displacement"}
-                                            }
-                                        }
-                                    },
-                                    "price:20000-30000": {
-                                        "filter": {
-                                            "range": {"price": {"gt": 20000, "lte": 30000}}
-                                        },
-                                        "aggregations": {
-                                            "disp_avg": {
-                                                "avg": {"field": "engine_displacement"}
-                                            }
-                                        }
-                                    },
-                                    "price:30000-*": {
-                                        "filter": {
-                                            "range": {"price": {"gt": 30000}}
-                                        },
-                                        "aggregations": {
-                                            "disp_avg": {
-                                                "avg": {"field": "engine_displacement"}
-                                            }
-                                        }
-                                    }
+                                    "term": {"state": "new"}
                                 }
                             }
                         }
+                    },
+                    "qf.price:*-10000": {
+                        "filter": {
+                            "range": {"price": {"lte": 10000}}
+                        },
+                        "aggregations": {
+                            "disp_avg": {
+                                "avg": {"field": "engine_displacement"}
+                            }
+                        }
+                    },
+                    "qf.price:10000-20000": {
+                        "filter": {
+                            "range": {"price": {"gt": 10000, "lte": 20000}}
+                        },
+                        "aggregations": {
+                            "disp_avg": {
+                                "avg": {"field": "engine_displacement"}
+                            }
+                        }
+                    },
+                    "qf.price:20000-30000": {
+                        "filter": {
+                            "range": {"price": {"gt": 20000, "lte": 30000}}
+                        },
+                        "aggregations": {
+                            "disp_avg": {
+                                "avg": {"field": "engine_displacement"}
+                            }
+                        }
+                    },
+                    "qf.price:30000-*": {
+                        "filter": {
+                            "range": {"price": {"gt": 30000}}
+                        },
+                        "aggregations": {
+                            "disp_avg": {
+                                "avg": {"field": "engine_displacement"}
+                            }
+                        }
                     }
+                },
+                "post_filter": {
+                    "or": [
+                        {
+                            "range": {
+                                "price": {"lte": 10000}
+                            }
+                        },
+                        {
+                            "range": {
+                                "price": {"gt": 10000, "lte": 20000}
+                            }
+                        }
+                    ]
                 }
             }
         )
 
-        es_client.search = MagicMock(
+        self.client.search = MagicMock(
             return_value={
                 "hits": {
                     "hits": [],
@@ -592,33 +555,27 @@ class QueryFilterTest(BaseTestCase):
                     "total": 514
                 },
                 "aggregations": {
-                    "qf": {
-                        "doc_count": 931,
-                        "qf": {
-                            "doc_count": 112,
-                            "is_new.filter": {
-                                "doc_count": 34,
-                                "is_new:true": {
-                                    "doc_count": 32
-                                }
-                            },
-                            "price:*-10000": {
-                                "doc_count": 7,
-                                "disp_avg": {"value": 1.43}
-                            },
-                            "price:10000-20000": {
-                                "doc_count": 11,
-                                "disp_avg": {"value": 1.98}
-                            },
-                            "price:20000-30000": {
-                                "doc_count": 6,
-                                "disp_avg": {"value": 2.14}
-                            },
-                            "price:30000-*": {
-                                "doc_count": 10,
-                                "disp_avg": {"value": 2.67}
-                            }
+                    "qf.is_new.filter": {
+                        "doc_count": 34,
+                        "qf.is_new:true": {
+                            "doc_count": 32
                         }
+                    },
+                    "qf.price:*-10000": {
+                        "doc_count": 7,
+                        "disp_avg": {"value": 1.43}
+                    },
+                    "qf.price:10000-20000": {
+                        "doc_count": 11,
+                        "disp_avg": {"value": 1.98}
+                    },
+                    "qf.price:20000-30000": {
+                        "doc_count": 6,
+                        "disp_avg": {"value": 2.14}
+                    },
+                    "qf.price:30000-*": {
+                        "doc_count": 10,
+                        "disp_avg": {"value": 2.67}
                     }
                 }
             }
@@ -656,32 +613,24 @@ class QueryFilterTest(BaseTestCase):
         self.assertEqual(qf.price.get_value('30000-*').agg.get_aggregation('disp_avg').value, 2.67)
 
     def test_ordering(self):
-        es_client = MagicMock()
-        es_index = Index(es_client, 'ads')
-
         class CarQueryFilter(QueryFilter):
             sort = OrderingFilter(
                 OrderingValue(
                     'popularity',
-                    [es_index.car.popularity.desc(),
-                     es_index.car.opinion_count.desc(missing='_last')],
+                    [self.index.car.popularity.desc(),
+                     self.index.car.opinion_count.desc(missing='_last')],
                 ),
-                OrderingValue('price', [es_index.car.price]),
-                OrderingValue('-price', [es_index.car.price.desc()]),
+                OrderingValue('price', [self.index.car.price]),
+                OrderingValue('-price', [self.index.car.price.desc()]),
                 default='popularity',
             )
 
-        sq = es_index.query()
+        sq = self.index.query()
 
         qf = CarQueryFilter()
         self.assert_expression(
             qf.apply(sq, {}),
             {
-                "aggregations": {
-                    "qf": {
-                        "global": {}
-                    }
-                },
                 "sort": [
                     {
                         "popularity": "desc"
@@ -702,11 +651,6 @@ class QueryFilterTest(BaseTestCase):
         self.assert_expression(
             qf.apply(sq, {'sort': ['price']}),
             {
-                "aggregations": {
-                    "qf": {
-                        "global": {}
-                    }
-                },
                 "sort": [
                     "price"
                 ]

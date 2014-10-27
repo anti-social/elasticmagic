@@ -185,9 +185,24 @@ class SearchQuery(object):
     def get_filtered_query(self, wrap_function_score=True):
         q = self.get_query(wrap_function_score=wrap_function_score)
         if self._filters:
-            filters = list(chain(*[f for f, m in self._filters]))
-            return Filtered(query=q, filter=Bool.must(*filters))
+            return Filtered(query=q, filter=Bool.must(*self.iter_filters()))
         return q
+
+    def iter_filters_with_meta(self):
+        for filters, meta in self._filters:
+            for f in filters:
+                yield f, meta
+
+    def iter_filters(self):
+        return (f for f, m in self.iter_filters_with_meta())
+
+    def iter_post_filters_with_meta(self):
+        for filters, meta in self._post_filters:
+            for f in filters:
+                yield f, meta
+
+    def iter_post_filters(self):
+        return (f for f, m in self.iter_post_filters_with_meta())
 
     @cached_property
     def results(self):

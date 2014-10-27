@@ -32,6 +32,9 @@ class QueryFilter(object):
 
         self.reset()
 
+    def get_name(self):
+        return self._name
+
     @property
     def _filter_types(self):
         types = {}
@@ -70,35 +73,19 @@ class QueryFilter(object):
     def apply(self, search_query, params):
         self._params = self._codec.decode(params, self._filter_types)
 
-        # First filter query
+        # First filter query with all filters
         for f in self._filters:
             search_query = f._apply_filter(search_query, self._params.get(f.name) or {})
 
-        # disable all filters for aggregations
-        if search_query._q:
-            main_agg = agg.Filter(Query(search_query._q))
-        else:
-            main_agg = agg.Global()
-
         # then add aggregations
         for f in self._filters:
-            main_agg = f._apply_agg(main_agg, search_query)
+            search_query = f._apply_agg(search_query)
 
-        if search_query._q:
-            global_agg = agg.Global().aggs(**{self._name: main_agg})
-        else:
-            global_agg = main_agg
-        return search_query.aggregations(**{self._name: global_agg})
+        return search_query
 
     def process_results(self, results):
-        global_agg = results.get_aggregation(self._name)
-        if global_agg.get_aggregation(self._name):
-            main_agg = global_agg.get_aggregation(self._name)
-        else:
-            main_agg = global_agg
-
         for f in self._filters:
-            f._process_agg(main_agg, self._params.get(f.name) or {})
+            f._process_agg(results, self._params.get(f.name) or {})
 
     def get_filter(self, name):
         return getattr(self, name, None)
@@ -131,13 +118,22 @@ class BaseFilter(object):
     def _types(self):
         return []
 
+    def _get_active_filters(self, filters):
+        active_filters = []
+        exclude = {self.qf._name, self.name}
+        for filt, meta in filters:
+            tags = meta.get('tags', set()) if meta else set()
+            if not exclude.intersection(tags):
+                active_filters.append(filt)
+        return active_filters
+
     def _apply_filter(self, search_query, params):
         raise NotImplementedError()
 
-    def _apply_agg(self, main_agg, search_query):
+    def _apply_agg(self, search_query):
         raise NotImplementedError()
 
-    def _process_agg(self, main_agg, params):
+    def _process_agg(self, result, params):
         pass
 
 
@@ -177,8 +173,6 @@ class FacetFilter(FieldFilter):
         self.all_values = []
         self.values_map = {}
 
-        self._filter_agg_name = '{}.filter'.format
-
     def _reset(self):
         self.values = []
         self.selected_values = []
@@ -188,6 +182,14 @@ class FacetFilter(FieldFilter):
     @property
     def _types(self):
         return [self.type]
+
+    @property
+    def _agg_name(self):
+        return '{}.{}'.format(self.qf._name, self.name)
+
+    @property
+    def _filter_agg_name(self):
+        return '{}.{}.filter'.format(self.qf._name, self.name)
 
     def _apply_filter(self, search_query, params):
         values = params.get('exact')
@@ -200,34 +202,32 @@ class FacetFilter(FieldFilter):
         else:
             expr = self.field.in_(values)
 
-        return search_query.filter(expr, meta={'tags': {self.name}})
+        return search_query.post_filter(expr, meta={'tags': {self.name}})
 
-    def _apply_agg(self, main_agg, search_query):
-        filters = []
-        for filts, meta in search_query._filters:
-            tags = meta.get('tags', set()) if meta else set()
-            if self.name not in tags:
-                filters.append(*filts)
+    def _apply_agg(self, search_query):
+        filters = self._get_active_filters(search_query.iter_post_filters_with_meta())
 
         terms_agg = agg.Terms(self.field, instance_mapper=self.instance_mapper, **self.agg_kwargs)
         if filters:
-            main_agg = main_agg.aggs(
-                **{self._filter_agg_name(self.name): agg.Filter(Bool.must(*filters), aggs={self.name: terms_agg})}
-            )
+            aggs = {
+                self._filter_agg_name: agg.Filter(
+                    Bool.must(*filters), aggs={self._agg_name: terms_agg}
+                )
+            }
         else:
-            main_agg = main_agg.aggs(**{self.name: terms_agg})
+            aggs = {self._agg_name: terms_agg}
 
-        return main_agg
+        return search_query.aggregations(**aggs)
         
-    def _process_agg(self, main_agg, params):
+    def _process_agg(self, result, params):
         values = params.get('exact', [])
         values = list(chain(*values))
-        if main_agg.get_aggregation(self._filter_agg_name(self.name)):
-            terms_agg = main_agg \
-                .get_aggregation(self._filter_agg_name(self.name)) \
-                .get_aggregation(self.name)
+        if result.get_aggregation(self._filter_agg_name):
+            terms_agg = result \
+                .get_aggregation(self._filter_agg_name) \
+                .get_aggregation(self._agg_name)
         else:
-            terms_agg = main_agg.get_aggregation(self.name)
+            terms_agg = result.get_aggregation(self._agg_name)
         for bucket in terms_agg.buckets:
             if bucket.key in values:
                 self.qf._set_selected(self.name, bucket.key)
@@ -299,10 +299,6 @@ class RangeFilter(FieldFilter):
         self.min = None
         self.max = None
 
-        self._filter_agg_name = '{}.filter'.format
-        self._min_agg_name = '{}.min'.format
-        self._max_agg_name = '{}.max'.format
-
     def _reset(self):
         self.from_value = None
         self.to_value = None
@@ -312,6 +308,18 @@ class RangeFilter(FieldFilter):
     @property
     def _types(self):
         return [self.type]
+
+    @property
+    def _filter_agg_name(self):
+        return '{}.{}.filter'.format(self.qf._name, self.name)
+
+    @property
+    def _min_agg_name(self):
+        return '{}.{}.min'.format(self.qf._name, self.name)
+
+    @property
+    def _max_agg_name(self):
+        return '{}.{}.max'.format(self.qf._name, self.name)
 
     def _get_from_value(self, params):
         from_values = params.get('gte')
@@ -327,39 +335,35 @@ class RangeFilter(FieldFilter):
         if self.from_value is None and self.to_value is None:
             return search_query
 
-        return search_query.filter(
+        return search_query.post_filter(
             self.field.range(gte=self.from_value, lte=self.to_value),
             meta={'tags': {self.name}}
         )
 
-    def _apply_agg(self, main_agg, search_query):
-        filters = []
-        for filts, meta in search_query._filters:
-            tags = meta.get('tags', set()) if meta else set()
-            if self.name not in tags:
-                filters.append(*filts)
+    def _apply_agg(self, search_query):
+        filters = self._get_active_filters(search_query.iter_post_filters_with_meta())
 
         stat_aggs = {
-            self._min_agg_name(self.name): agg.Min(self.field),
-            self._max_agg_name(self.name): agg.Max(self.field),
+            self._min_agg_name: agg.Min(self.field),
+            self._max_agg_name: agg.Max(self.field),
         }
         if filters:
-            main_agg = main_agg.aggs(
-                **{self._filter_agg_name(self.name): agg.Filter(Bool.must(*filters), aggs=stat_aggs)}
-            )
+            aggs = {
+                self._filter_agg_name: agg.Filter(Bool.must(*filters), aggs=stat_aggs)
+            }
         else:
-            main_agg = main_agg.aggs(**stat_aggs)
+            aggs = stat_aggs
 
-        return main_agg
+        return search_query.aggregations(**aggs)
 
-    def _process_agg(self, main_agg, params):
-        if main_agg.get_aggregation(self._filter_agg_name(self.name)):
-            base_agg = main_agg.get_aggregation(self._filter_agg_name(self.name))
+    def _process_agg(self, result, params):
+        if result.get_aggregation(self._filter_agg_name):
+            base_agg = result.get_aggregation(self._filter_agg_name)
         else:
-            base_agg = main_agg
+            base_agg = result
 
-        self.min = base_agg.get_aggregation(self._min_agg_name(self.name)).value
-        self.max = base_agg.get_aggregation(self._max_agg_name(self.name)).value
+        self.min = base_agg.get_aggregation(self._min_agg_name).value
+        self.max = base_agg.get_aggregation(self._max_agg_name).value
 
 
 class FacetQueryValue(BaseFilterValue):
@@ -411,9 +415,6 @@ class FacetQueryFilter(BaseFilter):
         self.values_map = {fv.value: fv for fv in self._values}
         self.agg_kwargs = agg_kwargs
 
-        self._filter_agg_name = '{}.filter'.format
-        self._agg_name = '{}:{}'.format
-
     @property
     def all_values(self):
         return self._values
@@ -429,6 +430,13 @@ class FacetQueryFilter(BaseFilter):
     def get_value(self, value):
         return self.values_map.get(value)
 
+    @property
+    def _filter_agg_name(self):
+        return '{}.{}.filter'.format(self.qf._name, self.name)
+
+    def _make_agg_name(self, value):
+        return '{}.{}:{}'.format(self.qf._name, self.name, value)
+
     def _apply_filter(self, search_query, params):
         values = params.get('exact')
         if not values:
@@ -442,42 +450,36 @@ class FacetQueryFilter(BaseFilter):
                 expressions.append(filter_value.expr)
 
         if expressions:
-            return search_query.filter(Or(*expressions), meta={'tags': {self.name}})
+            return search_query.post_filter(Or(*expressions), meta={'tags': {self.name}})
         return search_query
 
-    def _apply_agg(self, main_agg, search_query):
-        filters = []
-        for filts, meta in search_query._filters:
-            tags = meta.get('tags', set()) if meta else set()
-            if self.name not in tags:
-                filters.append(*filts)
+    def _apply_agg(self, search_query):
+        filters = self._get_active_filters(search_query.iter_post_filters_with_meta())
 
-        filter_aggs_map = {}
+        filter_aggs = {}
         for fv in self.values:
-            filter_aggs_map[self._agg_name(self.name, fv.value)] = agg.Filter(fv.expr, **self.agg_kwargs)
+            filter_aggs[self._make_agg_name(fv.value)] = agg.Filter(fv.expr, **self.agg_kwargs)
 
         if filters:
-            main_agg = main_agg.aggs(
-                **{
-                    self._filter_agg_name(self.name): agg.Filter(
-                        Bool.must(*filters), aggs=filter_aggs_map
-                    )
-                }
-            )
+            aggs = {
+                self._filter_agg_name: agg.Filter(
+                    Bool.must(*filters), aggs=filter_aggs
+                )
+            }
         else:
-            main_agg = main_agg.aggs(**filter_aggs_map)
+            aggs = filter_aggs
 
-        return main_agg
+        return search_query.aggregations(**aggs)
 
-    def _process_agg(self, main_agg, params):
+    def _process_agg(self, result, params):
         values = params.get('exact', [])
         values = list(chain(*values))
-        if main_agg.get_aggregation(self._filter_agg_name(self.name)):
-            filters_agg = main_agg.get_aggregation(self._filter_agg_name(self.name))
+        if result.get_aggregation(self._filter_agg_name):
+            filters_agg = result.get_aggregation(self._filter_agg_name)
         else:
-            filters_agg = main_agg
+            filters_agg = result
         for fv in self.values:
-            filt_agg = filters_agg.get_aggregation(self._agg_name(self.name, fv.value))
+            filt_agg = filters_agg.get_aggregation(self._make_agg_name(fv.value))
             if fv.value in values:
                 self.qf._set_selected(self.name, fv.value)
             self.qf._set_value_data(self.name, fv.value, {'agg': filt_agg})
@@ -526,5 +528,5 @@ class OrderingFilter(BaseFilter):
         self.qf._set_selected(self.name, ordering_value.value)
         return ordering_value._apply(search_query)
 
-    def _apply_agg(self, main_agg, search_query):
-        return main_agg
+    def _apply_agg(self, search_query):
+        return search_query

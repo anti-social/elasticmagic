@@ -785,8 +785,7 @@ class Compiled(object):
         if query._rescores:
             params['rescore'] = [self.visit(r) for r in query._rescores]
         if query._post_filters:
-            post_filters = list(chain(*[f for f, m in query._post_filters]))
-            params['post_filter'] = self.visit(And(*post_filters))
+            params['post_filter'] = self.visit(And(*query.iter_post_filters()))
         return params
 
 
