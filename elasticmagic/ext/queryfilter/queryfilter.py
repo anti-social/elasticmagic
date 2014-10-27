@@ -200,14 +200,14 @@ class FacetFilter(FieldFilter):
         else:
             expr = self.field.in_(values)
 
-        return search_query.filter(expr, tags=[self.name])
+        return search_query.filter(expr, meta={'tags': {self.name}})
 
     def _apply_agg(self, main_agg, search_query):
         filters = []
-        for filt, meta in search_query._filters:
-            tags = meta.get('tags') or set()
+        for filts, meta in search_query._filters:
+            tags = meta.get('tags', set()) if meta else set()
             if self.name not in tags:
-                filters.append(filt)
+                filters.append(*filts)
 
         terms_agg = agg.Terms(self.field, instance_mapper=self.instance_mapper, **self.agg_kwargs)
         if filters:
@@ -329,15 +329,15 @@ class RangeFilter(FieldFilter):
 
         return search_query.filter(
             self.field.range(gte=self.from_value, lte=self.to_value),
-            tags=[self.name]
+            meta={'tags': {self.name}}
         )
 
     def _apply_agg(self, main_agg, search_query):
         filters = []
-        for filt, meta in search_query._filters:
-            tags = meta.get('tags') or set()
+        for filts, meta in search_query._filters:
+            tags = meta.get('tags', set()) if meta else set()
             if self.name not in tags:
-                filters.append(filt)
+                filters.append(*filts)
 
         stat_aggs = {
             self._min_agg_name(self.name): agg.Min(self.field),
@@ -442,15 +442,15 @@ class FacetQueryFilter(BaseFilter):
                 expressions.append(filter_value.expr)
 
         if expressions:
-            return search_query.filter(Or(*expressions), tags=[self.name])
+            return search_query.filter(Or(*expressions), meta={'tags': {self.name}})
         return search_query
 
     def _apply_agg(self, main_agg, search_query):
         filters = []
-        for filt, meta in search_query._filters:
-            tags = meta.get('tags') or set()
+        for filts, meta in search_query._filters:
+            tags = meta.get('tags', set()) if meta else set()
             if self.name not in tags:
-                filters.append(filt)
+                filters.append(*filts)
 
         filter_aggs_map = {}
         for fv in self.values:

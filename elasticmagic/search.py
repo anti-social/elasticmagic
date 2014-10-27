@@ -81,16 +81,14 @@ class SearchQuery(object):
         self._source = self._source + fields
 
     @_with_clone
-    def filter(self, *filters, **meta):
-        if len(filters) > 1:
-            f = (And(*filters), meta)
-        else:
-            f = (filters[0], meta)
-        self._filters = self._filters + (f,)
+    def filter(self, *filters, **kwargs):
+        meta = kwargs.pop('meta', None)
+        self._filters = self._filters + ((filters, meta),)
 
     @_with_clone
-    def post_filter(self, *filters):
-        self._post_filters = self._post_filters + filters
+    def post_filter(self, *filters, **kwargs):
+        meta = kwargs.pop('meta', None)
+        self._post_filters = self._post_filters + ((filters, meta),)
 
     @_with_clone
     def order_by(self, *orders):
@@ -187,7 +185,8 @@ class SearchQuery(object):
     def get_filtered_query(self, wrap_function_score=True):
         q = self.get_query(wrap_function_score=wrap_function_score)
         if self._filters:
-            return Filtered(query=q, filter=And(*[f for f, m in self._filters]))
+            filters = list(chain(*[f for f, m in self._filters]))
+            return Filtered(query=q, filter=And(*filters))
         return q
 
     @cached_property
@@ -223,7 +222,8 @@ class SearchQuery(object):
         doc_types = set()
         for expr in chain([self._q],
                           [self._source],
-                          [f for f, m in self._filters],
+                          chain(*[f for f, m in self._filters]),
+                          chain(*[f for f, m in self._post_filters]),
                           self._order_by,
                           self._aggregations.values()):
             if expr and hasattr(expr, '_collect_doc_classes'):
