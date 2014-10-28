@@ -1,6 +1,6 @@
 from itertools import chain
 
-from elasticmagic import Params, Term, Terms, Query, Bool, And, Or, agg
+from elasticmagic import Params, Term, Terms, Query, Bool, agg
 from elasticmagic.types import String, instantiate
 from elasticmagic.compat import text_type, string_types, with_metaclass
 
@@ -450,7 +450,7 @@ class FacetQueryFilter(BaseFilter):
                 expressions.append(filter_value.expr)
 
         if expressions:
-            return search_query.post_filter(Or(*expressions), meta={'tags': {self.name}})
+            return search_query.post_filter(Bool.should(*expressions), meta={'tags': {self.name}})
         return search_query
 
     def _apply_agg(self, search_query):

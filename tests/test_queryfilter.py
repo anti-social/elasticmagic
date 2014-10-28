@@ -126,11 +126,13 @@ class QueryFilterTest(BaseTestCase):
                     }
                 },
                 "post_filter": {
-                    "and": [
-                        {"range": {"date_created": {"gt": "now-1y"}}},
-                        {"terms": {"type": [0, 1]}},
-                        {"term": {"vendor": "Subaru"}}
-                    ]
+                    "bool": {
+                        "must": [
+                            {"range": {"date_created": {"gt": "now-1y"}}},
+                            {"terms": {"type": [0, 1]}},
+                            {"term": {"vendor": "Subaru"}}
+                        ]
+                    }
                 }
             }
         )
@@ -468,18 +470,20 @@ class QueryFilterTest(BaseTestCase):
                 "aggregations": {
                     "qf.is_new.filter": {
                         "filter": {
-                            "or": [
-                                {
-                                    "range": {
-                                        "price": {"lte": 10000}
+                            "bool": {
+                                "should": [
+                                    {
+                                        "range": {
+                                            "price": {"lte": 10000}
+                                        }
+                                    },
+                                    {
+                                        "range": {
+                                            "price": {"gt": 10000, "lte": 20000}
+                                        }
                                     }
-                                },
-                                {
-                                    "range": {
-                                        "price": {"gt": 10000, "lte": 20000}
-                                    }
-                                }
-                            ]
+                                ]
+                            }
                         },
                         "aggregations": {
                             "qf.is_new:true": {
@@ -531,18 +535,20 @@ class QueryFilterTest(BaseTestCase):
                     }
                 },
                 "post_filter": {
-                    "or": [
-                        {
-                            "range": {
-                                "price": {"lte": 10000}
+                    "bool": {
+                        "should": [
+                            {
+                                "range": {
+                                    "price": {"lte": 10000}
+                                }
+                            },
+                            {
+                                "range": {
+                                    "price": {"gt": 10000, "lte": 20000}
+                                }
                             }
-                        },
-                        {
-                            "range": {
-                                "price": {"gt": 10000, "lte": 20000}
-                            }
-                        }
-                    ]
+                        ]
+                    }
                 }
             }
         )

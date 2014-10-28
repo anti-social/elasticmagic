@@ -269,14 +269,12 @@ class SearchQueryTest(BaseTestCase):
                     }
                 },
                 "post_filter": {
-                    "and": [
-                        {
-                            "term": {"color": "red"}
-                        },
-                        {
-                            "term": {"model": "t-shirt"}
-                        }
-                    ]
+                    "bool": {
+                        "must": [
+                            {"term": {"color": "red"}},
+                            {"term": {"model": "t-shirt"}}
+                        ]
+                    }
                 }
             }
         )
