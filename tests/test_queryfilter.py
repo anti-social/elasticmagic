@@ -21,6 +21,7 @@ TYPES = {
             CarType(0, 'Sedan'),
             CarType(1, 'Station Wagon'),
             CarType(2, 'Hatchback'),
+            CarType(3, 'Coupe'),
     ]
 }
 
@@ -69,7 +70,7 @@ class QueryFilterTest(BaseTestCase):
             .post_filter(self.index.car.date_created > 'now-1y',
                          meta={'tags': {qf.get_name()}})
         )
-        sq = qf.apply(sq, {'type': ['0', '1'], 'vendor': ['Subaru']})
+        sq = qf.apply(sq, {'type': ['0', '1', '3'], 'vendor': ['Subaru']})
         self.assert_expression(
             sq,
             {
@@ -96,7 +97,7 @@ class QueryFilterTest(BaseTestCase):
                     },
                     "qf.vendor.filter": {
                         "filter": {
-                            "terms": {"type": [0, 1]}
+                            "terms": {"type": [0, 1, 3]}
                         },
                         "aggregations": {
                             "qf.vendor": {
@@ -113,7 +114,7 @@ class QueryFilterTest(BaseTestCase):
                         "filter": {
                             "bool": {
                                 "must": [
-                                    {"terms": {"type": [0, 1]}},
+                                    {"terms": {"type": [0, 1, 3]}},
                                     {"term": {"vendor": "Subaru"}}
                                 ]
                             }
@@ -129,7 +130,7 @@ class QueryFilterTest(BaseTestCase):
                     "bool": {
                         "must": [
                             {"range": {"date_created": {"gt": "now-1y"}}},
-                            {"terms": {"type": [0, 1]}},
+                            {"terms": {"type": [0, 1, 3]}},
                             {"term": {"vendor": "Subaru"}}
                         ]
                     }
@@ -199,9 +200,9 @@ class QueryFilterTest(BaseTestCase):
         qf.process_results(sq.results)
 
         type_filter = qf.type
-        self.assertEqual(len(type_filter.selected_values), 2)
+        self.assertEqual(len(type_filter.selected_values), 3)
         self.assertEqual(len(type_filter.values), 1)
-        self.assertEqual(len(type_filter.all_values), 3)
+        self.assertEqual(len(type_filter.all_values), 4)
         self.assertEqual(type_filter.all_values[0].value, 0)
         self.assertEqual(type_filter.all_values[0].count, 744)
         self.assertEqual(type_filter.all_values[0].count_text, '744')
@@ -223,6 +224,13 @@ class QueryFilterTest(BaseTestCase):
         self.assertEqual(type_filter.all_values[2].instance.title, 'Station Wagon')
         self.assertIs(type_filter.all_values[2], type_filter.get_value(1))
         self.assertIs(type_filter.all_values[2], type_filter.selected_values[1])
+        self.assertEqual(type_filter.all_values[3].value, 3)
+        self.assertIs(type_filter.all_values[3].count, None)
+        self.assertEqual(type_filter.all_values[3].count_text, '')
+        self.assertEqual(type_filter.all_values[3].selected, True)
+        self.assertEqual(type_filter.all_values[3].instance.title, 'Coupe')
+        self.assertIs(type_filter.all_values[3], type_filter.get_value(3))
+        self.assertIs(type_filter.all_values[3], type_filter.selected_values[2])
         vendor_filter = qf.vendor
         self.assertEqual(len(vendor_filter.selected_values), 1)
         self.assertEqual(len(vendor_filter.values), 0)

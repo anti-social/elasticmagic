@@ -222,17 +222,32 @@ class FacetFilter(FieldFilter):
     def _process_agg(self, result, params):
         values = params.get('exact', [])
         values = list(chain(*values))
+
         if result.get_aggregation(self._filter_agg_name):
             terms_agg = result \
                 .get_aggregation(self._filter_agg_name) \
                 .get_aggregation(self._agg_name)
         else:
             terms_agg = result.get_aggregation(self._agg_name)
+
+        processed_values = set()
         for bucket in terms_agg.buckets:
             if bucket.key in values:
                 self.qf._set_selected(self.name, bucket.key)
             self.qf._set_value_data(self.name, bucket.key, {'bucket': bucket})
             self.add_value(FacetValue(bucket.key).bind(self))
+            processed_values.add(bucket.key)
+
+        for v in values:
+            if v not in processed_values:
+                fake_agg_data = {'key': v, 'doc_count': None}
+                fake_bucket = terms_agg.bucket_cls(
+                    fake_agg_data, terms_agg.expr.aggs(None), terms_agg
+                )
+                terms_agg.buckets.append(fake_bucket)
+                self.qf._set_selected(self.name, fake_bucket.key)
+                self.qf._set_value_data(self.name, fake_bucket.key, {'bucket': fake_bucket})
+                self.add_value(FacetValue(fake_bucket.key).bind(self))
 
     def add_value(self, fv):
         self.all_values.append(fv)

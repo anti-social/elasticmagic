@@ -18,7 +18,8 @@ class AggExpression(QueryExpression):
 
 
 class AggResult(object):
-    pass
+    def __init__(self, agg_expr):
+        self.expr = agg_expr
 
 
 class MetricsAgg(AggExpression):
@@ -36,17 +37,21 @@ class BucketAgg(AggExpression):
         return self.__class__(aggs=self._aggs, **self.params)
 
     @_with_clone
-    def aggregations(self, **aggs):
-        self._aggs = Params(dict(self._aggs), **aggs)
+    def aggregations(self, *args, **aggs):
+        if args == (None,):
+            self._aggs = Params()
+        else:
+            self._aggs = Params(dict(self._aggs), **aggs)
 
-    agg = aggregations
+    aggs = aggregations
 
     def build_agg_result(self, raw_data, mapper_registry=None):
-        return self.result_cls(raw_data, self, mapper_registry=mapper_registry)
+        return self.result_cls(self, raw_data, mapper_registry=mapper_registry)
 
 
 class SingleValueMetricsAggResult(AggResult):
-    def __init__(self, value):
+    def __init__(self, agg_expr, value):
+        super(SingleValueMetricsAggResult, self).__init__(agg_expr)
         self.value = value
 
 
@@ -55,12 +60,13 @@ class SingleValueMetricsAgg(MetricsAgg):
         super(SingleValueMetricsAgg, self).__init__(field=field, script=script, **kwargs)
 
     def build_agg_result(self, raw_data, **kwargs):
-        return SingleValueMetricsAggResult(raw_data['value'])
+        return SingleValueMetricsAggResult(self, raw_data['value'])
 
 
 class MultiValueMetricsAggResult(AggResult):
-    def __init__(self, **kwargs):
-        self.values = kwargs
+    def __init__(self, agg_expr, values):
+        super(MultiValueMetricsAggResult, self).__init__(agg_expr)
+        self.values = values
 
 
 class MultiValueMetricsAgg(MetricsAgg):
@@ -74,7 +80,7 @@ class MultiValueMetricsAgg(MetricsAgg):
             values = raw_data['values']
         else:
             values = raw_data
-        return self.result_cls(**values)
+        return self.result_cls(self, values)
 
 
 class Min(SingleValueMetricsAgg):
@@ -103,8 +109,8 @@ class TopHits(SingleValueMetricsAgg):
 
 
 class StatsResult(MultiValueMetricsAggResult):
-    def __init__(self, **kwargs):
-        super(StatsResult, self).__init__(**kwargs)
+    def __init__(self, agg_expr, values):
+        super(StatsResult, self).__init__(agg_expr, values)
         self.count = self.values['count']
         self.min = self.values['min']
         self.max = self.values['max']
@@ -122,8 +128,8 @@ class Stats(MultiValueMetricsAgg):
 
 
 class ExtendedStatsResult(StatsResult):
-    def __init__(self, **kwargs):
-        super(ExtendedStatsResult, self).__init__(**kwargs)
+    def __init__(self, agg_expr, values):
+        super(ExtendedStatsResult, self).__init__(agg_expr, values)
         self.sum_of_squares = self.values['sum_of_squares']
         self.variance = self.values['variance']
         self.std_deviation = self.values['std_deviation']
@@ -193,8 +199,9 @@ class Bucket(object):
 class MultiBucketAggResult(AggResult):
     bucket_cls = Bucket
 
-    def __init__(self, raw_data, agg_expr, mapper_registry, instance_mapper):
-        self.buckets = []
+    def __init__(self, agg_expr, raw_data, mapper_registry, instance_mapper):
+        super(MultiBucketAggResult, self).__init__(agg_expr)
+
         raw_buckets = raw_data.get('buckets', [])
         if isinstance(raw_buckets, dict):
             raw_buckets_map = raw_buckets
@@ -204,6 +211,7 @@ class MultiBucketAggResult(AggResult):
                 raw_bucket.setdefault('key', key)
                 raw_buckets.append(raw_bucket)
 
+        self.buckets = []
         for raw_bucket in raw_buckets:
             self.buckets.append(
                 self.bucket_cls(raw_bucket, agg_expr, self, mapper_registry=mapper_registry)
@@ -249,7 +257,7 @@ class MultiBucketAgg(BucketAgg):
         )
 
     def build_agg_result(self, raw_data, mapper_registry=None, **kwargs):
-        return self.result_cls(raw_data, self, mapper_registry, self._instance_mapper)
+        return self.result_cls(self, raw_data, mapper_registry, self._instance_mapper)
 
 
 class Terms(MultiBucketAgg):
@@ -340,7 +348,9 @@ class Filters(MultiBucketAgg):
 
 
 class SingleBucketAggResult(AggResult):
-    def __init__(self, raw_data, agg_expr, mapper_registry):
+    def __init__(self, agg_expr, raw_data, mapper_registry):
+        super(SingleBucketAggResult, self).__init__(agg_expr)
+
         self.doc_count = raw_data.get('doc_count')
         self.aggregations = {}
         for agg_name, agg_expr in agg_expr._aggs.items():
