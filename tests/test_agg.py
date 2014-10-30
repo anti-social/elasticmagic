@@ -486,7 +486,6 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(gender_mapper.call_count, 1)
 
         gender_mapper = Mock(return_value=GENDERS)
-        print '!'
         a = agg.Global(
             aggs={
                 'all_genders': agg.Terms(f.gender, instance_mapper=gender_mapper),
