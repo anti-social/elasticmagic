@@ -36,6 +36,7 @@ class QueryExpression(Expression):
     __visit_name__ = 'query_expression'
 
     def __init__(self, **kwargs):
+        super(QueryExpression, self).__init__()
         params = {}
         for k, v in kwargs.items():
             if v is None:

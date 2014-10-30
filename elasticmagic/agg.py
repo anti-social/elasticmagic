@@ -1,3 +1,5 @@
+from itertools import chain
+
 from .expression import QueryExpression, Params
 from .types import instantiate, Type
 from .util import _with_clone, cached_property
@@ -6,20 +8,17 @@ from .util import _with_clone, cached_property
 class AggExpression(QueryExpression):
     __visit_name__ = 'agg'
 
-    def __init__(self, **kwargs):
-        super(AggExpression, self).__init__(**kwargs)
-        self.parent = None
-        self.path = None
+    result_cls = None
 
     def clone(self):
         return self.__class__(**self.params)
 
-    def _bind(self, parent, path):
-        self.parent = parent
-        self.path = path
-    
-    def process_results(self, raw_data):
+    def build_agg_result(self, raw_data, **kwargs):
         raise NotImplementedError()
+
+
+class AggResult(object):
+    pass
 
 
 class MetricsAgg(AggExpression):
@@ -37,29 +36,45 @@ class BucketAgg(AggExpression):
         return self.__class__(aggs=self._aggs, **self.params)
 
     @_with_clone
-    def aggs(self, **aggs):
+    def aggregations(self, **aggs):
         self._aggs = Params(dict(self._aggs), **aggs)
+
+    agg = aggregations
+
+    def build_agg_result(self, raw_data, mapper_registry=None):
+        return self.result_cls(raw_data, self, mapper_registry=mapper_registry)
+
+
+class SingleValueMetricsAggResult(AggResult):
+    def __init__(self, value):
+        self.value = value
 
 
 class SingleValueMetricsAgg(MetricsAgg):
     def __init__(self, field=None, script=None, **kwargs):
         super(SingleValueMetricsAgg, self).__init__(field=field, script=script, **kwargs)
-        self.value = None
 
-    def process_results(self, raw_data):
-        self.value = raw_data['value']
+    def build_agg_result(self, raw_data, **kwargs):
+        return SingleValueMetricsAggResult(raw_data['value'])
+
+
+class MultiValueMetricsAggResult(AggResult):
+    def __init__(self, **kwargs):
+        self.values = kwargs
 
 
 class MultiValueMetricsAgg(MetricsAgg):
+    result_cls = MultiValueMetricsAggResult
+
     def __init__(self, field=None, script=None, **kwargs):
         super(MultiValueMetricsAgg, self).__init__(field=field, script=script, **kwargs)
-        self.values = {}
 
-    def process_results(self, raw_data):
+    def build_agg_result(self, raw_data, **kwargs):
         if 'values' in raw_data:
-            self.values = raw_data['values'].copy()
+            values = raw_data['values']
         else:
-            self.values = raw_data.copy()
+            values = raw_data
+        return self.result_cls(**values)
 
 
 class Min(SingleValueMetricsAgg):
@@ -87,19 +102,9 @@ class TopHits(SingleValueMetricsAgg):
         )
 
 
-class Stats(MultiValueMetricsAgg):
-    __agg_name__ = 'stats'
-
-    def __init__(self, field=None, script=None, **kwargs):
-        super(Stats, self).__init__(field=field, script=script, **kwargs)
-        self.count = None
-        self.min = None
-        self.max = None
-        self.avg = None
-        self.sum = None
-
-    def process_results(self, raw_data):
-        super(Stats, self).process_results(raw_data)
+class StatsResult(MultiValueMetricsAggResult):
+    def __init__(self, **kwargs):
+        super(StatsResult, self).__init__(**kwargs)
         self.count = self.values['count']
         self.min = self.values['min']
         self.max = self.values['max']
@@ -107,20 +112,30 @@ class Stats(MultiValueMetricsAgg):
         self.sum = self.values['sum']
 
 
-class ExtendedStats(Stats):
-    __agg_name__ = 'extended_stats'
+class Stats(MultiValueMetricsAgg):
+    __agg_name__ = 'stats'
+
+    result_cls = StatsResult
 
     def __init__(self, field=None, script=None, **kwargs):
-        super(ExtendedStats, self).__init__(field=field, script=script, **kwargs)
-        self.sum_of_squares = None
-        self.variance = None
-        self.std_deviation = None
+        super(Stats, self).__init__(field=field, script=script, **kwargs)
 
-    def process_results(self, raw_data):
-        super(ExtendedStats, self).process_results(raw_data)
+
+class ExtendedStatsResult(StatsResult):
+    def __init__(self, **kwargs):
+        super(ExtendedStatsResult, self).__init__(**kwargs)
         self.sum_of_squares = self.values['sum_of_squares']
         self.variance = self.values['variance']
         self.std_deviation = self.values['std_deviation']
+
+
+class ExtendedStats(Stats):
+    __agg_name__ = 'extended_stats'
+
+    result_cls = ExtendedStatsResult
+
+    def __init__(self, field=None, script=None, **kwargs):
+        super(ExtendedStats, self).__init__(field=field, script=script, **kwargs)
 
 
 class Percentiles(MultiValueMetricsAgg):
@@ -155,18 +170,16 @@ class Cardinality(SingleValueMetricsAgg):
 class Bucket(object):
     _typed_key = True
 
-    def __init__(self, raw_data, aggs, parent):
+    def __init__(self, raw_data, agg_expr, parent, mapper_registry=None):
         self.key = raw_data.get('key')
         if self._typed_key:
-            self.key = parent._type.to_python_single(self.key)
+            self.key = agg_expr._type.to_python_single(self.key)
         self.doc_count = raw_data['doc_count']
         self.parent = parent
         self.aggregations = {}
-        for agg_name, agg in aggs.items():
-            agg = agg.clone()
-            agg.process_results(raw_data[agg_name])
-            agg._bind(parent, parent.path + (agg_name,))
-            self.aggregations[agg_name] = agg
+        for agg_name, agg_expr in agg_expr._aggs.items():
+            result_agg = agg_expr.build_agg_result(raw_data[agg_name], mapper_registry=mapper_registry)
+            self.aggregations[agg_name] = result_agg
 
     def get_aggregation(self, name):
         return self.aggregations.get(name)
@@ -177,29 +190,11 @@ class Bucket(object):
         return self.__dict__['instance']
 
 
-class MultiBucketAgg(BucketAgg):
+class MultiBucketAggResult(AggResult):
     bucket_cls = Bucket
 
-    def __init__(self, type=None, instance_mapper=None, **kwargs):
-        super(MultiBucketAgg, self).__init__(**kwargs)
-        self._type = instantiate(type or Type)
-        self._instance_mapper = instance_mapper
+    def __init__(self, raw_data, agg_expr, mapper_registry, instance_mapper):
         self.buckets = []
-        self.parent = None
-        self.path = ()
-
-    def __iter__(self):
-        return iter(self.buckets)
-
-    def clone(self):
-        return self.__class__(
-            type=self._type,
-            instance_mapper=self._instance_mapper,
-            aggs=self._aggs,
-            **self.params
-        )
-
-    def process_results(self, raw_data):
         raw_buckets = raw_data.get('buckets', [])
         if isinstance(raw_buckets, dict):
             raw_buckets_map = raw_buckets
@@ -210,32 +205,51 @@ class MultiBucketAgg(BucketAgg):
                 raw_buckets.append(raw_bucket)
 
         for raw_bucket in raw_buckets:
-            bucket = self.bucket_cls(raw_bucket, self._aggs, self)
-            self.buckets.append(bucket)
+            self.buckets.append(
+                self.bucket_cls(raw_bucket, agg_expr, self, mapper_registry=mapper_registry)
+            )
+
+        self._instance_mapper = instance_mapper
+        if mapper_registry is None:
+            self._mapper_registry = {}
+        else:
+            self._mapper_registry = mapper_registry
+
+        if self._instance_mapper:
+            self._mapper_registry.setdefault(self._instance_mapper, []).append(self)
+
 
     def _populate_instances(self):
-        buckets = self._root._collect_buckets(self.path)
+        buckets = list(chain(
+            *(a.buckets for a in self._mapper_registry.get(self._instance_mapper, [self]))
+        ))
         keys = [bucket.key for bucket in buckets]
         instances = self._instance_mapper(keys) if self._instance_mapper else {}
         for bucket in buckets:
             bucket.__dict__['instance'] = instances.get(bucket.key)
 
-    @property
-    def _root(self):
-        if not self.parent:
-            return self
-        parent = self.parent
-        while parent:
-            parent = parent.parent
-        return self.parent
 
-    def _collect_buckets(self, path):
-        if not path:
-            return self.buckets
-        buckets = []
-        for bucket in self.buckets:
-            buckets += bucket.get_aggregation(path[0])._collect_buckets(path[1:])
-        return buckets
+class MultiBucketAgg(BucketAgg):
+    result_cls = MultiBucketAggResult
+
+    def __init__(self, type=None, instance_mapper=None, **kwargs):
+        super(MultiBucketAgg, self).__init__(**kwargs)
+        self._type = instantiate(type or Type)
+        self._instance_mapper = instance_mapper
+
+    def __iter__(self):
+        return iter(self.buckets)
+
+    def clone(self):
+        return self.__class__(
+            aggs=self._aggs,
+            type=self._type,
+            instance_mapper=self._instance_mapper
+            **self.params
+        )
+
+    def build_agg_result(self, raw_data, mapper_registry=None, **kwargs):
+        return self.result_cls(raw_data, self, mapper_registry, self._instance_mapper)
 
 
 class Terms(MultiBucketAgg):
@@ -253,22 +267,37 @@ class Terms(MultiBucketAgg):
             field=field, script=script, size=size, shard_size=shard_size,
             order=order, min_doc_count=min_doc_count, shard_min_doc_count=shard_min_doc_count,
             include=include, exclude=exclude, collect_mode=collect_mode,
-            execution_hint=execution_hint, type=type, instance_mapper=instance_mapper, aggs=aggs,
+            execution_hint=execution_hint, type=type, aggs=aggs,
             **kwargs
+        )
+        self._instance_mapper = instance_mapper
+
+    def clone(self):
+        return self.__class__(
+            type=self._type,
+            aggs=self._aggs,
+            instance_mapper=self._instance_mapper,
+            **self.params
         )
 
 
-class SignificantBucket(Bucket):
-    def __init__(self, raw_data, aggs, parent):
-        super(SignificantBucket, self).__init__(raw_data, aggs, parent)
+class SignificantTermsBucket(Bucket):
+    def __init__(self, raw_data, aggs, parent, mapper_registry=None):
+        super(SignificantTermsBucket, self).__init__(
+            raw_data, aggs, parent, mapper_registry=mapper_registry
+        )
         self.score = raw_data['score']
         self.bg_count = raw_data['bg_count']
+
+
+class SignificantTermsAggResult(MultiBucketAggResult):
+    bucket_cls = SignificantTermsBucket
 
 
 class SignificantTerms(Terms):
     __agg_name__ = 'significant_terms'
 
-    bucket_cls = SignificantBucket
+    result_cls = SignificantTermsAggResult
 
 
 class Histogram(MultiBucketAgg):
@@ -281,16 +310,19 @@ class Histogram(MultiBucketAgg):
 class RangeBucket(Bucket):
     _typed_key = False
 
-    def __init__(self, raw_data, aggs, parent):
-        super(RangeBucket, self).__init__(raw_data, aggs, parent)
-        self.from_ = self.parent._type.to_python_single(raw_data.get('from'))
-        self.to = self.parent._type.to_python_single(raw_data.get('to'))
+    def __init__(self, raw_data, agg_expr, parent, mapper_registry=None):
+        super(RangeBucket, self).__init__(raw_data, agg_expr, parent, mapper_registry=mapper_registry)
+        self.from_ = agg_expr._type.to_python_single(raw_data.get('from'))
+        self.to = agg_expr._type.to_python_single(raw_data.get('to'))
+
+class RangeAggResult(MultiBucketAggResult):
+    bucket_cls = RangeBucket
 
 
 class Range(MultiBucketAgg):
     __agg_name__ = 'range'
 
-    bucket_cls = RangeBucket
+    result_cls = RangeAggResult
 
     def __init__(self, field=None, script=None, ranges=None, type=None, aggs=None, **kwargs):
         type = type or (field._type if field else None)
@@ -307,21 +339,22 @@ class Filters(MultiBucketAgg):
         super(Filters, self).__init__(filters=filters, aggs=aggs, **kwargs)
 
 
-class SingleBucketAgg(BucketAgg):
-    def __init__(self, **kwargs):
-        super(SingleBucketAgg, self).__init__(**kwargs)
-        self.doc_count = None
+class SingleBucketAggResult(AggResult):
+    def __init__(self, raw_data, agg_expr, mapper_registry):
+        self.doc_count = raw_data.get('doc_count')
         self.aggregations = {}
+        for agg_name, agg_expr in agg_expr._aggs.items():
+            agg_result = agg_expr.build_agg_result(
+                raw_data.get(agg_name, {}), mapper_registry=mapper_registry
+            )
+            self.aggregations[agg_name] = agg_result
 
     def get_aggregation(self, name):
         return self.aggregations.get(name)
 
-    def process_results(self, raw_data):
-        self.doc_count = raw_data.get('doc_count')
-        for agg_name, agg in self._aggs.items():
-            agg = agg.clone()
-            agg.process_results(raw_data.get(agg_name, {}))
-            self.aggregations[agg_name] = agg
+
+class SingleBucketAgg(BucketAgg):
+    result_cls = SingleBucketAggResult
 
 
 class Global(SingleBucketAgg):

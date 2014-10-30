@@ -1,5 +1,5 @@
+from .agg import BucketAgg
 from .document import Document
-
 
 def _nop_instance_mapper(ids):
     return {}
@@ -19,10 +19,11 @@ class Result(object):
             self.hits.append(self.doc_cls(_hit=hit, _result=self))
 
         self.aggregations = {}
-        for agg_name, agg_data in raw_result.get('aggregations', {}).items():
-            if agg_name in self._query_aggs:
-                agg_instance = self.aggregations[agg_name] = self._query_aggs[agg_name].clone()
-                agg_instance.process_results(agg_data)
+        self._mapper_registry = {}
+        for agg_name, agg_expr in self._query_aggs.items():
+            raw_agg_data = raw_result['aggregations'][agg_name]
+            agg_result = agg_expr.build_agg_result(raw_agg_data, mapper_registry=self._mapper_registry)
+            self.aggregations[agg_name] = agg_result
 
     def __iter__(self):
         return iter(self.hits)

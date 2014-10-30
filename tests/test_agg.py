@@ -18,7 +18,7 @@ class AggregationTest(BaseTestCase):
                 "avg": {"field": "price"}
             }
         )
-        a.process_results({
+        a = a.build_agg_result({
             'value': 75.3
         })
         self.assertAlmostEqual(a.value, 75.3)
@@ -30,7 +30,7 @@ class AggregationTest(BaseTestCase):
                 "stats": {"field": "grade"}
             }
         )
-        a.process_results(
+        a = a.build_agg_result(
             {
                 "count": 6,
                 "min": 60,
@@ -52,7 +52,7 @@ class AggregationTest(BaseTestCase):
                 "extended_stats": {"field": "grade"}
             }
         )
-        a.process_results(
+        a = a.build_agg_result(
             {
                 "count": 6,
                 "min": 72,
@@ -83,7 +83,7 @@ class AggregationTest(BaseTestCase):
                 }
             }
         )
-        a.process_results(
+        a = a.build_agg_result(
             {
                 "values": {
                     "95.0": 60,
@@ -107,7 +107,7 @@ class AggregationTest(BaseTestCase):
                 }
             }
         )
-        a.process_results(
+        a = a.build_agg_result(
             {
                 "values": {
                     "15": 92,
@@ -122,9 +122,17 @@ class AggregationTest(BaseTestCase):
 
         a = agg.Global()
         self.assert_expression(a, {"global": {}})
+        a = a.build_agg_result(
+            {"doc_count": 185}
+        )
+        self.assertEqual(a.doc_count, 185)
 
         a = agg.Filter(f.company == 1)
         self.assert_expression(a, {"filter": {"term": {"company": 1}}})
+        a = a.build_agg_result(
+            {"doc_count": 148}
+        )
+        self.assertEqual(a.doc_count, 148)
 
         a = agg.Terms(f.status)
         self.assert_expression(
@@ -133,7 +141,7 @@ class AggregationTest(BaseTestCase):
                 "terms": {"field": "status"}
             }
         )
-        a.process_results(
+        a = a.build_agg_result(
             {
                 'buckets': [
                     {'doc_count': 7353499, 'key': 0},
@@ -166,7 +174,7 @@ class AggregationTest(BaseTestCase):
                 "terms": {"field": "is_visible"}
             }
         )
-        a.process_results(
+        a = a.build_agg_result(
             {
                 'buckets': [
                     {'doc_count': 7, 'key': 'T'},
@@ -187,7 +195,7 @@ class AggregationTest(BaseTestCase):
                 "terms": {"field": "category"}
             }
         )
-        a.process_results(
+        a = a.build_agg_result(
             {
                 'buckets': [
                     {'doc_count': 792, 'key': 28},
@@ -210,7 +218,7 @@ class AggregationTest(BaseTestCase):
                 "terms": {"field": "is_visible"}
             }
         )
-        a.process_results(
+        a = a.build_agg_result(
             {
                 'buckets': [
                     {'doc_count': 7, 'key': 'T'},
@@ -231,7 +239,7 @@ class AggregationTest(BaseTestCase):
                 "significant_terms": {"field": "crime_type"}
             }
         )
-        a.process_results(
+        a = a.build_agg_result(
             {
                 "doc_count": 47347,
                 "buckets" : [
@@ -272,7 +280,7 @@ class AggregationTest(BaseTestCase):
                 }
             }
         )
-        a.process_results(
+        a = a.build_agg_result(
             {
                 "buckets": [
                     {
@@ -302,7 +310,7 @@ class AggregationTest(BaseTestCase):
                 }
             }
         )
-        a.process_results(
+        a = a.build_agg_result(
             {
                 "buckets": {
                     "errors": {
@@ -330,7 +338,7 @@ class AggregationTest(BaseTestCase):
                 }
             }
         )
-        a.process_results(
+        a = a.build_agg_result(
             {
                 "min_price": {
                     "value" : 350
@@ -372,7 +380,7 @@ class AggregationTest(BaseTestCase):
                 }
             }
         )
-        a.process_results(
+        a = a.build_agg_result(
             {
                 'doc_count': 100,
                 'selling_type': {
@@ -458,7 +466,7 @@ class AggregationTest(BaseTestCase):
 
         gender_mapper = Mock(return_value=GENDERS)
         a = agg.Terms(f.gender, instance_mapper=gender_mapper)
-        a.process_results(
+        a = a.build_agg_result(
             {
                 "buckets": [
                     {
@@ -478,6 +486,7 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(gender_mapper.call_count, 1)
 
         gender_mapper = Mock(return_value=GENDERS)
+        print '!'
         a = agg.Global(
             aggs={
                 'all_genders': agg.Terms(f.gender, instance_mapper=gender_mapper),
@@ -495,7 +504,7 @@ class AggregationTest(BaseTestCase):
                 )
             }
         )
-        a.process_results(
+        a = a.build_agg_result(
             {
                 "doc_count": 1819,
                 "all_genders": {
@@ -580,7 +589,8 @@ class AggregationTest(BaseTestCase):
                         },
                     ]
                 }
-            }
+            },
+            {}
         )
         self.assertEqual(a.doc_count, 1819)
         all_genders_agg = a.get_aggregation('all_genders')
@@ -615,4 +625,4 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(gender_agg.buckets[1].key, 'm')
         self.assertEqual(gender_agg.buckets[1].doc_count, 225)
         self.assertEqual(gender_agg.buckets[1].instance.title, 'Male')
-        self.assertEqual(gender_mapper.call_count, 2)
+        self.assertEqual(gender_mapper.call_count, 1)
