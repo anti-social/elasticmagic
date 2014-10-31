@@ -398,6 +398,25 @@ class SearchQueryTest(BaseTestCase):
 
     def test_count(self):
         self.client.count.return_value = {
+            "count" : 1024,
+            "_shards" : {
+                "total" : 5,
+                "successful" : 5,
+                "failed" : 0
+            }
+        }
+        self.assertEqual(
+            SearchQuery(index=self.index, doc_cls=self.index.car)
+            .count(),
+            1024
+        )
+        self.client.count.assert_called_with(
+            index='test',
+            doc_type='car',
+            body=None,
+        )
+
+        self.client.count.return_value = {
             "count" : 2,
             "_shards" : {
                 "total" : 5,
