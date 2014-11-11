@@ -437,7 +437,7 @@ class FieldOperators(object):
     def __ne__(self, other):
         if other is None:
             return self.exists()
-        return Not(operator.eq(self, other))
+        return Bool.must_not(operator.eq(self, other))
 
     def __gt__(self, other):
         return Range(self, gt=other)

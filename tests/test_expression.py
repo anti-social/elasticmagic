@@ -1,3 +1,4 @@
+from elasticmagic import DynamicDocument
 from elasticmagic import (
     Term, Terms, Exists, Missing, Match, MatchAll, MultiMatch, Range,
     Bool, Query, And, Or, Not, Sort,
@@ -443,4 +444,89 @@ class ExpressionTestCase(BaseTestCase):
                     }
                 }
             }
+        )
+
+    def test_field(self):
+        f = DynamicDocument.fields
+        
+        self.assert_expression(
+            f.status == 0,
+            {
+                "term": {"status": 0}
+            }
+        )
+        self.assert_expression(
+            f.presence == None,
+            {
+                "missing": {"field": "presence"}
+            }
+        )
+        self.assert_expression(
+            f.status != 1,
+            {
+                "bool": {
+                    "must_not": [
+                        {
+                            "term": {"status": 1}
+                        }
+                    ]
+                }
+            }
+        )
+        self.assert_expression(
+            f.presence != None,
+            {
+                "exists": {"field": "presence"}
+            }
+        )
+        self.assert_expression(
+            f.status.in_([0, 2, 3]),
+            {
+                "terms": {"status": [0, 2, 3]}
+            }
+        )
+        self.assert_expression(
+            f.price > 99.9,
+            {
+                "range": {
+                    "price": {"gt": 99.9}
+                }
+            }
+        )
+        self.assert_expression(
+            f.price <= 1000,
+            {
+                "range": {
+                    "price": {"lte": 1000}
+                }
+            }
+        )
+        self.assert_expression(
+            f.price.range(gte=100, lt=200),
+            {
+                "range": {
+                    "price": {"gte": 100, "lt": 200}
+                }
+            }
+        )
+        self.assert_expression(
+            f.name.match('Hello kitty', minimum_should_match=2),
+            {
+                "match": {
+                    "name": {
+                        "query": "Hello kitty",
+                        "minimum_should_match": 2
+                    }
+                }
+            }
+        )
+        self.assert_expression(
+            f.price.desc(),
+            {
+                "price": "desc"
+            }
+        )
+        self.assert_expression(
+            f.description.boost(0.1),
+            "description^0.1"
         )
