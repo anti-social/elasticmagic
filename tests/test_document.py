@@ -2,7 +2,7 @@ import datetime
 
 import dateutil
 
-from elasticmagic.types import Type, String, Integer, Float, Date, Object, MultiField, List
+from elasticmagic.types import Type, String, Integer, Float, Date, Object, List
 from elasticmagic.compat import string_types
 from elasticmagic.document import Document, DynamicDocument
 from elasticmagic.expression import Field
@@ -19,10 +19,10 @@ class TagDocument(Document):
     name = Field(String)
 
 class TestDocument(Document):
-    name = Field('test_name', String())
+    name = Field('test_name', String(), fields={'raw': Field(String)})
     status = Field(Integer)
     group = Field(Object(GroupDocument))
-    price = Field(MultiField(Float, {'sort': Float}))
+    price = Field(Float)
     tags = Field(List(Object(TagDocument)))
     date_created = Field(Date)
     unused = Field(String)
@@ -40,16 +40,16 @@ class DocumentTestCase(BaseTestCase):
         self.assertIsInstance(TestDocument._score._type, Float)
         self.assertIsInstance(TestDocument.name, Field)
         self.assertIsInstance(TestDocument.name._type, String)
+        self.assertIsInstance(TestDocument.name.raw, Field)
+        self.assertIsInstance(TestDocument.name.raw._type, String)
+        self.assertEqual(TestDocument.name.raw._collect_doc_classes(), [TestDocument])
         self.assertIsInstance(TestDocument.status, Field)
         self.assertIsInstance(TestDocument.status._type, Integer)
         self.assertIsInstance(TestDocument.group, Field)
         self.assertIsInstance(TestDocument.group._type, Object)
         self.assertIsInstance(TestDocument.group.name, Field)
         self.assertIsInstance(TestDocument.price, Field)
-        self.assertIsInstance(TestDocument.price._type, MultiField)
-        self.assertIsInstance(TestDocument.price.sort, Field)
-        self.assertIsInstance(TestDocument.price.sort._type, Float)
-        self.assertEqual(TestDocument.price.sort._collect_doc_classes(), [TestDocument])
+        self.assertIsInstance(TestDocument.price._type, Float)
         self.assertEqual(TestDocument.group.name._name, 'group.name')
         self.assertIsInstance(TestDocument.group.name._type, String)
         self.assertEqual(TestDocument.group.name._collect_doc_classes(), [TestDocument])

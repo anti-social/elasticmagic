@@ -140,10 +140,9 @@ class Object(Type):
     def has_sub_fields(self):
         return True
 
-    def sub_field(self, prefix, name, doc_cls):
+    def sub_field(self, full_name, name, doc_cls):
         from .expression import Field
 
-        full_name = '{}.{}'.format(prefix, name)
         return Field(full_name, getattr(self.doc_cls, name)._type,
                      _doc_cls=doc_cls,
                      _attr_name=full_name)
@@ -151,28 +150,6 @@ class Object(Type):
 
 class Nested(Object):
     pass
-
-
-class MultiField(Type):
-    def __init__(self, main_type, fields):
-        self.main_type = instantiate(main_type)
-        self.fields = fields
-
-    def to_python(self, value):
-        if value is None:
-            return None
-        return self.main_type.to_python(value)
-
-    def has_sub_fields(self):
-        return True
-
-    def sub_field(self, prefix, name, doc_cls):
-        from .expression import Field
-
-        full_name = '{}.{}'.format(prefix, name)
-        return Field(full_name, instantiate(self.fields[name]),
-                     _doc_cls=doc_cls,
-                     _attr_name=full_name)
 
 
 class List(Type):
@@ -201,5 +178,5 @@ class List(Type):
     def has_sub_fields(self):
         return self.sub_type.has_sub_fields()
 
-    def sub_field(self, prefix, name, doc_cls):
-        return self.sub_type.sub_field(prefix, name, doc_cls)
+    def sub_field(self, full_name, name, doc_cls):
+        return self.sub_type.sub_field(full_name, name, doc_cls)

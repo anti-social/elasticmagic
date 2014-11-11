@@ -389,9 +389,10 @@ class Sort(QueryExpression):
 
 
 class _Fields(object):
-    def __init__(self, parent=None, dynamic=False):
+    def __init__(self, parent=None, dynamic=False, fields=None):
         self._parent = parent
         self._dynamic = dynamic
+        self._fields = fields
 
     def _set_parent(self, parent):
         self._parent = parent
@@ -401,16 +402,17 @@ class _Fields(object):
 
         if self._parent:
             if isinstance(self._parent, Field):
+                full_name = '{}.{}'.format(self._parent._name, name)
+                if self._fields and name in self._fields:
+                    return Field(full_name, self._fields[name]._type, _doc_cls=self._parent._doc_cls)
                 if self._parent._type.has_sub_fields():
                     return self._parent._type.sub_field(
-                        self._parent._name, name, self._parent._doc_cls
+                        full_name, name, self._parent._doc_cls
                     )
-                elif self._dynamic:
-                    full_name = '{}.{}'.format(self._parent._name, name)
-                    return Field(full_name, _fields=_Fields(dynamic=self._dynamic))
-                else:
-                    raise AttributeError('No such sub field: {}'.format(name))
-        return Field(name, _fields=_Fields(dynamic=self._dynamic))
+                if self._dynamic:
+                    return Field(full_name, _fields_obj=_Fields(dynamic=True))
+                raise AttributeError('No such sub field: {}'.format(name))
+        return Field(name, _fields_obj=_Fields(dynamic=self._dynamic))
         
     def __getattr__(self, name):
         return self._get_field(name)
@@ -497,9 +499,10 @@ class Field(Expression, FieldOperators):
     def __init__(self, *args, **kwargs):
         self._name = None
         self._type = None
-        self._fields = kwargs.pop('_fields', None)
-        if self._fields:
-            self._fields._set_parent(self)
+        self._fields = kwargs.pop('fields', None)
+        self._fields_obj = kwargs.pop('_fields_obj', None)
+        if self._fields_obj:
+            self._fields_obj._set_parent(self)
         self._doc_cls = kwargs.pop('_doc_cls', None)
         self._attr_name = kwargs.pop('_attr_name', None)
 
@@ -534,7 +537,7 @@ class Field(Expression, FieldOperators):
 
     @property
     def fields(self):
-        return self._fields or _Fields(self)
+        return self._fields_obj or _Fields(self, fields=self._fields)
 
     f = fields
 
