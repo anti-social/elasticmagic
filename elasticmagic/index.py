@@ -57,13 +57,25 @@ class Index(object):
     def add(self, docs, timeout=None, consistency=None, replication=None):
         actions = []
         for doc in docs:
-            doc_type = doc.__doc_type__
-            doc_meta = {'_type': doc_type, '_id': doc._id}
-            if doc._routing:
-                doc_meta['_routing'] = doc._routing
+            if isinstance(doc, dict):
+                raw_doc = doc.copy()
+                doc_meta = {
+                    '_type': raw_doc.pop('_type'),
+                    '_id': raw_doc.pop('_id'),
+                }
+                if '_routing' in raw_doc:
+                    doc_meta['_routing'] = raw_doc.pop('_routing')
+                if '_parent' in raw_doc:
+                    doc_meta['_parent'] = raw_doc.pop('_parent')
+            else:
+                doc_type = doc.__doc_type__
+                doc_meta = {'_type': doc_type, '_id': doc._id}
+                if doc._routing:
+                    doc_meta['_routing'] = doc._routing
+                raw_doc = doc.to_dict()
             actions.extend([
                 {'index': doc_meta},
-                doc.to_dict()
+                raw_doc
             ])
         params = self._clean_params({'timeout': timeout,
                                      'consistency': consistency,

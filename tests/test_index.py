@@ -57,3 +57,32 @@ class IndexTest(BaseTestCase):
                 {'vendor': 'Subaru', 'model': 'VRX'}
             ],
         )
+
+    def test_add_raw_docs(self):
+        docs = [
+            {
+                '_id': '1',
+                '_routing': 'Subaru',
+                '_type': 'car',
+                'vendor': 'Subaru',
+                'model': 'VRX'
+            },
+            {
+                '_id': '2',
+                '_routing': 'Nissan',
+                '_type': 'car',
+                'vendor': 'Nissan',
+                'model': 'X-Trail'
+            },
+        ]
+        self.index.add(docs)
+        self.client.bulk.assert_called_with(
+            index='test',
+            body=[
+                {'index': {'_type': 'car', '_id': '1', '_routing': 'Subaru'}},
+                {'vendor': 'Subaru', 'model': 'VRX'},
+                {'index': {'_type': 'car', '_id': '2', '_routing': 'Nissan'}},
+                {'vendor': 'Nissan', 'model': 'X-Trail'}
+            ],
+        )
+        
