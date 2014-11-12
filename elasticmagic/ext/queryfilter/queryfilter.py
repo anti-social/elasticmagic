@@ -7,12 +7,6 @@ from elasticmagic.compat import text_type, string_types, with_metaclass
 from .codec import SimpleCodec
 
 
-def exact_op(f, values):
-    if len(values) == 1:
-        return f == values[0]
-    return f.in_(values)
-
-
 class QueryFilter(object):
     NAME = 'qf'
 
