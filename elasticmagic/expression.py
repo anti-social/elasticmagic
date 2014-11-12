@@ -273,10 +273,6 @@ class Range(FieldExpression):
     def __init__(self, field, gte=None, gt=None, lte=None, lt=None, boost=None, **kwargs):
         super(Range, self).__init__(field, gte=gte, gt=gt, lte=lte, lt=lt, boost=boost, **kwargs)
 
-    @property
-    def _doc_types(self):
-        return self.field._doc_types
-
 
 class Prefix(FieldQueryExpression):
     __query_name__ = 'prefix'
@@ -292,10 +288,6 @@ class Query(QueryExpression):
     def __init__(self, query, **kwargs):
         super(Query, self).__init__(**kwargs)
         self.query = query
-
-    @property
-    def _doc_types(self):
-        return self.query._doc_types
 
 
 class BooleanExpression(QueryExpression):
@@ -324,11 +316,6 @@ class BooleanExpression(QueryExpression):
         return cls._construct(operator.or_, *expressions, **kwargs)
 
 
-    @property
-    def _doc_types(self):
-        return set(chain(e._doc_types for e in self.expressions))
-
-
 And = BooleanExpression.and_
 Or = BooleanExpression.or_
 
@@ -340,10 +327,6 @@ class Not(QueryExpression):
         super(Not, self).__init__(**kwargs)
         self.expr = expr
 
-    @property
-    def _doc_types(self):
-        return self.expr._doc_types
-
 
 class Exists(QueryExpression):
     __query_name__ = 'exists'
@@ -351,20 +334,12 @@ class Exists(QueryExpression):
     def __init__(self, field, **kwargs):
         super(Exists, self).__init__(field=field, **kwargs)
 
-    @property
-    def _doc_types(self):
-        return self.params['field']._doc_types
-
 
 class Missing(QueryExpression):
     __query_name__ = 'missing'
 
     def __init__(self, field, **kwargs):
         super(Missing, self).__init__(field=field, **kwargs)
-
-    @property
-    def _doc_types(self):
-        return self.params['field']._doc_types
 
 
 class Sort(QueryExpression):
@@ -382,10 +357,6 @@ class Sort(QueryExpression):
         )
         self.expr = expr
         self.order = order
-
-    @property
-    def _doc_types(self):
-        return self.expr._doc_types
 
 
 class _Fields(object):
@@ -572,10 +543,6 @@ class BoostExpression(Expression):
     def __init__(self, expr, weight):
         self.expr = expr
         self.weight = weight
-
-    @property
-    def _doc_types(self):
-        return self.expr._doc_types
 
     def _collect_doc_classes(self):
         return self.expr._collect_doc_classes()
