@@ -226,6 +226,16 @@ class SearchQuery(object):
             routing=self.routing,
         )
 
+    def exists(self, refresh=None):
+        doc_cls = self.get_doc_cls()
+        doc_type = self.doc_type or doc_cls.__doc_type__
+        return self.index.exists(
+            self.get_filtered_query(wrap_function_score=False),
+            doc_type,
+            refresh=refresh,
+            routing=self.routing,
+        )
+
     def delete(self, timeout=None, consistency=None, replication=None):
         doc_type = self.doc_type or self.get_doc_cls().__doc_type__
         return self.index.delete(

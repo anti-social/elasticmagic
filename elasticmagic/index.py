@@ -54,6 +54,13 @@ class Index(object):
             index=self._name, doc_type=doc_type, body=body, **params
         )['count']
 
+    def exists(self, q, doc_type, refresh=None, routing=None):
+        body = {'query': q.to_dict()} if q else None
+        params = self._clean_params({'refresh': refresh, 'routing': routing})
+        return self._client.exists(
+            index=self._name, doc_type=doc_type, body=body, **params
+        )['exists']
+
     def add(self, docs, timeout=None, consistency=None, replication=None):
         actions = []
         for doc in docs:

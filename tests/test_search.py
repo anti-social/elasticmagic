@@ -445,6 +445,41 @@ class SearchQueryTest(BaseTestCase):
             }
         )
 
+    def test_exists(self):
+        self.client.exists.return_value = {"exists" : True}
+        self.assertEqual(
+            SearchQuery(index=self.index, doc_cls=self.index.car).exists(refresh=True),
+            True
+        )
+        self.client.exists.assert_called_with(
+            index='test',
+            doc_type='car',
+            body=None,
+            refresh=True
+        )
+
+        self.client.exists.return_value = {"exists" : False}
+        self.assertEqual(
+            SearchQuery(index=self.index)
+            .filter(self.index.car.status == 1)
+            .boost_function({'boost_factor': 3})
+            .exists(),
+            False
+        )
+        self.client.exists.assert_called_with(
+            index='test',
+            doc_type='car',
+            body={
+                "query": {
+                    "filtered": {
+                        "filter": {
+                            "term": {"status": 1}
+                        }
+                    }
+                }
+            }
+        )
+
     def test_search_index(self):
         class CarObject(object):
             def __init__(self, id):

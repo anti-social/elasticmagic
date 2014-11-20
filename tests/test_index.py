@@ -40,6 +40,32 @@ class IndexTest(BaseTestCase):
             }
         )
 
+    def test_exists(self):
+        self.index.exists(MatchAll(), 'car', refresh=True)
+        self.client.exists.assert_called_with(
+            index='test',
+            doc_type='car',
+            body={
+                'query': {
+                    'match_all': {}
+                }
+            },
+            refresh=True
+        )
+
+        self.index.exists(self.index.car.name.match('Subaru'), 'car')
+        self.client.exists.assert_called_with(
+            index='test',
+            doc_type='car',
+            body={
+                'query': {
+                    'match': {
+                        'name': 'Subaru'
+                    }
+                }
+            }
+        )
+
     def test_add(self):
         class CarDocument(Document):
             __doc_type__ = 'car'
