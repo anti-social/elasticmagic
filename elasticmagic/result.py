@@ -1,9 +1,6 @@
 from .agg import BucketAgg
 from .document import Document
 
-def _nop_instance_mapper(ids):
-    return {}
-
 
 class Result(object):
     def __init__(self, raw_result, aggregations=None,
@@ -17,7 +14,10 @@ class Result(object):
         else:
             self._doc_classes = (doc_cls,)
         self._doc_cls_map = {doc_cls.__doc_type__: doc_cls for doc_cls in self._doc_classes}
-        self.instance_mapper = instance_mapper or _nop_instance_mapper
+        if isinstance(instance_mapper, dict):
+            self._instance_mappers = instance_mapper
+        else:
+            self._instance_mappers = {doc_cls: instance_mapper for doc_cls in self._doc_classes}
 
         self.total = raw_result['hits']['total']
         self.hits = []
@@ -38,8 +38,8 @@ class Result(object):
     def get_aggregation(self, name):
         return self.aggregations.get(name)
 
-    def _populate_instances(self):
-        ids = [doc._id for doc in self.hits]
-        instances = self.instance_mapper(ids)
-        for doc in self.hits:
+    def _populate_instances(self, doc_cls):
+        docs = [doc for doc in self.hits if isinstance(doc, doc_cls)]
+        instances = self._instance_mappers[doc_cls]([doc._id for doc in docs])
+        for doc in docs:
             doc.__dict__['instance'] = instances.get(doc._id)

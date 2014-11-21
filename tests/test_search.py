@@ -595,11 +595,19 @@ class SearchQueryTest(BaseTestCase):
         self.assertEqual(obj_mapper.call_count, 1)
 
     def test_multi_type_search(self):
+        def seller_mapper(ids):
+            return {id: '{0}-{0}'.format(id) for id in ids}
+
+        def customer_mapper(ids):
+            return {id: '{0}:{0}'.format(id) for id in ids}
+        
         sq = (
             self.index.query(
                 self.index.seller.name.first.match('Alex'),
                 doc_cls=(self.index.seller, self.index.customer)
             )
+            .with_instance_mapper({self.index.seller: seller_mapper,
+                                   self.index.customer: customer_mapper})
             .filter(self.index.customer.birthday >= datetime.date(1960, 01, 01))
             .limit(2)
         )
@@ -673,6 +681,7 @@ class SearchQueryTest(BaseTestCase):
         self.assertEqual(doc.name.first, 'Alex')
         self.assertEqual(doc.name.last, 'Exler')
         self.assertEqual(doc.birthday, '1966-10-04')
+        self.assertEqual(doc.instance, '3:3')
         doc = sq.results.hits[1]
         self.assertIsInstance(doc, self.index.seller)
         self.assertEqual(doc._id, '21')
@@ -683,6 +692,7 @@ class SearchQueryTest(BaseTestCase):
         self.assertEqual(doc.name.last, 'Chung')
         self.assertEqual(doc.birthday, '1983-10-05')
         self.assertAlmostEqual(doc.rating, 4.8)
+        self.assertEqual(doc.instance, '21-21')
 
     def test_delete(self):
         es_client = MagicMock()

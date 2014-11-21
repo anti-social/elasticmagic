@@ -112,7 +112,7 @@ class Document(with_metaclass(DocumentMeta)):
     @cached_property
     def instance(self):
         if self._result:
-            self._result._populate_instances()
+            self._result._populate_instances(self.__class__)
             return self.__dict__['instance']
 
 
