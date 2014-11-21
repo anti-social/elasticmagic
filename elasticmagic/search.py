@@ -163,7 +163,7 @@ class SearchQuery(object):
     def with_instance_mapper(self, instance_mapper):
         self._instance_mapper = instance_mapper
 
-    def get_doc_cls(self):
+    def _get_doc_cls(self):
         if self.doc_cls:
             doc_classes = [self.doc_cls]
         else:
@@ -172,6 +172,13 @@ class SearchQuery(object):
             raise ValueError('Cannot determine document class')
 
         return iter(doc_classes).next()
+
+    def _get_doc_type(self, doc_cls=None):
+        doc_cls = doc_cls or self._get_doc_cls()
+        if isinstance(doc_cls, tuple):
+            return ','.join(d.__doc_type__ for d in doc_cls)
+        else:
+            return self.doc_type or doc_cls.__doc_type__
 
     def get_query(self, wrap_function_score=True):
         if wrap_function_score and self._boost_functions:
@@ -206,8 +213,8 @@ class SearchQuery(object):
 
     @cached_property
     def results(self):
-        doc_cls = self.get_doc_cls()
-        doc_type = self.doc_type or doc_cls.__doc_type__
+        doc_cls = self._get_doc_cls()
+        doc_type = self._get_doc_type(doc_cls)
         return self.index.search(
             self,
             doc_type,
@@ -218,29 +225,27 @@ class SearchQuery(object):
         )
 
     def count(self):
-        doc_cls = self.get_doc_cls()
-        doc_type = self.doc_type or doc_cls.__doc_type__
         return self.index.count(
             self.get_filtered_query(wrap_function_score=False),
-            doc_type,
+            self._get_doc_type(),
             routing=self.routing,
         )
 
     def exists(self, refresh=None):
-        doc_cls = self.get_doc_cls()
-        doc_type = self.doc_type or doc_cls.__doc_type__
         return self.index.exists(
             self.get_filtered_query(wrap_function_score=False),
-            doc_type,
+            self._get_doc_type(),
             refresh=refresh,
             routing=self.routing,
         )
 
     def delete(self, timeout=None, consistency=None, replication=None):
-        doc_type = self.doc_type or self.get_doc_cls().__doc_type__
         return self.index.delete(
-            self.get_filtered_query(wrap_function_score=False), doc_type,
-            timeout=timeout, consistency=consistency, replication=replication,
+            self.get_filtered_query(wrap_function_score=False),
+            self._get_doc_type(),
+            timeout=timeout,
+            consistency=consistency,
+            replication=replication,
         )
 
     def _collect_doc_classes(self):

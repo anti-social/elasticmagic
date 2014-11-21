@@ -16,10 +16,12 @@ class FlaskPaginationTest(BaseTestCase):
                     "hits": [
                         {
                             "_id": "333",
+                            "_type": "car",
                             "_score": 1
                         },
                         {
                             "_id": "444",
+                            "_type": "car",
                             "_score": 1
                         }
                     ]

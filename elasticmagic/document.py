@@ -29,6 +29,7 @@ class DocumentMeta(type):
 
         cls._fields = []
         cls._fields_map = {}
+        cls._fields_attr_map = {}
 
         for field_name, field_type in SPECIAL_FIELD_TYPES.items():
             if not hasattr(cls, field_name):
@@ -43,7 +44,8 @@ class DocumentMeta(type):
             if isinstance(field, Field):
                 field._bind(cls, field_name)
                 cls._fields.append(field)
-                cls._fields_map[field_name] = field
+                cls._fields_map[field._name] = field
+                cls._fields_attr_map[field._attr_name] = field
 
         return cls
 
@@ -71,16 +73,22 @@ class Document(with_metaclass(DocumentMeta)):
             self._score = _hit.get('_score')
             for field_name in SPECIAL_FIELD_TYPES:
                 setattr(self, field_name, _hit.get(field_name))
-            if self._source:
-                for field in self._fields:
-                    if field._name not in SPECIAL_FIELD_TYPES:
-                        field_value = field._to_python(self._source.get(field._name))
-                        setattr(self, field._attr_name, field_value)
+            if _hit.get('_source'):
+                for hit_key, hit_value in _hit['_source'].items():
+                    if hit_key in SPECIAL_FIELD_TYPES:
+                        continue
+                    setattr(self, *self._process_hit_key_value(hit_key, hit_value))
 
         for fkey, fvalue in kwargs.items():
             setattr(self, fkey, fvalue)
 
         self._result = _result
+
+    def _process_hit_key_value(self, key, value):
+        if key in self._fields_map:
+            field = self._fields_map[key]
+            return field._attr_name, field._to_python(value)
+        return key, value
 
     def to_dict(self):
         res = {}
@@ -91,8 +99,8 @@ class Document(with_metaclass(DocumentMeta)):
                 continue
 
             field = None
-            if key in self._fields_map:
-                field = self._fields_map[key]
+            if key in self._fields_attr_map:
+                field = self._fields_attr_map[key]
             else:
                 field = self.__class__._from_dynamic_field(key)
 
@@ -120,4 +128,8 @@ class DynamicDocumentMeta(DocumentMeta):
 
 
 class DynamicDocument(with_metaclass(DynamicDocumentMeta, Document)):
-    pass
+    def _process_hit_key_value(self, key, value):
+        key, value = super(DynamicDocument, self)._process_hit_key_value(key, value)
+        if isinstance(value, dict):
+            return key, DynamicDocument(**value)
+        return key, value

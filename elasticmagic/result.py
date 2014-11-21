@@ -10,13 +10,20 @@ class Result(object):
                  doc_cls=None, instance_mapper=None):
         self.raw = raw_result
         self._query_aggs = aggregations or {}
-        self.doc_cls = doc_cls or Document
+        if not doc_cls:
+            self._doc_classes = (Document,)
+        elif isinstance(doc_cls, tuple):
+            self._doc_classes = doc_cls
+        else:
+            self._doc_classes = (doc_cls,)
+        self._doc_cls_map = {doc_cls.__doc_type__: doc_cls for doc_cls in self._doc_classes}
         self.instance_mapper = instance_mapper or _nop_instance_mapper
 
         self.total = raw_result['hits']['total']
         self.hits = []
         for hit in raw_result['hits']['hits']:
-            self.hits.append(self.doc_cls(_hit=hit, _result=self))
+            doc_cls = self._doc_cls_map[hit['_type']]
+            self.hits.append(doc_cls(_hit=hit, _result=self))
 
         self.aggregations = {}
         self._mapper_registry = {}

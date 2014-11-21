@@ -1,3 +1,4 @@
+import datetime
 from mock import Mock, MagicMock
 
 from elasticmagic import (
@@ -480,7 +481,7 @@ class SearchQueryTest(BaseTestCase):
             }
         )
 
-    def test_search_index(self):
+    def test_search(self):
         class CarObject(object):
             def __init__(self, id):
                 self.id = id
@@ -592,6 +593,96 @@ class SearchQueryTest(BaseTestCase):
         self.assertEqual(doc.instance.id, 987321)
         self.assertEqual(doc.instance.name, '987321:987321')
         self.assertEqual(obj_mapper.call_count, 1)
+
+    def test_multi_type_search(self):
+        sq = (
+            self.index.query(
+                self.index.seller.name.first.match('Alex'),
+                doc_cls=(self.index.seller, self.index.customer)
+            )
+            .filter(self.index.customer.birthday >= datetime.date(1960, 01, 01))
+            .limit(2)
+        )
+
+        self.client.search = MagicMock(
+            return_value={
+                'hits': {
+                    'hits': [
+                        {
+                            '_id': '3',
+                            '_type': 'customer',
+                            '_index': 'test',
+                            '_score': 2.437682,
+                            '_source': {
+                                'name': {
+                                    'first': 'Alex',
+                                    'last': 'Exler'
+                                },
+                                'birthday': '1966-10-04'
+                            },
+                        },
+                        {
+                            '_id': '21',
+                            '_type': 'seller',
+                            '_index': 'test',
+                            '_score': 2.290845,
+                            '_source': {
+                                'name': {
+                                    'first': 'Alexa',
+                                    'last': 'Chung'
+                                },
+                                'birthday': '1983-10-05',
+                                'rating': 4.8
+                            },
+                        }
+                    ],
+                    'max_score': 2.437682,
+                    'total': 73
+                },
+                'timed_out': False,
+                'took': 25
+            }
+        )
+        results = sq.results
+
+        self.client.search.assert_called_with(
+            index='test',
+            doc_type='seller,customer',
+            body={
+                'query': {
+                    'filtered': {
+                        'query': {
+                            'match': {'name.first': 'Alex'}
+                        },
+                        'filter': {
+                            'range': {'birthday': {'gte': datetime.date(1960, 01, 01)}}
+                        }
+                    }
+                },
+                'size': 2
+            },
+        )
+
+        self.assertEqual(len(sq.results.hits), 2)
+        doc = sq.results.hits[0]
+        self.assertIsInstance(doc, self.index.customer)
+        self.assertEqual(doc._id, '3')
+        self.assertEqual(doc._type, 'customer')
+        self.assertEqual(doc._index, 'test')
+        self.assertAlmostEqual(doc._score, 2.437682)
+        self.assertEqual(doc.name.first, 'Alex')
+        self.assertEqual(doc.name.last, 'Exler')
+        self.assertEqual(doc.birthday, '1966-10-04')
+        doc = sq.results.hits[1]
+        self.assertIsInstance(doc, self.index.seller)
+        self.assertEqual(doc._id, '21')
+        self.assertEqual(doc._type, 'seller')
+        self.assertEqual(doc._index, 'test')
+        self.assertAlmostEqual(doc._score, 2.290845)
+        self.assertEqual(doc.name.first, 'Alexa')
+        self.assertEqual(doc.name.last, 'Chung')
+        self.assertEqual(doc.birthday, '1983-10-05')
+        self.assertAlmostEqual(doc.rating, 4.8)
 
     def test_delete(self):
         es_client = MagicMock()
