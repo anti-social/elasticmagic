@@ -113,7 +113,16 @@ class IndexTest(BaseTestCase):
         )
 
     def test_delete(self):
-        self.index.delete(self.index.car.vendor == 'Ford', doc_type='car', routing='Ford')
+        self.index.delete('test_id', 'car', refresh=True)
+        self.client.delete.assert_called_with(
+            index='test',
+            doc_type='car',
+            id='test_id',
+            refresh=True
+        )
+
+    def test_delete_by_query(self):
+        self.index.delete_by_query(self.index.car.vendor == 'Ford', doc_type='car', routing='Ford')
         self.client.delete_by_query.assert_called_with(
             index='test',
             doc_type='car',

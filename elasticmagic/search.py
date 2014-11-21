@@ -240,7 +240,7 @@ class SearchQuery(object):
         )
 
     def delete(self, timeout=None, consistency=None, replication=None):
-        return self.index.delete(
+        return self.index.delete_by_query(
             self.get_filtered_query(wrap_function_score=False),
             self._get_doc_type(),
             timeout=timeout,

@@ -91,7 +91,22 @@ class Index(object):
                                      'replication': replication})
         self._client.bulk(index=self._name, body=actions, **params)
 
-    def delete(self, q, doc_type, timeout=None, consistency=None, replication=None, routing=None):
+    def delete(self, id, doc_type,
+               timeout=None, consistency=None, replication=None,
+               parent=None, routing=None, refresh=None, version=None, version_type=None):
+        params = self._clean_params({'timeout': timeout,
+                                     'consistency': consistency,
+                                     'replication': replication,
+                                     'parent': parent,
+                                     'routing': routing,
+                                     'refresh': refresh,
+                                     'version': version,
+                                     'version_type': version_type})
+        return self._client.delete(
+            index=self._name, doc_type=doc_type, id=id, **params
+        )
+
+    def delete_by_query(self, q, doc_type, timeout=None, consistency=None, replication=None, routing=None):
         params = self._clean_params({'timeout': timeout,
                                      'consistency': consistency,
                                      'replication': replication,
