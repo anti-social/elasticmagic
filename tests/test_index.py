@@ -111,4 +111,24 @@ class IndexTest(BaseTestCase):
                 {'vendor': 'Nissan', 'model': 'X-Trail'}
             ],
         )
+
+    def test_delete(self):
+        self.index.delete(self.index.car.vendor == 'Ford', doc_type='car', routing='Ford')
+        self.client.delete_by_query.assert_called_with(
+            index='test',
+            doc_type='car',
+            body={
+                'query': {
+                    'term': {'vendor': 'Ford'}
+                }
+            },
+            routing='Ford'
+        )
         
+    def test_refresh(self):
+        self.index.refresh()
+        self.client.indices.refresh.assert_called_with(index='test')
+
+    def test_flush(self):
+        self.index.flush()
+        self.client.indices.flush.assert_called_with(index='test')

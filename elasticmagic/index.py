@@ -1,7 +1,5 @@
 from collections import defaultdict
 
-from elasticsearch.client import IndicesClient
-
 from .util import to_camel_case
 from .search import SearchQuery
 from .result import Result
@@ -12,7 +10,6 @@ from .expression import Params
 class Index(object):
     def __init__(self, client, name):
         self._client = client
-        self._indices_client = IndicesClient(client)
         self._name = name
 
         self._doc_cls_cache = {}
@@ -68,17 +65,22 @@ class Index(object):
                 raw_doc = doc.copy()
                 doc_meta = {
                     '_type': raw_doc.pop('_type'),
-                    '_id': raw_doc.pop('_id'),
                 }
+                if '_id' in raw_doc:
+                    doc_meta['_id'] = raw_doc.pop('_id')
                 if '_routing' in raw_doc:
                     doc_meta['_routing'] = raw_doc.pop('_routing')
                 if '_parent' in raw_doc:
                     doc_meta['_parent'] = raw_doc.pop('_parent')
             else:
                 doc_type = doc.__doc_type__
-                doc_meta = {'_type': doc_type, '_id': doc._id}
+                doc_meta = {'_type': doc_type}
+                if doc._id:
+                    doc_meta['_id'] = doc._id
                 if doc._routing:
                     doc_meta['_routing'] = doc._routing
+                if doc._parent:
+                    doc_meta['_parent'] = doc._parent
                 raw_doc = doc.to_dict()
             actions.extend([
                 {'index': doc_meta},
@@ -89,16 +91,17 @@ class Index(object):
                                      'replication': replication})
         self._client.bulk(index=self._name, body=actions, **params)
 
-    def delete(self, q, doc_type, timeout=None, consistency=None, replication=None):
+    def delete(self, q, doc_type, timeout=None, consistency=None, replication=None, routing=None):
         params = self._clean_params({'timeout': timeout,
                                      'consistency': consistency,
-                                     'replication': replication})
+                                     'replication': replication,
+                                     'routing': routing})
         return self._client.delete_by_query(
             index=self._name, doc_type=doc_type, body=Params(query=q).to_dict(), **params
         )
 
     def refresh(self):
-        return self._indices_client.refresh(index=self.name)
+        return self._client.indices.refresh(index=self._name)
         
     def flush(self):
-        return self._indices_client.flush(index=self.name)
+        return self._client.indices.flush(index=self._name)
