@@ -1,5 +1,4 @@
-from elasticmagic import agg
-from elasticmagic.cluster import Cluster
+from elasticmagic import agg, Cluster
 
 from .base import BaseTestCase
 

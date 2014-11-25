@@ -1,5 +1,6 @@
 from .index import Index
 from .search import SearchQuery
+from .cluster import Cluster
 from .document import Document, DynamicDocument
 from .expression import (
     Params, Term, Terms, Exists, Missing, Match, MultiMatch, MatchAll, Range,
