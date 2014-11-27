@@ -272,8 +272,10 @@ class QueryFilterTest(BaseTestCase):
             sq,
             {
                 "aggregations": {
+                    "qf.price.enabled": {"filter": {"exists": {"field": "price"}}},
                     "qf.price.min": {"min": {"field": "price"}},
                     "qf.price.max": {"max": {"field": "price"}},
+                    "qf.disp.enabled": {"filter": {"exists": {"field": "engine_displacement"}}},
                     "qf.disp.filter": {
                         "filter": {
                             "range": {"price": {"lte": 10000}}
@@ -298,8 +300,10 @@ class QueryFilterTest(BaseTestCase):
                     "total": 893
                 },
                 "aggregations": {
+                    "qf.price.enabled": {"doc_count": 890},
                     "qf.price.min": {"value": 7500},
                     "qf.price.max": {"value": 25800},
+                    "qf.disp.enabled": {"doc_count": 888},
                     "qf.disp.filter": {
                         "doc_count": 237,
                         "qf.disp.min": {"value": 1.6},
@@ -311,11 +315,13 @@ class QueryFilterTest(BaseTestCase):
         qf.process_results(sq.results)
 
         price_filter = qf.price
+        self.assertEqual(price_filter.enabled, True)
         self.assertEqual(price_filter.min, 7500)
         self.assertEqual(price_filter.max, 25800)
         self.assertIs(price_filter.from_value, None)
         self.assertEqual(price_filter.to_value, 10000)
         disp_filter = qf.disp
+        self.assertAlmostEqual(disp_filter.enabled, True)
         self.assertAlmostEqual(disp_filter.min, 1.6)
         self.assertAlmostEqual(disp_filter.max, 3.0)
         self.assertIs(disp_filter.from_value, None)

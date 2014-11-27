@@ -300,17 +300,21 @@ class FacetValue(BaseFilterValue):
 
 class RangeFilter(FieldFilter):
 
-    def __init__(self, name, field, type=None):
+    def __init__(self, name, field, type=None, compute_enabled=True, compute_min_max=True):
         super(RangeFilter, self).__init__(name, field)
         self.type = instantiate(type or self.field._type)
+        self._compute_enabled = compute_enabled
+        self._compute_min_max = compute_min_max
         self.from_value = None
         self.to_value = None
+        self.enabled = None
         self.min = None
         self.max = None
 
     def _reset(self):
         self.from_value = None
         self.to_value = None
+        self.enabled = None
         self.min = None
         self.max = None
 
@@ -329,6 +333,10 @@ class RangeFilter(FieldFilter):
     @property
     def _max_agg_name(self):
         return '{}.{}.max'.format(self.qf._name, self.name)
+
+    @property
+    def _enabled_agg_name(self):
+        return '{}.{}.enabled'.format(self.qf._name, self.name)
 
     def _get_from_value(self, params):
         from_values = params.get('gte')
@@ -352,16 +360,28 @@ class RangeFilter(FieldFilter):
     def _apply_agg(self, search_query):
         filters = self._get_active_filters(search_query.iter_post_filters_with_meta())
 
-        stat_aggs = {
-            self._min_agg_name: agg.Min(self.field),
-            self._max_agg_name: agg.Max(self.field),
-        }
-        if filters:
-            aggs = {
-                self._filter_agg_name: agg.Filter(Bool.must(*filters), aggs=stat_aggs)
+        if self._compute_enabled:
+            enabled_aggs = {
+                self._enabled_agg_name: agg.Filter(self.field != None),
             }
         else:
-            aggs = stat_aggs
+            enabled_aggs = {}
+
+        if self._compute_min_max:
+            stat_aggs = {
+                self._min_agg_name: agg.Min(self.field),
+                self._max_agg_name: agg.Max(self.field),
+            }
+        else:
+            stat_aggs = {}
+
+        if filters:
+            aggs = dict(
+                {self._filter_agg_name: agg.Filter(Bool.must(*filters), aggs=stat_aggs)},
+                **enabled_aggs
+            )
+        else:
+            aggs = dict(stat_aggs, **enabled_aggs)
 
         return search_query.aggregations(**aggs)
 
@@ -371,6 +391,7 @@ class RangeFilter(FieldFilter):
         else:
             base_agg = result
 
+        self.enabled = bool(result.get_aggregation(self._enabled_agg_name).doc_count)
         self.min = base_agg.get_aggregation(self._min_agg_name).value
         self.max = base_agg.get_aggregation(self._max_agg_name).value
 
