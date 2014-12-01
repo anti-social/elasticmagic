@@ -70,7 +70,7 @@ class QueryFilterTest(BaseTestCase):
             .post_filter(self.index.car.date_created > 'now-1y',
                          meta={'tags': {qf.get_name()}})
         )
-        sq = qf.apply(sq, {'type': ['0', '1', '3'], 'vendor': ['Subaru']})
+        sq = qf.apply(sq, {'type': ['0', '1:break', '3', 'null'], 'vendor': ['Subaru']})
         self.assert_expression(
             sq,
             {

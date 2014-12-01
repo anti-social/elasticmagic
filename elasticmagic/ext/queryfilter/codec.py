@@ -98,6 +98,7 @@ class SimpleCodec(BaseCodec):
     def decode_value(self, value, typelist=None):
         typelist = [instantiate(t) for t in wrap_list(typelist or [])]
         raw_values = force_unicode(value).split(self.VALUES_SEP)
+
         decoded_values = []
         for v, type in zip_longest(raw_values, typelist):
             if type is None:
@@ -110,15 +111,16 @@ class SimpleCodec(BaseCodec):
                     to_python = type.to_python
             if v is None:
                 continue
-            try:
-                if v == self.NULL_VAL:
-                    decoded_values.append(None)
-                else:
+
+            if v == self.NULL_VAL:
+                decoded_values.append(None)
+            else:
+                try:
                     decoded_values.append(to_python(v))
-            except ValueError:
-                pass
+                except ValueError:
+                    break
+
         return decoded_values
-        
     
     def decode(self, params, types=None):
         params = self._normalize_params(params)

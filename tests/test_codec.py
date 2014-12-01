@@ -16,6 +16,14 @@ class SimpleCodecTest(unittest.TestCase):
             }
         )
         self.assertEqual(
+            codec.decode({'category': ['5', '6:a', 'b:c', 'null']}, {'category': [Integer]}),
+            {
+                'category': {
+                    'exact': [[5], [6, 'a'], [None]]
+                }
+            }
+        )
+        self.assertEqual(
             codec.decode({'manu': ['1:nokia:true', '2:samsung:false']}, {'manu': [Integer, None, Boolean]}),
             {
                 'manu': {
@@ -40,10 +48,4 @@ class SimpleCodecTest(unittest.TestCase):
                 }
             }
         )
-        # self.assertEqual(
-        #     codec.decode([('price', ['100.1:', 'Inf:', ':200', ':NaN'])], {'price': Float}),
-        #     {
-        #         'price': [[(100.1, None)], [(None, 200)]],
-        #     }
-        # )
         self.assertRaises(TypeError, lambda: codec.decode(''))

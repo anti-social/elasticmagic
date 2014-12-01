@@ -1,3 +1,5 @@
+import operator
+import functools
 from itertools import chain
 
 from elasticmagic import Params, Term, Terms, Query, Bool, agg
@@ -5,6 +7,10 @@ from elasticmagic.types import String, instantiate
 from elasticmagic.compat import text_type, string_types, with_metaclass
 
 from .codec import SimpleCodec
+
+
+first = operator.itemgetter(0)
+is_not_none = functools.partial(operator.is_not, None)
 
 
 class QueryFilter(object):
@@ -185,12 +191,15 @@ class FacetFilter(FieldFilter):
     def _filter_agg_name(self):
         return '{}.{}.filter'.format(self.qf._name, self.name)
 
+    def _get_values_from_params(self, params):
+        values = params.get('exact', [])
+        return list(filter(is_not_none, map(first, values)))
+
     def _apply_filter(self, search_query, params):
-        values = params.get('exact')
+        values = self._get_values_from_params(params)
         if not values:
             return search_query
 
-        values = list(chain(*values))
         if len(values) == 1:
             expr = self.field == values[0]
         else:
@@ -214,8 +223,7 @@ class FacetFilter(FieldFilter):
         return search_query.aggregations(**aggs)
         
     def _process_agg(self, result, params):
-        values = params.get('exact', [])
-        values = list(chain(*values))
+        values = self._get_values_from_params(params)
 
         if result.get_aggregation(self._filter_agg_name):
             terms_agg = result \
