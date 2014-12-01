@@ -9,7 +9,7 @@ from elasticmagic.compat import force_unicode, zip_longest
 
 def to_float(value, type=None):
     type = type or Float()
-    v = type.to_python(value)
+    v = type.to_python_single(value)
     if math.isnan(v) or math.isinf(v):
         raise ValueError('NaN or Inf is not supported')
     return v
@@ -17,7 +17,7 @@ def to_float(value, type=None):
 
 def to_int(value, type=None):
     type = type or Integer()
-    v = type.to_python(value)
+    v = type.to_python_single(value)
     if Integer.MIN_VALUE < v < Integer.MAX_VALUE:
         return v
     raise ValueError(
@@ -29,7 +29,7 @@ def to_int(value, type=None):
 
 def to_long(value, type=None):
     type = type or Long()
-    v = type.to_python(value)
+    v = type.to_python_single(value)
     if Long.MIN_VALUE < v < Long.MAX_VALUE:
         return v
     raise ValueError(
@@ -108,7 +108,7 @@ class SimpleCodec(BaseCodec):
                 if to_python_factory:
                     to_python = to_python_factory(type)
                 else:
-                    to_python = type.to_python
+                    to_python = type.to_python_single
             if v is None:
                 continue
 
