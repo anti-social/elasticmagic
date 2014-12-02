@@ -47,13 +47,15 @@ class SearchQuery(object):
     _instance_mapper = None
     _iter_instances = False
 
-    def __init__(self, q=None, index=None, doc_cls=None, doc_type=None, routing=None):
+    def __init__(self, q=None, index=None, doc_cls=None, doc_type=None,
+                 routing=None, search_type=None):
         if q is not None:
             self._q = q
-        self.index = index
-        self.doc_cls = doc_cls
-        self.doc_type = doc_type
-        self.routing = routing
+        self._index = index
+        self._doc_cls = doc_cls
+        self._doc_type = doc_type
+        self._routing = routing
+        self._search_type = search_type
 
     def clone(self):
         cls = self.__class__
@@ -149,23 +151,31 @@ class SearchQuery(object):
 
     @_with_clone
     def with_index(self, index):
-        self.index = index
+        self._index = index
 
     @_with_clone
     def with_document(self, doc_cls):
-        self.doc_cls = doc_cls
+        self._doc_cls = doc_cls
 
     @_with_clone
     def with_doc_type(self, doc_type):
-        self.doc_type = doc_type
+        self._doc_type = doc_type
 
     @_with_clone
     def with_instance_mapper(self, instance_mapper):
         self._instance_mapper = instance_mapper
 
+    @_with_clone
+    def with_routing(self, routing):
+        self._routing = routing
+
+    @_with_clone
+    def with_search_type(self, search_type):
+        self._search_type = search_type
+
     def _get_doc_cls(self):
-        if self.doc_cls:
-            doc_classes = [self.doc_cls]
+        if self._doc_cls:
+            doc_classes = [self._doc_cls]
         else:
             doc_classes = self._collect_doc_classes()
         if len(doc_classes) != 1:
@@ -178,7 +188,7 @@ class SearchQuery(object):
         if isinstance(doc_cls, tuple):
             return ','.join(d.__doc_type__ for d in doc_cls)
         else:
-            return self.doc_type or doc_cls.__doc_type__
+            return self._doc_type or doc_cls.__doc_type__
 
     def get_query(self, wrap_function_score=True):
         if wrap_function_score and self._boost_functions:
@@ -215,32 +225,33 @@ class SearchQuery(object):
     def results(self):
         doc_cls = self._get_doc_cls()
         doc_type = self._get_doc_type(doc_cls)
-        return self.index.search(
+        return self._index.search(
             self,
             doc_type,
-            routing=self.routing,
             doc_cls=doc_cls,
             aggregations=self._aggregations,
             instance_mapper=self._instance_mapper,
+            routing=self._routing,
+            search_type=self._search_type,
         )
 
     def count(self):
-        return self.index.count(
+        return self._index.count(
             self.get_filtered_query(wrap_function_score=False),
             self._get_doc_type(),
-            routing=self.routing,
+            routing=self._routing,
         )
 
     def exists(self, refresh=None):
-        return self.index.exists(
+        return self._index.exists(
             self.get_filtered_query(wrap_function_score=False),
             self._get_doc_type(),
             refresh=refresh,
-            routing=self.routing,
+            routing=self._routing,
         )
 
     def delete(self, timeout=None, consistency=None, replication=None):
-        return self.index.delete_by_query(
+        return self._index.delete_by_query(
             self.get_filtered_query(wrap_function_score=False),
             self._get_doc_type(),
             timeout=timeout,

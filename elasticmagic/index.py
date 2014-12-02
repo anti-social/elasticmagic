@@ -35,8 +35,9 @@ class Index(object):
 
     # Methods that do requests to elasticsearch
 
-    def search(self, q, doc_type, routing=None, doc_cls=None, aggregations=None, instance_mapper=None):
-        params = self._clean_params({'routing': routing})
+    def search(self, q, doc_type, doc_cls=None, aggregations=None, instance_mapper=None,
+               routing=None, search_type=None):
+        params = self._clean_params({'routing': routing, 'search_type': search_type})
         raw_result = self._client.search(
             index=self._name, doc_type=doc_type, body=q.to_dict(), **params
         )

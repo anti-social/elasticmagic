@@ -546,6 +546,7 @@ class SearchQueryTest(BaseTestCase):
         sq = (
             es_index.query(
                 CarDocument.seller.name.first.match('Alex'),
+                search_type='dfs_query_then_fetch',
             )
             .filter(CarDocument.seller.rating > 4)
             .with_instance_mapper(obj_mapper)
@@ -567,6 +568,7 @@ class SearchQueryTest(BaseTestCase):
                     }
                 }
             },
+            search_type='dfs_query_then_fetch',
         )
 
         self.assertEqual(len(sq.results.hits), 2)
