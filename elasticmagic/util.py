@@ -27,3 +27,7 @@ class cached_property(object):
 
 def to_camel_case(s):
     return u''.join(map(capitalize, s.split('_')))
+
+
+def clean_params(params):
+    return {p: v for p, v in params.items() if v is not None}

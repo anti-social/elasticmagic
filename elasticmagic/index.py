@@ -1,8 +1,9 @@
 from collections import defaultdict
 
-from .util import to_camel_case
+from .util import to_camel_case, clean_params
 from .search import SearchQuery
 from .result import Result
+from .helpers import multi_search as _multi_search
 from .document import DynamicDocument
 from .expression import Params
 
@@ -30,14 +31,11 @@ class Index(object):
         kwargs['index'] = self
         return SearchQuery(*args, **kwargs)
 
-    def _clean_params(self, params):
-        return {p: v for p, v in params.items() if v is not None}
-
     # Methods that do requests to elasticsearch
 
     def search(self, q, doc_type, doc_cls=None, aggregations=None, instance_mapper=None,
                routing=None, search_type=None):
-        params = self._clean_params({'routing': routing, 'search_type': search_type})
+        params = clean_params({'routing': routing, 'search_type': search_type})
         raw_result = self._client.search(
             index=self._name, doc_type=doc_type, body=q.to_dict(), **params
         )
@@ -45,16 +43,22 @@ class Index(object):
                       doc_cls=doc_cls,
                       instance_mapper=instance_mapper)
 
+    def multi_search(self, *queries, **params):
+        params['index'] = self._name
+        return _multi_search(self._client, queries, params)
+
+    msearch = multi_search
+
     def count(self, q, doc_type, routing=None):
         body = {'query': q.to_dict()} if q else None
-        params = self._clean_params({'routing': routing})
+        params = clean_params({'routing': routing})
         return self._client.count(
             index=self._name, doc_type=doc_type, body=body, **params
         )['count']
 
     def exists(self, q, doc_type, refresh=None, routing=None):
         body = {'query': q.to_dict()} if q else None
-        params = self._clean_params({'refresh': refresh, 'routing': routing})
+        params = clean_params({'refresh': refresh, 'routing': routing})
         return self._client.exists(
             index=self._name, doc_type=doc_type, body=body, **params
         )['exists']
@@ -87,31 +91,31 @@ class Index(object):
                 {'index': doc_meta},
                 raw_doc
             ])
-        params = self._clean_params({'timeout': timeout,
-                                     'consistency': consistency,
-                                     'replication': replication})
+        params = clean_params({'timeout': timeout,
+                               'consistency': consistency,
+                               'replication': replication})
         self._client.bulk(index=self._name, body=actions, **params)
 
     def delete(self, id, doc_type,
                timeout=None, consistency=None, replication=None,
                parent=None, routing=None, refresh=None, version=None, version_type=None):
-        params = self._clean_params({'timeout': timeout,
-                                     'consistency': consistency,
-                                     'replication': replication,
-                                     'parent': parent,
-                                     'routing': routing,
-                                     'refresh': refresh,
-                                     'version': version,
-                                     'version_type': version_type})
+        params = clean_params({'timeout': timeout,
+                               'consistency': consistency,
+                               'replication': replication,
+                               'parent': parent,
+                               'routing': routing,
+                               'refresh': refresh,
+                               'version': version,
+                               'version_type': version_type})
         return self._client.delete(
             index=self._name, doc_type=doc_type, id=id, **params
         )
 
     def delete_by_query(self, q, doc_type, timeout=None, consistency=None, replication=None, routing=None):
-        params = self._clean_params({'timeout': timeout,
-                                     'consistency': consistency,
-                                     'replication': replication,
-                                     'routing': routing})
+        params = clean_params({'timeout': timeout,
+                               'consistency': consistency,
+                               'replication': replication,
+                               'routing': routing})
         return self._client.delete_by_query(
             index=self._name, doc_type=doc_type, body=Params(query=q).to_dict(), **params
         )
