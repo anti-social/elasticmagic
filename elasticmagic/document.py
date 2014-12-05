@@ -32,7 +32,7 @@ class DocumentMeta(type):
         cls._fields_attr_map = {}
 
         for field_name, field_type in SPECIAL_FIELD_TYPES.items():
-            if not hasattr(cls, field_name):
+            if field_name not in cls.__dict__:
                 setattr(cls, field_name, Field(field_type))
 
         for field_name in dir(cls):

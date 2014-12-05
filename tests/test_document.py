@@ -58,6 +58,8 @@ class DocumentTestCase(BaseTestCase):
         self.assertIsInstance(TestDocument.attr_2._type, Integer)
         self.assertRaises(AttributeError, lambda: TestDocument.fake_attr_1)
 
+        self.assertIsNot(TestDocument._id, GroupDocument._id)
+
         doc = TestDocument()
         self.assertIs(doc._id, None)
         self.assertIs(doc.name, None)
