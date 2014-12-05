@@ -36,10 +36,6 @@ class DocumentMeta(type):
                 setattr(cls, field_name, Field(field_type))
 
         for field_name in dir(cls):
-            # _id doesn't indexed, so do not add it in _fields
-            if field_name == '_id':
-                continue
-
             field = getattr(cls, field_name)
             if isinstance(field, Field):
                 field._bind(cls, field_name)
