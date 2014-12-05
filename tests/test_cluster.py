@@ -1,6 +1,6 @@
 from mock import MagicMock
 
-from elasticmagic import agg, Cluster, SearchQuery
+from elasticmagic import agg, actions, Cluster, SearchQuery
 
 from .base import BaseTestCase
 
@@ -117,3 +117,37 @@ class ClusterTest(BaseTestCase):
         self.assertAlmostEqual(doc.price.local, 92.421)
         self.assertAlmostEqual(doc.price.unit, 5.67)
         self.assertEqual(doc.status, 0)
+
+    def test_bulk(self):
+        # self.client.bulk = MagicMock(
+        #     return_value={}
+        # )
+        doc1 = self.index.car(_id='1', field1='value1')
+        doc2 = self.index.car(_id='2')
+        doc3 = self.index.car(_id='3', field3='value3')
+        doc4 = self.index.car(_id='4', field4='value4')
+        self.cluster.bulk(
+            actions.Index(doc1, index=self.index),
+            actions.Delete(doc2, index=self.index),
+            actions.Create(doc3, index=self.index),
+            actions.Update(doc4, index=self.index, retry_on_conflict=3),
+            refresh=True,
+        )
+        # self.cluster.bulk(
+        #     doc1.index(),
+        #     doc2.delete(),
+        #     doc3.create(),
+        #     doc4.update(retry_on_conflict=3),
+        # )
+        self.client.bulk.assert_called_with(
+            body=[
+                {'index': {'_index': 'test', '_type': 'car', '_id': '1'}},
+                {'field1': 'value1'},
+                {'delete': {'_index': 'test', '_type': 'car', '_id': '2'}},
+                {'create': {'_index': 'test', '_type': 'car', '_id': '3'}},
+                {'field3': 'value3'},
+                {'update': {'_index': 'test', '_type': 'car', '_id': '4', '_retry_on_conflict': 3}},
+                {'doc': {'field4': 'value4'}},
+            ],
+            refresh=True,
+        )

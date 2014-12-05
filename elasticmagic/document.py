@@ -122,6 +122,9 @@ class DynamicDocumentMeta(DocumentMeta):
     def __getattr__(cls, name):
         return Field(name, _doc_cls=cls, _attr_name=name, _fields_obj=Fields(dynamic=True))
 
+    def _from_dynamic_field(cls, name):
+        return Field(name, _doc_cls=cls, _attr_name=name)
+
 
 class DynamicDocument(with_metaclass(DynamicDocumentMeta, Document)):
     def _process_hit_key_value(self, key, value):

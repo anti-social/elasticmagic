@@ -1,6 +1,6 @@
 from .util import clean_params
 from .index import Index
-from .helpers import multi_search as _multi_search
+from .helpers import multi_search as _multi_search, bulk as _bulk
 
 
 class Cluster(object):
@@ -24,3 +24,6 @@ class Cluster(object):
         return _multi_search(self._client, queries, params)
 
     msearch = multi_search
+
+    def bulk(self, *actions, **params):
+        return _bulk(self._client, actions, params)

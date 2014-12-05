@@ -3,7 +3,7 @@ from collections import defaultdict
 from .util import to_camel_case, clean_params
 from .search import SearchQuery
 from .result import Result
-from .helpers import multi_search as _multi_search
+from .helpers import multi_search as _multi_search, bulk as _bulk
 from .document import DynamicDocument
 from .expression import Params
 
@@ -120,6 +120,11 @@ class Index(object):
             index=self._name, doc_type=doc_type, body=Params(query=q).to_dict(), **params
         )
 
+    def bulk(self, *actions, **params):
+        params['index'] = self._name
+        return _bulk(self._client, queries, params)
+        
+        
     def refresh(self):
         return self._client.indices.refresh(index=self._name)
         

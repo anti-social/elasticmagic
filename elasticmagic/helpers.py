@@ -28,3 +28,13 @@ def multi_search(client, queries, params):
                    instance_mapper=q._instance_mapper)
         )
     return results
+
+
+def bulk(client, actions, params):
+    body = []
+    for act in actions:
+        body.append(act.get_meta())
+        source = act.get_source()
+        if source is not None:
+            body.append(source)
+    return client.bulk(body=body, **clean_params(params))
