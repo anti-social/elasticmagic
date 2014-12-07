@@ -2,7 +2,7 @@ import operator
 import functools
 from itertools import chain
 
-from elasticmagic import Params, Term, Terms, Query, Bool, agg
+from elasticmagic import Params, Term, Terms, MatchAll, Query, Bool, agg
 from elasticmagic.types import String, instantiate
 from elasticmagic.compat import text_type, string_types, with_metaclass
 
@@ -437,6 +437,10 @@ class FacetQueryValue(BaseFilterValue):
         return self.value
 
     @property
+    def is_default(self):
+        return self.value == self.filter.default
+
+    @property
     def title(self):
         return text_type(self.opts.get('title', self.value))
 
@@ -445,13 +449,14 @@ class FacetQueryValue(BaseFilterValue):
 
 
 class FacetQueryFilter(BaseFilter):
-    def __init__(self, name, *values, **agg_kwargs):
+    def __init__(self, name, *values, **kwargs):
         super(FacetQueryFilter, self).__init__(name)
         self._values = values
         for fv in self._values:
             fv.bind(self)
         self.values_map = {fv.value: fv for fv in self._values}
-        self.agg_kwargs = agg_kwargs
+        self.default = kwargs.pop('default', None)
+        self.agg_kwargs = kwargs
 
     @property
     def all_values(self):
@@ -478,13 +483,16 @@ class FacetQueryFilter(BaseFilter):
     def _apply_filter(self, search_query, params):
         values = params.get('exact')
         if not values:
+            if self.default:
+                values = [[self.default]]
+        if not values:
             return search_query
 
         expressions = []
         for v in values:
             w = v[0]
             filter_value = self.get_value(w)
-            if filter_value:
+            if filter_value and not isinstance(filter_value.expr, MatchAll):
                 expressions.append(filter_value.expr)
 
         if expressions:
