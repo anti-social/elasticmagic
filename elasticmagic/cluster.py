@@ -1,6 +1,7 @@
 from .util import clean_params
 from .index import Index
-from .helpers import multi_search as _multi_search, bulk as _bulk
+from .result import Result
+from .expression import Params
 
 
 class Cluster(object):
@@ -17,13 +18,118 @@ class Cluster(object):
             name = ','.join(name)
 
         if name not in self._index_cache:
-            self._index_cache[name] = Index(self._client, name)
+            self._index_cache[name] = Index(self, name)
         return self._index_cache[name]
 
-    def multi_search(self, *queries, **params):
-        return _multi_search(self._client, queries, params)
+    def search_query(self, *args, **kwargs):
+        kwargs['cluster'] = self
+        return SearchQuery(*args, **kwargs)
+
+    query = search_query
+
+    def search(self, q, index=None, doc_type=None, routing=None, preference=None, search_type=None):
+        params = clean_params({
+            'index': index, 'doc_type': doc_type, 
+            'routing': routing, 'preference': preference, 'search_type': search_type
+        })
+        raw_result = self._client.search(body=q.to_dict(), **params)
+        return Result(raw_result, q._aggregations,
+                      doc_cls=q._get_doc_cls(),
+                      instance_mapper=q._instance_mapper)
+
+    def count(self, q, index=None, doc_type=None, routing=None, preference=None):
+        body = {'query': q.to_dict()} if q else None
+        params = clean_params({'index': index,
+                               'doc_type': doc_type,
+                               'routing': routing, 
+                               'preference': preference})
+        return self._client.count(body=body, **params)['count']
+
+    def exists(self, q, index=None, doc_type=None, refresh=None, routing=None):
+        body = {'query': q.to_dict()} if q else None
+        params = clean_params({'index': index, 
+                               'doc_type': doc_type,
+                               'refresh': refresh,
+                               'routing': routing})
+        return self._client.exists(body=body, **params)['exists']
+
+    def multi_search(self, queries, index=None, doc_type=None, 
+                     routing=None, preference=None, search_type=None):
+        params = clean_params({'index': index,
+                               'doc_type': doc_type,
+                               'routing': routing,
+                               'preference': preference,
+                               'search_type': search_type})
+        body = []
+        for q in queries:
+            query_header = {}
+            if q._index:
+                query_header['index'] = q._index._name
+            doc_type = q._get_doc_type()
+            if doc_type:
+                query_header['doc_type'] = doc_type
+            if q._routing:
+                query_header['routing'] = q._routing
+            if q._search_type:
+                query_header['search_type'] = q._search_type
+            body += [query_header, q.to_dict()]
+
+        raw_results = self._client.msearch(body=body, **params)['responses']
+        for raw, q in zip(raw_results, queries):
+            q.__dict__['result'] = Result(
+                raw, q._aggregations,
+                doc_cls=q._get_doc_cls(),
+                instance_mapper=q._instance_mapper
+            )
+        return [q.result for q in queries]
 
     msearch = multi_search
 
-    def bulk(self, *actions, **params):
-        return _bulk(self._client, actions, params)
+    def delete(self, doc, index, doc_type,
+               timeout=None, consistency=None, replication=None,
+               parent=None, routing=None, refresh=None, version=None, version_type=None):
+        params = clean_params({'timeout': timeout,
+                               'consistency': consistency,
+                               'replication': replication,
+                               'parent': parent,
+                               'routing': routing,
+                               'refresh': refresh,
+                               'version': version,
+                               'version_type': version_type})
+        return self._client.delete(id=doc._id, index=index, doc_type=doc_type, **params)
+
+    def delete_by_query(self, q, index=None, doc_type=None,
+                        timeout=None, consistency=None, replication=None, routing=None):
+        params = clean_params({'index': index,
+                               'doc_type': doc_type,
+                               'timeout': timeout,
+                               'consistency': consistency,
+                               'replication': replication,
+                               'routing': routing})
+        return self._client.delete_by_query(
+            body=Params(query=q).to_dict(), **params
+        )
+
+    def bulk(self, actions, index=None, doc_type=None, refresh=None, 
+             timeout=None, consistency=None, replication=None):
+        params = clean_params({'index': index, 
+                               'doc_type': doc_type,
+                               'refresh': refresh,
+                               'timeout': timeout,
+                               'consistency': consistency,
+                               'replication': replication})
+        body = []
+        for act in actions:
+            body.append(act.get_meta())
+            source = act.get_source()
+            if source is not None:
+                body.append(source)
+        return self._client.bulk(body=body, **params)
+
+    def refresh(self, index=None):
+        params = clean_params({'index': index})
+        return self._client.indices.refresh(**params)
+        
+    def flush(self, index=None):
+        params = clean_params({'index': index})
+        return self._client.indices.flush(**params)

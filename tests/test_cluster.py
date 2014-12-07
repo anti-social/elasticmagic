@@ -6,10 +6,6 @@ from .base import BaseTestCase
 
 
 class ClusterTest(BaseTestCase):
-    def setUp(self):
-        super(ClusterTest, self).setUp()
-        self.cluster = Cluster(self.client)
-
     def test_multi_index_search(self):
         es_log_index = self.cluster[('log_2014-11-19', 'log_2014-11-20', 'log_2014-11-20')]
         self.assertIs(
@@ -23,7 +19,7 @@ class ClusterTest(BaseTestCase):
                 percentiles=agg.Percentiles(es_log_index.log.querytime, percents=[50, 95])
             )
         )
-        sq.results
+        sq.result
         self.client.search.assert_called_with(
             index='log_2014-11-19,log_2014-11-20,log_2014-11-20',
             doc_type='log',
@@ -87,23 +83,24 @@ class ClusterTest(BaseTestCase):
             }
         )
         ProductDoc = self.index.product
-        results = self.cluster.multi_search(
-            SearchQuery(
-                index=self.cluster['us'], doc_cls=ProductDoc, search_type='count'
-            ),
-            SearchQuery(index=self.cluster['ca'], doc_cls=ProductDoc)
+        sq1 = SearchQuery(doc_cls=ProductDoc, search_type='count')
+        sq2 = (
+            SearchQuery(index=self.cluster['us'], doc_cls=ProductDoc)
             .filter(ProductDoc.status == 0)
             .limit(1)
         )
+        results = self.cluster.multi_search([sq1, sq2])
         self.client.msearch.assert_called_with(
             body=[
-                {'index': 'us', 'doc_type': 'product', 'search_type': 'count'},
+                {'doc_type': 'product', 'search_type': 'count'},
                 {},
-                {'index': 'ca', 'doc_type': 'product'},
+                {'index': 'us', 'doc_type': 'product'},
                 {'query': {'filtered': {'filter': {'term': {'status': 0}}}}, 'size': 1}
             ]
         )
 
+        self.assertIs(results[0], sq1.result)
+        self.assertIs(results[1], sq2.result)
         self.assertEqual(results[0].total, 27802974)
         self.assertEqual(len(results[0].hits), 0)
         self.assertEqual(results[1].total, 272)
@@ -119,18 +116,17 @@ class ClusterTest(BaseTestCase):
         self.assertEqual(doc.status, 0)
 
     def test_bulk(self):
-        # self.client.bulk = MagicMock(
-        #     return_value={}
-        # )
         doc1 = self.index.car(_id='1', field1='value1')
         doc2 = self.index.car(_id='2')
         doc3 = self.index.car(_id='3', field3='value3')
         doc4 = self.index.car(_id='4', field4='value4')
         self.cluster.bulk(
-            actions.Index(doc1, index=self.index),
-            actions.Delete(doc2, index=self.index),
-            actions.Create(doc3, index=self.index),
-            actions.Update(doc4, index=self.index, retry_on_conflict=3),
+            [
+                actions.Index(doc1, index=self.index),
+                actions.Delete(doc2, index=self.index),
+                actions.Create(doc3, index=self.index),
+                actions.Update(doc4, index=self.index, retry_on_conflict=3),
+            ],
             refresh=True,
         )
         # self.cluster.bulk(

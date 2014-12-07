@@ -1,16 +1,17 @@
 from collections import defaultdict
 
-from .util import to_camel_case, clean_params
+
+from . import actions
+from .util import to_camel_case
 from .search import SearchQuery
 from .result import Result
-from .helpers import multi_search as _multi_search, bulk as _bulk
 from .document import DynamicDocument
 from .expression import Params
 
 
 class Index(object):
-    def __init__(self, client, name):
-        self._client = client
+    def __init__(self, cluster, name):
+        self._cluster = cluster
         self._name = name
 
         self._doc_cls_cache = {}
@@ -27,106 +28,70 @@ class Index(object):
             )
         return self._doc_cls_cache[name]
 
-    def query(self, *args, **kwargs):
+    def search_query(self, *args, **kwargs):
         kwargs['index'] = self
         return SearchQuery(*args, **kwargs)
 
+    query = search_query
+
     # Methods that do requests to elasticsearch
 
-    def search(self, q, doc_type, doc_cls=None, aggregations=None, instance_mapper=None,
-               routing=None, search_type=None):
-        params = clean_params({'routing': routing, 'search_type': search_type})
-        raw_result = self._client.search(
-            index=self._name, doc_type=doc_type, body=q.to_dict(), **params
+    def search(self, q, doc_type=None, routing=None, preference=None, search_type=None):
+        return self._cluster.search(
+            q, index=self._name, doc_type=doc_type, 
+            routing=routing, preference=preference, search_type=search_type,
         )
-        return Result(raw_result, aggregations,
-                      doc_cls=doc_cls,
-                      instance_mapper=instance_mapper)
 
-    def multi_search(self, *queries, **params):
-        params['index'] = self._name
-        return _multi_search(self._client, queries, params)
+    def multi_search(self, queries, doc_type=None, routing=None, preference=None, search_type=None):
+        return self._cluster.multi_search(
+            queries, index=self._name, doc_type=doc_type,
+            routing=routing, preference=preference, search_type=search_type,
+        )
 
     msearch = multi_search
 
-    def count(self, q, doc_type, routing=None):
-        body = {'query': q.to_dict()} if q else None
-        params = clean_params({'routing': routing})
-        return self._client.count(
-            index=self._name, doc_type=doc_type, body=body, **params
-        )['count']
+    def count(self, q, doc_type=None, routing=None, preference=None):
+        return self._cluster.count(
+            q, index=self._name, doc_type=doc_type, routing=routing, preference=preference,
+        )
 
-    def exists(self, q, doc_type, refresh=None, routing=None):
-        body = {'query': q.to_dict()} if q else None
-        params = clean_params({'refresh': refresh, 'routing': routing})
-        return self._client.exists(
-            index=self._name, doc_type=doc_type, body=body, **params
-        )['exists']
+    def exists(self, q, doc_type=None, refresh=None, routing=None):
+        return self._cluster.exists(
+            q, index=self._name, doc_type=doc_type, refresh=refresh, routing=routing,
+        )
 
     def add(self, docs, timeout=None, consistency=None, replication=None):
-        actions = []
+        acts = []
         for doc in docs:
-            if isinstance(doc, dict):
-                raw_doc = doc.copy()
-                doc_meta = {
-                    '_type': raw_doc.pop('_type'),
-                }
-                if '_id' in raw_doc:
-                    doc_meta['_id'] = raw_doc.pop('_id')
-                if '_routing' in raw_doc:
-                    doc_meta['_routing'] = raw_doc.pop('_routing')
-                if '_parent' in raw_doc:
-                    doc_meta['_parent'] = raw_doc.pop('_parent')
-            else:
-                doc_type = doc.__doc_type__
-                doc_meta = {'_type': doc_type}
-                if doc._id:
-                    doc_meta['_id'] = doc._id
-                if doc._routing:
-                    doc_meta['_routing'] = doc._routing
-                if doc._parent:
-                    doc_meta['_parent'] = doc._parent
-                raw_doc = doc.to_dict()
-            actions.extend([
-                {'index': doc_meta},
-                raw_doc
-            ])
-        params = clean_params({'timeout': timeout,
-                               'consistency': consistency,
-                               'replication': replication})
-        self._client.bulk(index=self._name, body=actions, **params)
+            acts.append(actions.Index(doc))
+        self._cluster.bulk(
+            acts, index=self._name,
+            timeout=timeout, consistency=consistency, replication=replication
+        )
 
-    def delete(self, id, doc_type,
+    def delete(self, doc, doc_type,
                timeout=None, consistency=None, replication=None,
                parent=None, routing=None, refresh=None, version=None, version_type=None):
-        params = clean_params({'timeout': timeout,
-                               'consistency': consistency,
-                               'replication': replication,
-                               'parent': parent,
-                               'routing': routing,
-                               'refresh': refresh,
-                               'version': version,
-                               'version_type': version_type})
-        return self._client.delete(
-            index=self._name, doc_type=doc_type, id=id, **params
+        return self._cluster.delete(
+            doc, index=self._name, doc_type=doc_type, 
+            timeout=timeout, consistency=consistency, replication=replication,
+            parent=parent, routing=routing, refresh=refresh,
+            version=version, version_type=version_type,
         )
 
-    def delete_by_query(self, q, doc_type, timeout=None, consistency=None, replication=None, routing=None):
-        params = clean_params({'timeout': timeout,
-                               'consistency': consistency,
-                               'replication': replication,
-                               'routing': routing})
-        return self._client.delete_by_query(
-            index=self._name, doc_type=doc_type, body=Params(query=q).to_dict(), **params
+    def delete_by_query(self, q, doc_type=None, timeout=None, consistency=None, replication=None, routing=None):
+        return self._cluster.delete_by_query(
+            q, index=self._name, doc_type=doc_type,
+            timeout=timeout, consistency=consistency, replication=replication, routing=routing
         )
 
-    def bulk(self, *actions, **params):
-        params['index'] = self._name
-        return _bulk(self._client, queries, params)
-        
+    def bulk(self, actions, doc_type=None, refresh=None):
+        return self._cluster.bulk(
+            actions, index=self._name, doc_type=doc_type, refresh=refresh,
+        )
         
     def refresh(self):
-        return self._client.indices.refresh(index=self._name)
+        return self._cluster.refresh(index=self._name)
         
     def flush(self):
-        return self._client.indices.flush(index=self._name)
+        return self._cluster.flush(index=self._name)

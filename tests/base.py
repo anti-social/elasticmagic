@@ -2,7 +2,7 @@ import unittest
 
 from mock import MagicMock
 
-from elasticmagic import Index
+from elasticmagic import Cluster, Index
 from elasticmagic.expression import Compiled
 
 
@@ -13,7 +13,8 @@ class BaseTestCase(unittest.TestCase):
 
     def setUp(self):
         self.client = MagicMock()
-        self.index = Index(self.client, 'test')
+        self.cluster = Cluster(self.client)
+        self.index = Index(self.cluster, 'test')
 
     def assert_expression(self, expr, params):
         c = Compiled(expr)

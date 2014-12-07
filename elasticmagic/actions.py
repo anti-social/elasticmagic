@@ -1,5 +1,5 @@
 from .util import clean_params
-from .index import Index as ESIndex
+from .document import SPECIAL_FIELD_TYPES
 
 
 class Action(object):
@@ -9,8 +9,10 @@ class Action(object):
                  consistency=None, refresh=None,
                  routing=None, parent=None, timestamp=None, ttl=None,
                  version=None, version_type=None):
-        self.doc = doc
+        from .index import Index as ESIndex
         index = index._name if isinstance(index, ESIndex) else index
+
+        self.doc = doc
         self.meta = clean_params({
             '_index': index,
             '_type': doc_type,
@@ -23,13 +25,45 @@ class Action(object):
         })
 
     def get_meta(self):
-        doc_type = self.doc.__class__.__doc_type__
-        doc_id = self.doc._id
-        meta = dict(self.meta, **clean_params({'_type': doc_type, '_id': doc_id}))
+        if isinstance(self.doc, dict):
+            doc_meta = {}
+            if '_index' in self.doc:
+                doc_meta['_index'] = self.doc['_index']
+            if '_type' in self.doc:
+                doc_meta['_type'] = self.doc['_type']
+            if '_id' in self.doc:
+                doc_meta['_id'] = self.doc.pop('_id')
+            if '_routing' in self.doc:
+                doc_meta['_routing'] = self.doc['_routing']
+            if '_parent' in self.doc:
+                doc_meta['_parent'] = self.doc['_parent']
+        else:
+            doc_meta = {}
+            if self.doc._index:
+                doc_meta['_index'] = self.doc._index
+            if self.doc._type:
+                doc_meta['_type'] = self.doc._type
+            if self.doc._id:
+                doc_meta['_id'] = self.doc._id
+            if self.doc._routing:
+                doc_meta['_routing'] = self.doc._routing
+            if self.doc._parent:
+                doc_meta['_parent'] = self.doc._parent
+
+            if '_type' not in doc_meta:
+                doc_meta['_type'] = self.doc.__doc_type__
+
+        meta = dict(self.meta, **clean_params(doc_meta))
         return {self.__action_name__: meta}
 
     def get_source(self):
-        return self.doc.to_dict()
+        if isinstance(self.doc, dict):
+            raw_doc = self.doc.copy()
+            for special_field in SPECIAL_FIELD_TYPES.keys():
+                raw_doc.pop(special_field, None)
+            return raw_doc
+        else:
+            return self.doc.to_dict()
 
 
 class Index(Action):

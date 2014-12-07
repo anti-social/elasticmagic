@@ -44,18 +44,34 @@ class SearchQuery(object):
     _offset = None
     _rescores = ()
 
+    _cluster = None
+    _index = None
+    _doc_cls = None
+    _doc_type = None
+    _routing = None
+    _search_type = None
+
     _instance_mapper = None
     _iter_instances = False
 
-    def __init__(self, q=None, index=None, doc_cls=None, doc_type=None,
+    def __init__(self, q=None, 
+                 cluster=None, index=None,
+                 doc_cls=None, doc_type=None,
                  routing=None, search_type=None):
         if q is not None:
             self._q = q
-        self._index = index
-        self._doc_cls = doc_cls
-        self._doc_type = doc_type
-        self._routing = routing
-        self._search_type = search_type
+        if cluster:
+            self._cluster = cluster
+        if index:
+            self._index = index
+        if doc_cls:
+            self._doc_cls = doc_cls
+        if doc_type:
+            self._doc_type = doc_type
+        if routing:
+            self._routing = routing
+        if search_type:
+            self._search_type = search_type
 
     def clone(self):
         cls = self.__class__
@@ -150,6 +166,10 @@ class SearchQuery(object):
         self._iter_instances = True
 
     @_with_clone
+    def with_cluster(self, cluster):
+        self._cluster = cluster
+
+    @_with_clone
     def with_index(self, index):
         self._index = index
 
@@ -178,6 +198,7 @@ class SearchQuery(object):
             doc_classes = [self._doc_cls]
         else:
             doc_classes = self._collect_doc_classes()
+
         if len(doc_classes) != 1:
             raise ValueError('Cannot determine document class')
 
@@ -222,23 +243,24 @@ class SearchQuery(object):
         return (f for f, m in self.iter_post_filters_with_meta())
 
     @cached_property
-    def results(self):
+    def result(self):
         doc_cls = self._get_doc_cls()
         doc_type = self._get_doc_type(doc_cls)
-        return self._index.search(
+        return (self._index or self._cluster).search(
             self,
-            doc_type,
-            doc_cls=doc_cls,
-            aggregations=self._aggregations,
-            instance_mapper=self._instance_mapper,
+            doc_type=doc_type,
             routing=self._routing,
             search_type=self._search_type,
         )
 
+    @property
+    def results(self):
+        return self.result
+
     def count(self):
         return self._index.count(
             self.get_filtered_query(wrap_function_score=False),
-            self._get_doc_type(),
+            doc_type=self._get_doc_type(),
             routing=self._routing,
         )
 
@@ -273,18 +295,18 @@ class SearchQuery(object):
 
     def __iter__(self):
         if self._iter_instances:
-            return iter(doc.instance for doc in self.results.hits if doc.instance)
-        return iter(self.results)
+            return iter(doc.instance for doc in self.result.hits if doc.instance)
+        return iter(self.result)
 
     def __len__(self):
-        return len(self.results.hits)
+        return len(self.result.hits)
 
     def __getitem__(self, k):
         if not isinstance(k, (slice, int)):
             raise TypeError
 
         if 'results' in self.__dict__:
-            docs = self.results.hits[k]
+            docs = self.result.hits[k]
         else:
             if isinstance(k, slice):
                 start, stop = k.start, k.stop
@@ -298,7 +320,7 @@ class SearchQuery(object):
                         clone._limit = stop - start
                 return clone
             else:
-                docs = self.results.hits[k]
+                docs = self.result.hits[k]
         if self._iter_instances:
             return [doc.instance for doc in docs if doc.instance]
         return docs

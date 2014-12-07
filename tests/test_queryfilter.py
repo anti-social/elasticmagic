@@ -197,7 +197,7 @@ class QueryFilterTest(BaseTestCase):
             }
         )
 
-        qf.process_results(sq.results)
+        qf.process_results(sq.result)
 
         type_filter = qf.type
         self.assertEqual(len(type_filter.selected_values), 3)
@@ -312,7 +312,7 @@ class QueryFilterTest(BaseTestCase):
                 }
             }
         )
-        qf.process_results(sq.results)
+        qf.process_results(sq.result)
 
         price_filter = qf.price
         self.assertEqual(price_filter.enabled, True)
@@ -440,7 +440,7 @@ class QueryFilterTest(BaseTestCase):
                 }
             }
         )
-        qf.process_results(sq.results)
+        qf.process_results(sq.result)
         self.assertEqual(len(qf.is_new.all_values), 1)
         self.assertEqual(len(qf.is_new.selected_values), 1)
         self.assertEqual(len(qf.is_new.values), 0)
@@ -600,7 +600,7 @@ class QueryFilterTest(BaseTestCase):
                 }
             }
         )
-        qf.process_results(sq.results)
+        qf.process_results(sq.result)
         self.assertEqual(len(qf.is_new.all_values), 1)
         self.assertEqual(len(qf.is_new.selected_values), 0)
         self.assertEqual(len(qf.is_new.values), 1)
