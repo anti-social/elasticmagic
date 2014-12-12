@@ -116,25 +116,81 @@ class ClusterTest(BaseTestCase):
         self.assertEqual(doc.status, 0)
 
     def test_bulk(self):
+        self.client.bulk = MagicMock(
+            return_value={
+                "took": 2,
+                "errors": True,
+                "items": [
+                    {
+                        "index": {
+                            "_index": "test",
+                            "_type": "car",
+                            "_id": "1",
+                            "_version": 1,
+                            "status": 200
+                        }
+                    },
+                    {
+                        "delete": {
+                            "_index": "test",
+                            "_type": "car",
+                            "_id": "2",
+                            "_version": 1,
+                            "found": True,
+                            "status": 200
+                        }
+                    },
+                    {
+                        "create": {
+                            "_index": "test",
+                            "_type": "car",
+                            "_id": "3",
+                            "_version": 1,
+                            "status": 201
+                        }
+                    },
+                    {
+                        "update": {
+                            "_index": "test",
+                            "_type": "car",
+                            "_id": "4",
+                            "status": 404,
+                            "error": "DocumentMissingException[[uaprom_cabinet][-1] [product][732635]: document missing]"
+                        }
+                    },
+                    {
+                        "update": {
+                            "_index": "test",
+                            "_type": "car",
+                            "_id": "5",
+                            "_version": 2,
+                            "status": 200
+                        }
+                    }
+                ]
+            }
+        )
         doc1 = self.index.car(_id='1', field1='value1')
         doc2 = self.index.car(_id='2')
         doc3 = self.index.car(_id='3', field3='value3')
         doc4 = self.index.car(_id='4', field4='value4')
-        self.cluster.bulk(
+        result = self.cluster.bulk(
             [
                 actions.Index(doc1, index=self.index),
                 actions.Delete(doc2, index=self.index),
                 actions.Create(doc3, index=self.index),
                 actions.Update(doc4, index=self.index, retry_on_conflict=3),
+                actions.Update(
+                    {
+                        '_id': '5',
+                        '_type': 'car',
+                        'status': 1
+                    },
+                    index=self.index
+                ),
             ],
             refresh=True,
         )
-        # self.cluster.bulk(
-        #     doc1.index(),
-        #     doc2.delete(),
-        #     doc3.create(),
-        #     doc4.update(retry_on_conflict=3),
-        # )
         self.client.bulk.assert_called_with(
             body=[
                 {'index': {'_index': 'test', '_type': 'car', '_id': '1'}},
@@ -144,6 +200,48 @@ class ClusterTest(BaseTestCase):
                 {'field3': 'value3'},
                 {'update': {'_index': 'test', '_type': 'car', '_id': '4', '_retry_on_conflict': 3}},
                 {'doc': {'field4': 'value4'}},
+                {'update': {'_index': 'test', '_type': 'car', '_id': '5'}},
+                {'doc': {'status': 1}},
             ],
             refresh=True,
         )
+
+        self.assertEqual(result.took, 2)
+        self.assertEqual(result.errors, True)
+        self.assertEqual(len(result.items), 5)
+        self.assertEqual(result.items[0].name, 'index')
+        self.assertEqual(result.items[0]._id, '1')
+        self.assertEqual(result.items[0]._type, 'car')
+        self.assertEqual(result.items[0]._index, 'test')
+        self.assertEqual(result.items[0]._version, 1)
+        self.assertEqual(result.items[0].status, 200)
+        self.assertEqual(bool(result.items[0].error), False)
+        self.assertEqual(result.items[1].name, 'delete')
+        self.assertEqual(result.items[1]._id, '2')
+        self.assertEqual(result.items[1]._type, 'car')
+        self.assertEqual(result.items[1]._index, 'test')
+        self.assertEqual(result.items[1]._version, 1)
+        self.assertEqual(result.items[1].status, 200)
+        self.assertEqual(result.items[1].found, True)
+        self.assertEqual(bool(result.items[1].error), False)
+        self.assertEqual(result.items[2].name, 'create')
+        self.assertEqual(result.items[2]._id, '3')
+        self.assertEqual(result.items[2]._type, 'car')
+        self.assertEqual(result.items[2]._index, 'test')
+        self.assertEqual(result.items[2]._version, 1)
+        self.assertEqual(result.items[2].status, 201)
+        self.assertEqual(bool(result.items[2].error), False)
+        self.assertEqual(result.items[3].name, 'update')
+        self.assertEqual(result.items[3]._id, '4')
+        self.assertEqual(result.items[3]._type, 'car')
+        self.assertEqual(result.items[3]._index, 'test')
+        self.assertIs(result.items[3]._version, None)
+        self.assertEqual(result.items[3].status, 404)
+        self.assertEqual(bool(result.items[3].error), True)
+        self.assertEqual(result.items[4].name, 'update')
+        self.assertEqual(result.items[4]._id, '5')
+        self.assertEqual(result.items[4]._type, 'car')
+        self.assertEqual(result.items[4]._index, 'test')
+        self.assertEqual(result.items[4]._version, 2)
+        self.assertEqual(result.items[4].status, 200)
+        self.assertEqual(bool(result.items[4].error), False)

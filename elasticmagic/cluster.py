@@ -1,6 +1,6 @@
 from .util import clean_params
 from .index import Index
-from .result import Result
+from .result import Result, BulkResult
 from .expression import Params
 
 
@@ -124,7 +124,7 @@ class Cluster(object):
             source = act.get_source()
             if source is not None:
                 body.append(source)
-        return self._client.bulk(body=body, **params)
+        return BulkResult(self._client.bulk(body=body, **params))
 
     def refresh(self, index=None):
         params = clean_params({'index': index})

@@ -43,3 +43,28 @@ class Result(object):
         instances = self._instance_mappers[doc_cls]([doc._id for doc in docs])
         for doc in docs:
             doc.__dict__['instance'] = instances.get(doc._id)
+
+
+class ActionResult(object):
+    def __init__(self, raw):
+        self.raw = raw
+        self.name = iter(raw.keys()).next()
+        data = iter(raw.values()).next()
+        self.status = data['status']
+        self.found = data.get('found')
+        self.error = data.get('error')
+        self._index = data['_index']
+        self._type = data['_type']
+        self._id = data['_id']
+        self._version = data.get('_version')
+
+
+class BulkResult(object):
+    def __init__(self, raw):
+        self.raw = raw
+        self.took = raw['took']
+        self.errors = raw['errors']
+        self.items = map(ActionResult, raw['items'])
+
+    def __iter__(self):
+        return iter(self.items)

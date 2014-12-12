@@ -97,5 +97,5 @@ class Update(Action):
         return meta
 
     def get_source(self):
-        doc_dict =  self.doc.to_dict()
-        return {'doc': doc_dict}
+        source =  super(Update, self).get_source()
+        return {'doc': source}
