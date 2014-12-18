@@ -60,12 +60,12 @@ class Index(object):
             q, index=self._name, doc_type=doc_type, refresh=refresh, routing=routing,
         )
 
-    def add(self, docs, timeout=None, consistency=None, replication=None):
+    def add(self, docs, doc_type=None, timeout=None, consistency=None, replication=None):
         acts = []
         for doc in docs:
             acts.append(actions.Index(doc))
         self._cluster.bulk(
-            acts, index=self._name,
+            acts, index=self._name, doc_type=doc_type,
             timeout=timeout, consistency=consistency, replication=replication
         )
 

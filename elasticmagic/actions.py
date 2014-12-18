@@ -32,7 +32,7 @@ class Action(object):
             if '_type' in self.doc:
                 doc_meta['_type'] = self.doc['_type']
             if '_id' in self.doc:
-                doc_meta['_id'] = self.doc.pop('_id')
+                doc_meta['_id'] = self.doc['_id']
             if '_routing' in self.doc:
                 doc_meta['_routing'] = self.doc['_routing']
             if '_parent' in self.doc:
