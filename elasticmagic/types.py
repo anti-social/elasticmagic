@@ -3,6 +3,7 @@ import inspect
 import dateutil.parser
 
 from .compat import text_type
+from .collections import OrderedAttributes
 
 
 def instantiate(typeobj, *args, **kwargs):
@@ -18,14 +19,11 @@ class Type(object):
     def to_python_single(self, value):
         return self.to_python(value)
 
-    def to_dict(self, value):
+    def from_python(self, value):
         return value
 
-    def has_sub_fields(self):
-        return False
-
-    def sub_field(self, prefix, name, doc_cls):
-        raise NotImplementedError()
+    def sub_fields(self):
+        return OrderedAttributes()
 
 
 class String(Type):
@@ -130,22 +128,15 @@ class Object(Type):
             return value
         return self.doc_cls(**value)
 
-    def to_dict(self, value):
+    def from_python(self, value):
         if value is None:
             return None
         if isinstance(value, self.doc_cls):
-            return value.to_dict()
+            return value.to_source()
         return value
 
-    def has_sub_fields(self):
-        return True
-
-    def sub_field(self, full_name, name, doc_cls):
-        from .expression import Field
-
-        return Field(full_name, getattr(self.doc_cls, name)._type,
-                     _doc_cls=doc_cls,
-                     _attr_name=full_name)
+    def sub_fields(self):
+        return self.doc_cls.user_fields
 
 
 class Nested(Object):
@@ -168,15 +159,12 @@ class List(Type):
         if v:
             return v[0]
 
-    def to_dict(self, value):
+    def from_python(self, value):
         if value is None:
             return None
         if not isinstance(value, list):
             value = [value]
-        return [self.sub_type.to_dict(v) for v in value]
+        return [self.sub_type.from_python(v) for v in value]
 
-    def has_sub_fields(self):
-        return self.sub_type.has_sub_fields()
-
-    def sub_field(self, full_name, name, doc_cls):
-        return self.sub_type.sub_field(full_name, name, doc_cls)
+    def sub_fields(self):
+        return self.sub_type.sub_fields()

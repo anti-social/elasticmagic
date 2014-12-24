@@ -1,15 +1,15 @@
 from mock import Mock, patch
 
-from elasticmagic import agg, Params, Term, Document
+from elasticmagic import agg, Params, Term, Document, DynamicDocument
 from elasticmagic.types import Integer, Boolean, List
-from elasticmagic.expression import Field, Fields
+from elasticmagic.expression import Field
 
 from .base import BaseTestCase
 
 
 class AggregationTest(BaseTestCase):
     def test_aggs(self):
-        f = Fields(dynamic=True)
+        f = DynamicDocument.fields
 
         a = agg.Avg(f.price)
         self.assert_expression(
@@ -462,7 +462,7 @@ class AggregationTest(BaseTestCase):
         Female = _Gender('f', 'Female')
         GENDERS = {g.key: g for g in [Male, Female]}
 
-        f = Fields()
+        f = DynamicDocument.fields
 
         gender_mapper = Mock(return_value=GENDERS)
         a = agg.Terms(f.gender, instance_mapper=gender_mapper)

@@ -1,7 +1,8 @@
+from __future__ import absolute_import
 import inspect
 import operator
 import collections
-from itertools import chain
+from itertools import chain, count
 
 from .types import instantiate, Type
 from .compat import string_types
@@ -359,43 +360,6 @@ class Sort(QueryExpression):
         self.order = order
 
 
-class _Fields(object):
-    def __init__(self, parent=None, dynamic=False, fields=None):
-        self._parent = parent
-        self._dynamic = dynamic
-        self._fields = fields
-
-    def _set_parent(self, parent):
-        self._parent = parent
-
-    def _get_field(self, name):
-        from .document import Document
-
-        if self._parent:
-            if isinstance(self._parent, Field):
-                full_name = '{}.{}'.format(self._parent._name, name)
-                if self._fields and name in self._fields:
-                    return Field(full_name, self._fields[name]._type, _doc_cls=self._parent._doc_cls)
-                if self._parent._type.has_sub_fields():
-                    return self._parent._type.sub_field(
-                        full_name, name, self._parent._doc_cls
-                    )
-                if self._dynamic:
-                    return Field(full_name, _fields_obj=_Fields(dynamic=True))
-                raise AttributeError('No such sub field: {}'.format(name))
-        return Field(name, _fields_obj=_Fields(dynamic=self._dynamic))
-        
-    def __getattr__(self, name):
-        return self._get_field(name)
-
-    def _wildcard(self, name):
-        return self._get_field(name)
-
-    _w = _wildcard
-
-Fields = _Fields
-
-
 class FieldOperators(object):
     def _get_field(self):
         raise NotImplementedError()
@@ -467,16 +431,11 @@ class FieldOperators(object):
 class Field(Expression, FieldOperators):
     __visit_name__ = 'field'
 
+    _counter = count()
+
     def __init__(self, *args, **kwargs):
         self._name = None
         self._type = None
-        self._fields = kwargs.pop('fields', None)
-        self._fields_obj = kwargs.pop('_fields_obj', None)
-        if self._fields_obj:
-            self._fields_obj._set_parent(self)
-        self._doc_cls = kwargs.pop('_doc_cls', None)
-        self._attr_name = kwargs.pop('_attr_name', None)
-
         if len(args) == 1:
             if isinstance(args[0], string_types):
                 self._name = args[0]
@@ -497,34 +456,15 @@ class Field(Expression, FieldOperators):
             self._type = Type()
         self._type = instantiate(self._type)
 
-    def _bind(self, doc_cls, name):
-        self._doc_cls = doc_cls
-        self._attr_name = name
-        if not self._name:
-            self._name = name
+        self._fields = kwargs.pop('fields', {})
+        self._count = self._counter.next()
 
-    def _get_field(self):
-        return self
+    def get_name(self):
+        return self._name
 
-    @property
-    def fields(self):
-        return self._fields_obj or _Fields(self, fields=self._fields)
+    def get_type(self):
+        return self._type
 
-    f = fields
-
-    def __getattr__(self, name):
-        return getattr(self.fields, name)
-
-    def __get__(self, obj, type=None):
-        if obj is None:
-            return self
-
-        dict_ = obj.__dict__
-        if self._attr_name in obj.__dict__:
-            return dict_[self._attr_name]
-        dict_[self._attr_name] = None
-        return None
-        
     def _collect_doc_classes(self):
         if self._doc_cls:
             return [self._doc_cls]
@@ -533,8 +473,8 @@ class Field(Expression, FieldOperators):
     def _to_python(self, value):
         return self._type.to_python(value)
 
-    def _to_dict(self, value):
-        return self._type.to_dict(value)
+    def _from_python(self, value):
+        return self._type.from_python(value)
 
 
 class BoostExpression(Expression):
@@ -590,6 +530,9 @@ class Compiled(object):
 
     def visit_field(self, field):
         return field._name
+
+    def visit_attributed_field(self, field):
+        return field._field._name
 
     def visit_boost_expression(self, expr):
         return '{}^{}'.format(self.visit(expr.expr), self.visit(expr.weight))

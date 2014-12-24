@@ -1,19 +1,21 @@
 import datetime
 from mock import Mock, MagicMock
 
+from elasticmagic import Index
 from elasticmagic import (
-    Index, Document, SearchQuery, Params, Term, Bool, MultiMatch,
+    Index, Document, DynamicDocument,
+    SearchQuery, Params, Term, Bool, MultiMatch,
     FunctionScore, Sort, agg
 )
 from elasticmagic.types import String, Integer, Float, Object
-from elasticmagic.expression import Fields, Field
+from elasticmagic.expression import Field
 
 from .base import BaseTestCase
 
 
 class SearchQueryTest(BaseTestCase):
     def test_search_query_compile(self):
-        f = Fields()
+        f = DynamicDocument.fields
 
         self.assert_expression(
             SearchQuery(),
@@ -281,7 +283,7 @@ class SearchQueryTest(BaseTestCase):
         )
 
     def test_aggregations(self):
-        f = Fields()
+        f = DynamicDocument.fields
 
         self.assert_expression(
             SearchQuery().aggregations(min_price=agg.Min(f.price)),

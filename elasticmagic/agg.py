@@ -270,7 +270,7 @@ class Terms(MultiBucketAgg):
             execution_hint=None, type=None, instance_mapper=None, aggs=None,
             **kwargs
     ):
-        type = type or (field._type if field else None)
+        type = type or (field.get_type() if field else None)
         super(Terms, self).__init__(
             field=field, script=script, size=size, shard_size=shard_size,
             order=order, min_doc_count=min_doc_count, shard_min_doc_count=shard_min_doc_count,
@@ -333,7 +333,7 @@ class Range(MultiBucketAgg):
     result_cls = RangeAggResult
 
     def __init__(self, field=None, script=None, ranges=None, type=None, aggs=None, **kwargs):
-        type = type or (field._type if field else None)
+        type = type or (field.get_type() if field else None)
         super(Range, self).__init__(
             field=field, script=script, ranges=ranges,
             type=type, aggs=aggs, **kwargs

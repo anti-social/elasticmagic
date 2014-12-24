@@ -4,14 +4,13 @@ from elasticmagic import (
     Bool, Query, And, Or, Not, Sort,
     Boosting, Common, ConstantScore, FunctionScore, DisMax, Filtered, Ids, Prefix,
 )
-from elasticmagic.expression import Fields, Compiled
 
 from .base import BaseTestCase
 
 
 class ExpressionTestCase(BaseTestCase):
     def test_expression(self):
-        f = Fields(dynamic=True)
+        f = DynamicDocument.fields
 
         self.assert_expression(
             Match(f.message, 'this is a test'),
@@ -121,7 +120,7 @@ class ExpressionTestCase(BaseTestCase):
 
         e = MultiMatch(
             "Will Smith",
-            [self.index.star.title.boost(4), self.index.star.f._wildcard('*_name').boost(2)],
+            [self.index.star.title.boost(4), self.index.star.wildcard('*_name').boost(2)],
             minimum_should_match='100%'
         )
         self.assert_expression(
@@ -135,7 +134,7 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
         self.assertEqual(
-            e._collect_doc_classes(),
+            list(set(e._collect_doc_classes())),
             [self.index.star]
         )
 

@@ -1,49 +1,87 @@
 import fnmatch
 
 from .types import String, Integer, Float, Date
-from .expression import Field, Fields
+from .attribute import AttributedField, DynamicAttributedField
+from .expression import Field
+from .collections import OrderedAttributes, DynamicOrderedAttributes
 from .util import cached_property
 from .compat import with_metaclass
 
 
-SPECIAL_FIELD_TYPES = {
-    '_uid': String,
-    '_id': String,
-    '_type': String,
-    '_source': String,
-    '_all': String,
-    '_analyzer': String,
-    '_parent': String,
-    '_routing': String,
-    '_index': String,
-    '_size': Integer,
-    '_timestamp': Date,
-    # '_ttl': Timedelta,
-    '_score': Float,
-}
+MAPPING_FIELDS = [
+    Field('_uid', String),
+    Field('_id', String),
+    Field('_type', String),
+    Field('_source', String),
+    Field('_all', String),
+    Field('_analyzer', String),
+    Field('_parent', String),
+    Field('_routing', String),
+    Field('_index', String),
+    Field('_size', Integer),
+    Field('_timestamp', Date),
+    Field('_ttl', String),
+    Field('_score', Float),
+]
+
+META_FIELD_NAMES = ['_id', '_index', '_type', '_routing', '_parent', '_timestamp', '_ttl']
 
 
 class DocumentMeta(type):
+    _fields_cls = OrderedAttributes
+
     def __new__(meta, name, bases, dct):
         cls = type.__new__(meta, name, bases, dct)
 
-        cls._fields = []
-        cls._fields_map = {}
-        cls._fields_attr_map = {}
+        cls._fields = cls._fields_cls()
+        cls._user_fields = cls._fields_cls()
+        cls._mapping_fields = cls._fields_cls()
+        cls._field_name_map = {}
 
-        for field_name, field_type in SPECIAL_FIELD_TYPES.items():
-            if field_name not in cls.__dict__:
-                setattr(cls, field_name, Field(field_type))
+        for field in MAPPING_FIELDS:
+            if field._name not in cls.__dict__:
+                cls._add_field(field._name, field, user=False)
 
-        for field_name in dir(cls):
-            field = getattr(cls, field_name)
-            if isinstance(field, Field):
-                field._bind(cls, field_name)
-                cls._fields.append(field)
-                cls._fields_map[field._name] = field
-                cls._fields_attr_map[field._attr_name] = field
+        user_fields = []
+        for attr_name in dir(cls):
+            field = getattr(cls, attr_name)
+            if isinstance(field, AttributedField) and field._attr not in cls.__dict__:
+                user_fields.append((attr_name, field._field))
+            elif isinstance(field, Field):
+                user_fields.append((attr_name, field))
+        user_fields = sorted(user_fields, key=lambda v: v[1]._count)
+
+        for attr_name, field in user_fields:
+            if attr_name in cls.__dict__:
+                delattr(cls, attr_name)
+            cls._add_field(attr_name, Field(field._name or attr_name, field._type, fields=field._fields))
 
         return cls
+
+    def _add_field(cls, attr_name, field, user=True):
+        attr_field = AttributedField(cls, attr_name, field)
+        setattr(cls, attr_name, attr_field)
+        cls._fields[attr_name] = attr_field
+        if user:
+            cls._user_fields[attr_name] = attr_field
+        else:
+            cls._mapping_fields[attr_name] = attr_field
+        cls._field_name_map[field._name] = attr_field
+    
+    @property
+    def fields(cls):
+        return cls._fields
+
+    @property
+    def user_fields(cls):
+        return cls._user_fields
+
+    @property
+    def mapping_fields(cls):
+        return cls._mapping_fields
+
+    def wildcard(cls, name):
+        return DynamicAttributedField(cls, name, Field(name))
 
     def __getattr__(cls, name):
         field = cls._from_dynamic_field(name)
@@ -55,9 +93,7 @@ class DocumentMeta(type):
     def _from_dynamic_field(cls, name):
         for dyn_field in cls.__dynamic_fields__:
             if fnmatch.fnmatch(name, dyn_field._name):
-                field = Field(name, dyn_field._type)
-                field._bind(cls, name)
-                return field
+                return AttributedField(cls, name, Field(name, dyn_field._type))
 
 
 class Document(with_metaclass(DocumentMeta)):
@@ -67,12 +103,10 @@ class Document(with_metaclass(DocumentMeta)):
         self._index = self._type = self._id = self._score = None
         if _hit:
             self._score = _hit.get('_score')
-            for field_name in SPECIAL_FIELD_TYPES:
-                setattr(self, field_name, _hit.get(field_name))
+            for attr_field in self._mapping_fields:
+                setattr(self, attr_field._attr, _hit.get(attr_field._field._name))
             if _hit.get('_source'):
                 for hit_key, hit_value in _hit['_source'].items():
-                    if hit_key in SPECIAL_FIELD_TYPES:
-                        continue
                     setattr(self, *self._process_hit_key_value(hit_key, hit_value))
 
         for fkey, fvalue in kwargs.items():
@@ -81,27 +115,37 @@ class Document(with_metaclass(DocumentMeta)):
         self._result = _result
 
     def _process_hit_key_value(self, key, value):
-        if key in self._fields_map:
-            field = self._fields_map[key]
-            return field._attr_name, field._to_python(value)
+        if key in self._field_name_map:
+            attr_field = self._field_name_map[key]
+            return attr_field._attr, attr_field._to_python(value)
         return key, value
 
-    def to_dict(self):
+    def to_meta(self):
+        doc_meta = {}
+        if hasattr(self, '__doc_type__'):
+            doc_meta['_type'] = self.__doc_type__
+        for field_name in META_FIELD_NAMES:
+            value = getattr(self, field_name, None)
+            if value:
+                doc_meta[field_name] = value
+        return doc_meta
+    
+    def to_source(self):
         res = {}
         for key, value in self.__dict__.items():
-            if key in SPECIAL_FIELD_TYPES:
+            if key in self.__class__.mapping_fields:
                 continue
             if value is None or value == '' or value == []:
                 continue
 
-            field = None
-            if key in self._fields_attr_map:
-                field = self._fields_attr_map[key]
+            attr_field = None
+            if key in self.__class__.fields:
+                attr_field = self.__class__.fields[key]
             else:
-                field = self.__class__._from_dynamic_field(key)
+                attr_field = self.__class__._from_dynamic_field(key)
 
-            if field:
-                res[field._attr_name] = field._to_dict(value)
+            if attr_field:
+                res[attr_field._attr] = attr_field._from_python(value)
 
         return res
 
@@ -113,17 +157,18 @@ class Document(with_metaclass(DocumentMeta)):
 
 
 class DynamicDocumentMeta(DocumentMeta):
-    @property
-    def fields(cls):
-        return Fields(cls)
-
-    f = fields
+    def _fields_cls(cls):
+        return DynamicOrderedAttributes(
+            default=lambda name: DynamicAttributedField(cls, name, Field(name))
+        )
 
     def __getattr__(cls, name):
-        return Field(name, _doc_cls=cls, _attr_name=name, _fields_obj=Fields(dynamic=True))
+        return cls.fields[name]
 
     def _from_dynamic_field(cls, name):
-        return Field(name, _doc_cls=cls, _attr_name=name)
+        attr_field = Document._from_dynamic_field(name)
+        if not attr_field:
+            return DynamicAttributedField(cls, name, Field(name))
 
 
 class DynamicDocument(with_metaclass(DynamicDocumentMeta, Document)):
@@ -132,3 +177,4 @@ class DynamicDocument(with_metaclass(DynamicDocumentMeta, Document)):
         if isinstance(value, dict):
             return key, DynamicDocument(**value)
         return key, value
+

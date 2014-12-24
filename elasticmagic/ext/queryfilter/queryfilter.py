@@ -164,7 +164,7 @@ class BaseFilterValue(object):
 class FacetFilter(FieldFilter):
     def __init__(self, name, field, type=None, instance_mapper=None, **kwargs):
         super(FacetFilter, self).__init__(name, field)
-        self.type = instantiate(type or self.field._type)
+        self.type = instantiate(type or self.field.get_type())
         self.instance_mapper = instance_mapper
         self.agg_kwargs = kwargs
 

@@ -1,8 +1,7 @@
 from mock import MagicMock
 
-from elasticmagic import agg, SearchQuery, Term, Match, Index
+from elasticmagic import agg, DynamicDocument, SearchQuery, Term, Match, Index
 from elasticmagic.types import Integer, Float
-from elasticmagic.expression import Fields
 from elasticmagic.ext.queryfilter import QueryFilter, FacetFilter, RangeFilter
 from elasticmagic.ext.queryfilter import FacetQueryFilter, FacetQueryValue
 from elasticmagic.ext.queryfilter import OrderingFilter, OrderingValue
@@ -31,12 +30,10 @@ def type_mapper(values):
 
 class QueryFilterTest(BaseTestCase):
     def test_facet_filter(self):
-        f = Fields()
-
         class CarQueryFilter(QueryFilter):
-            type = FacetFilter(f.type, instance_mapper=type_mapper, type=Integer)
-            vendor = FacetFilter(f.vendor, aggs={'min_price': agg.Min(f.price)})
-            model = FacetFilter(f.model)
+            type = FacetFilter(self.index.car.type, instance_mapper=type_mapper, type=Integer)
+            vendor = FacetFilter(self.index.car.vendor, aggs={'min_price': agg.Min(self.index.car.price)})
+            model = FacetFilter(self.index.car.model)
 
         qf = CarQueryFilter()
 
@@ -682,7 +679,7 @@ class QueryFilterTest(BaseTestCase):
         self.assertEqual(qf.sort.get_value('-price').selected, False)
 
    # def test_nested(self):
-    #     f = Fields()
+    #     f = DynamicDocument.fields
 
     #     qf = QueryFilter()
     #     qf.add_filter(

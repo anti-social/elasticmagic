@@ -1,5 +1,5 @@
 from .util import clean_params
-from .document import SPECIAL_FIELD_TYPES
+from .document import Document, META_FIELD_NAMES
 
 
 class Action(object):
@@ -27,31 +27,12 @@ class Action(object):
     def get_meta(self):
         if isinstance(self.doc, dict):
             doc_meta = {}
-            if '_index' in self.doc:
-                doc_meta['_index'] = self.doc['_index']
-            if '_type' in self.doc:
-                doc_meta['_type'] = self.doc['_type']
-            if '_id' in self.doc:
-                doc_meta['_id'] = self.doc['_id']
-            if '_routing' in self.doc:
-                doc_meta['_routing'] = self.doc['_routing']
-            if '_parent' in self.doc:
-                doc_meta['_parent'] = self.doc['_parent']
+            for field_name in META_FIELD_NAMES:
+                value = self.doc.get(field_name)
+                if value:
+                    doc_meta[field_name] = value
         else:
-            doc_meta = {}
-            if self.doc._index:
-                doc_meta['_index'] = self.doc._index
-            if self.doc._type:
-                doc_meta['_type'] = self.doc._type
-            if self.doc._id:
-                doc_meta['_id'] = self.doc._id
-            if self.doc._routing:
-                doc_meta['_routing'] = self.doc._routing
-            if self.doc._parent:
-                doc_meta['_parent'] = self.doc._parent
-
-            if '_type' not in doc_meta:
-                doc_meta['_type'] = self.doc.__doc_type__
+            doc_meta = self.doc.to_meta()
 
         meta = dict(self.meta, **clean_params(doc_meta))
         return {self.__action_name__: meta}
@@ -59,11 +40,11 @@ class Action(object):
     def get_source(self):
         if isinstance(self.doc, dict):
             raw_doc = self.doc.copy()
-            for special_field in SPECIAL_FIELD_TYPES.keys():
-                raw_doc.pop(special_field, None)
+            for exclude_field in Document.mapping_fields:
+                raw_doc.pop(exclude_field.get_field().get_name(), None)
             return raw_doc
         else:
-            return self.doc.to_dict()
+            return self.doc.to_source()
 
 
 class Index(Action):

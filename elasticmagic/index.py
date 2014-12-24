@@ -1,5 +1,5 @@
+from __future__ import absolute_import
 from collections import defaultdict
-
 
 from . import actions
 from .util import to_camel_case
