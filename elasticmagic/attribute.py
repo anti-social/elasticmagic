@@ -3,6 +3,14 @@ from .expression import Expression, Field, FieldOperators
 from .collections import OrderedAttributes
 
 
+# really its factory factory
+def _attributed_field_factory(attr_cls, doc_cls, dynamic_field, make_field_name=None):
+    def _attr_field(name):
+        field_name = make_field_name(name) if make_field_name else name
+        return attr_cls(doc_cls, name, Field(field_name, dynamic_field.get_type()))
+    return _attr_field
+
+
 class AttributedField(Expression, FieldOperators):
     __visit_name__ = 'attributed_field'
 
@@ -11,19 +19,28 @@ class AttributedField(Expression, FieldOperators):
         self._attr = attr_name
         self._field = field
 
-        self._sub_fields = OrderedAttributes()
-        sub_fields = list(self._field._type.sub_fields().items())
-        if sub_fields:
-            for attr_name, attr_field in sub_fields:
+        if self._field._type.doc_cls:
+            doc_cls = self._field._type.doc_cls
+            dynamic_defaults = {}
+            for dyn_field_name, dyn_attr_field in doc_cls.dynamic_fields.items():
+                dyn_field = dyn_attr_field._field
+                default = _attributed_field_factory(AttributedField, self._parent, dyn_field, self._make_field_name)
+                dynamic_defaults[dyn_field_name] = default
+
+            self._sub_fields = OrderedAttributes(defaults=dynamic_defaults)
+            for attr_name, attr_field in doc_cls.user_fields.items():
                 field = attr_field._field
                 self._sub_fields[attr_name] = AttributedField(
                     self._parent, attr_name, Field(self._make_field_name(field._name), field._type, fields=field._fields)
                 )
         elif self._field._fields:
+            self._sub_fields = OrderedAttributes()
             for field_attr, field in self._field._fields.items():
                 self._sub_fields[field_attr] = AttributedField(
                     self, field_attr, Field(self._make_field_name(field_attr), field._type)
                 )
+        else:
+            self._sub_fields = OrderedAttributes()
 
     def _make_field_name(self, name):
         return '{}.{}'.format(self._field._name, name)
@@ -33,9 +50,7 @@ class AttributedField(Expression, FieldOperators):
         return self._sub_fields
 
     def __getattr__(self, name):
-        if name not in self.fields:
-            raise AttributeError('No that field: %s' % name)
-        return self.fields[name]
+        return getattr(self.fields, name)
 
     def wildcard(self, name):
         return DynamicAttributedField(
@@ -77,12 +92,11 @@ class AttributedField(Expression, FieldOperators):
 
 
 class DynamicAttributedField(AttributedField):
-    def __init__(self, parent, attr_name, field):
-        super(DynamicAttributedField, self).__init__(parent, attr_name, field)
-
     def __getattr__(self, name):
-        if name not in self.fields:
-            return DynamicAttributedField(
+        return getattr(
+            self.fields,
+            name,
+            DynamicAttributedField(
                 self._parent, name, Field(self._make_field_name(name))
             )
-        return self.fields[name]
+        )

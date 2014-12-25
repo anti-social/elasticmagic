@@ -13,6 +13,9 @@ def instantiate(typeobj, *args, **kwargs):
 
 
 class Type(object):
+    def __init__(self):
+        self.doc_cls = None
+
     def to_python(self, value):
         return value
 
@@ -21,9 +24,6 @@ class Type(object):
 
     def from_python(self, value):
         return value
-
-    def sub_fields(self):
-        return OrderedAttributes()
 
 
 class String(Type):
@@ -135,9 +135,6 @@ class Object(Type):
             return value.to_source()
         return value
 
-    def sub_fields(self):
-        return self.doc_cls.user_fields
-
 
 class Nested(Object):
     pass
@@ -146,6 +143,10 @@ class Nested(Object):
 class List(Type):
     def __init__(self, sub_type):
         self.sub_type = instantiate(sub_type)
+
+    @property
+    def doc_cls(self):
+        return self.sub_type.doc_cls
 
     def to_python(self, value):
         if value is None:
@@ -165,6 +166,3 @@ class List(Type):
         if not isinstance(value, list):
             value = [value]
         return [self.sub_type.from_python(v) for v in value]
-
-    def sub_fields(self):
-        return self.sub_type.sub_fields()

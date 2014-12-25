@@ -1,9 +1,9 @@
 import fnmatch
 
 from .types import String, Integer, Float, Date
-from .attribute import AttributedField, DynamicAttributedField
+from .attribute import AttributedField, DynamicAttributedField, _attributed_field_factory
 from .expression import Field
-from .collections import OrderedAttributes, DynamicOrderedAttributes
+from .collections import OrderedAttributes
 from .util import cached_property
 from .compat import with_metaclass
 
@@ -28,14 +28,15 @@ META_FIELD_NAMES = ['_id', '_index', '_type', '_routing', '_parent', '_timestamp
 
 
 class DocumentMeta(type):
-    _fields_cls = OrderedAttributes
-
     def __new__(meta, name, bases, dct):
         cls = type.__new__(meta, name, bases, dct)
 
-        cls._fields = cls._fields_cls()
-        cls._user_fields = cls._fields_cls()
-        cls._mapping_fields = cls._fields_cls()
+        cls._dynamic_defaults = cls._get_dynamic_defaults()
+
+        cls._fields = OrderedAttributes(defaults=cls._dynamic_defaults)
+        cls._user_fields = OrderedAttributes(defaults=cls._dynamic_defaults)
+        cls._mapping_fields = OrderedAttributes()
+        cls._dynamic_fields = OrderedAttributes()
         cls._field_name_map = {}
 
         for field in MAPPING_FIELDS:
@@ -56,7 +57,17 @@ class DocumentMeta(type):
                 delattr(cls, attr_name)
             cls._add_field(attr_name, Field(field._name or attr_name, field._type, fields=field._fields))
 
+        for dyn_field in cls.__dynamic_fields__:
+            cls._dynamic_fields[dyn_field.get_name()] = AttributedField(cls, dyn_field.get_name(), dyn_field)
+
         return cls
+
+    def _get_dynamic_defaults(cls):
+        dynamic_defaults = {}
+        for dyn_field in cls.__dynamic_fields__:
+            default = _attributed_field_factory(AttributedField, cls, dyn_field)
+            dynamic_defaults[dyn_field.get_name()] = default
+        return dynamic_defaults
 
     def _add_field(cls, attr_name, field, user=True):
         attr_field = AttributedField(cls, attr_name, field)
@@ -80,20 +91,15 @@ class DocumentMeta(type):
     def mapping_fields(cls):
         return cls._mapping_fields
 
+    @property
+    def dynamic_fields(cls):
+        return cls._dynamic_fields
+
     def wildcard(cls, name):
         return DynamicAttributedField(cls, name, Field(name))
 
     def __getattr__(cls, name):
-        field = cls._from_dynamic_field(name)
-        if field:
-            # setattr(cls, name, field)
-            return field
-        raise AttributeError("'%s' document has no field '%s'" % (cls.__name__, name))
-
-    def _from_dynamic_field(cls, name):
-        for dyn_field in cls.__dynamic_fields__:
-            if fnmatch.fnmatch(name, dyn_field._name):
-                return AttributedField(cls, name, Field(name, dyn_field._type))
+        return getattr(cls.fields, name)
 
 
 class Document(with_metaclass(DocumentMeta)):
@@ -138,12 +144,7 @@ class Document(with_metaclass(DocumentMeta)):
             if value is None or value == '' or value == []:
                 continue
 
-            attr_field = None
-            if key in self.__class__.fields:
-                attr_field = self.__class__.fields[key]
-            else:
-                attr_field = self.__class__._from_dynamic_field(key)
-
+            attr_field = self.__class__.fields.get(key)
             if attr_field:
                 res[attr_field._attr] = attr_field._from_python(value)
 
@@ -157,18 +158,14 @@ class Document(with_metaclass(DocumentMeta)):
 
 
 class DynamicDocumentMeta(DocumentMeta):
-    def _fields_cls(cls):
-        return DynamicOrderedAttributes(
-            default=lambda name: DynamicAttributedField(cls, name, Field(name))
-        )
+    def _get_dynamic_defaults(cls):
+        dynamic_defaults = super(DynamicDocumentMeta, cls)._get_dynamic_defaults()
+        if '*' not in dynamic_defaults:
+            dynamic_defaults['*'] = _attributed_field_factory(DynamicAttributedField, cls, Field('*'))
+        return dynamic_defaults
 
     def __getattr__(cls, name):
         return cls.fields[name]
-
-    def _from_dynamic_field(cls, name):
-        attr_field = Document._from_dynamic_field(name)
-        if not attr_field:
-            return DynamicAttributedField(cls, name, Field(name))
 
 
 class DynamicDocument(with_metaclass(DynamicDocumentMeta, Document)):

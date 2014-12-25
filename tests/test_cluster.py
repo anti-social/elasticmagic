@@ -171,7 +171,6 @@ class ClusterTest(BaseTestCase):
             }
         )
         doc1 = self.index.car(_id='1', _ttl='1d', field1='value1')
-        print doc1.to_meta()
         doc2 = self.index.car(_id='2')
         doc3 = self.index.car(_id='3', field3='value3')
         doc4 = self.index.car(_id='4', field4='value4')

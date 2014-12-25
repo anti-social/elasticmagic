@@ -1,17 +1,30 @@
+import fnmatch
+
+
 class OrderedAttributes(object):
-    def __init__(self, data=None):
+    def __init__(self, data=None, defaults=None):
         self._dict = {}
         self._keys = []
+        self._defaults = defaults or {}
 
         if data:
             for k, v in data:
                 self[k] = v
+
+    def _get_default(self, key):
+        for template, default in self._defaults.items():
+            if fnmatch.fnmatch(key, template):
+                return default
 
     def __setitem__(self, key, value):
         self._dict[key] = value
         self._keys.append(key)
 
     def __getitem__(self, key):
+        if key not in self._dict:
+            default = self._get_default(key)
+            if default:
+                return default(key)
         return self._dict[key]
 
     def __getattr__(self, key):
@@ -21,13 +34,13 @@ class OrderedAttributes(object):
             raise AttributeError("Has no field '%s'" % key)
 
     def __contains__(self, key):
-        return self.has_key(key)
-
-    def has_key(self, key):
-        return self._dict.has_key(key)
+        return key in self._dict
 
     def get(self, key, default=None):
-        return self._dict.get(key, default)
+        try:
+            return self[key]
+        except KeyError:
+            return default
 
     def keys(self):
         return iter(self._keys)
@@ -43,16 +56,3 @@ class OrderedAttributes(object):
 
     def __len__(self):
         return len(self._dict)
-
-
-class DynamicOrderedAttributes(OrderedAttributes):
-    def __init__(self, data=None, default=None):
-        super(DynamicOrderedAttributes, self).__init__(data)
-        self._default = default
-
-    def __getitem__(self, key):
-        if self.has_key(key):
-            return super(DynamicOrderedAttributes, self).__getitem__(key)
-        return self._default(key)
-
-    

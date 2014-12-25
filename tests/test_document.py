@@ -2,7 +2,7 @@ import datetime
 
 import dateutil
 
-from elasticmagic.types import Type, String, Integer, Float, Date, Object, List
+from elasticmagic.types import Type, String, Integer, Float, Boolean, Date, Object, List
 from elasticmagic.compat import string_types
 from elasticmagic.document import Document, DynamicDocument
 from elasticmagic.attribute import AttributedField, DynamicAttributedField
@@ -15,10 +15,16 @@ class GroupDocument(Document):
     id = Field(Integer)
     name = Field('test_name', String, fields={'raw': Field(String)})
 
+    __dynamic_fields__ = [
+        Field('group_id_*', Integer),
+    ]
+
+
 class TagDocument(Document):
     id = Field(Integer)
     name = Field(String)
     group = Field(Object(GroupDocument))
+
 
 class TestDocument(Document):
     name = Field('test_name', String(), fields={'raw': Field(String)})
@@ -30,12 +36,42 @@ class TestDocument(Document):
     unused = Field(String)
 
     __dynamic_fields__ = [
-        Field('attr_*', Integer),
+        Field('i_attr_*', Integer),
+        Field('b_attr_*', Boolean),
     ]
 
 
 class DocumentTestCase(BaseTestCase):
     def test_document(self):
+        class GroupDocument(Document):
+            id = Field(Integer)
+            name = Field('test_name', String, fields={'raw': Field(String)})
+
+            __dynamic_fields__ = [
+                Field('group_id_*', Integer),
+            ]
+
+
+        class TagDocument(Document):
+            id = Field(Integer)
+            name = Field(String)
+            group = Field(Object(GroupDocument))
+
+
+        class TestDocument(Document):
+            name = Field('test_name', String(), fields={'raw': Field(String)})
+            status = Field(Integer)
+            group = Field(Object(GroupDocument))
+            price = Field(Float)
+            tags = Field(List(Object(TagDocument)))
+            date_created = Field(Date)
+            unused = Field(String)
+
+            __dynamic_fields__ = [
+                Field('i_attr_*', Integer),
+                Field('b_attr_*', Boolean),
+            ]
+
         self.assertEqual(
             list(TestDocument.fields),
             [
@@ -115,13 +151,25 @@ class DocumentTestCase(BaseTestCase):
         self.assertEqual(list(TestDocument.tags.group.name.raw.fields), [])
         self.assertEqual(TestDocument.tags.group.name.raw.get_field().get_name(), 'tags.group.test_name.raw')
         self.assert_expression(TestDocument.tags.group.name.raw, 'tags.group.test_name.raw')
+        self.assertIsInstance(TestDocument.tags.group.group_id_1, AttributedField)
+        self.assertIsInstance(TestDocument.tags.group.group_id_1.get_field().get_type(), Integer)
+        self.assertEqual(list(TestDocument.tags.group.group_id_1.fields), [])
+        self.assertEqual(TestDocument.tags.group.group_id_1.get_field().get_name(), 'tags.group.group_id_1')
+        self.assert_expression(TestDocument.tags.group.group_id_1, 'tags.group.group_id_1')
         self.assertRaises(AttributeError, lambda: TestDocument.group._id)
         self.assertRaises(KeyError, lambda: TestDocument.group.fields['_id'])
         self.assertRaises(AttributeError, lambda: TestDocument.group.missing_field)
         self.assertRaises(KeyError, lambda: TestDocument.group.fields['missing_field'])
-        self.assertIsInstance(TestDocument.attr_2, AttributedField)
-        self.assertIsInstance(TestDocument.attr_2.get_field().get_type(), Integer)
-        self.assertEqual(TestDocument.attr_2._collect_doc_classes(), [TestDocument])
+        self.assertIsInstance(TestDocument.i_attr_2, AttributedField)
+        self.assertIsInstance(TestDocument.i_attr_2.get_field().get_type(), Integer)
+        self.assertEqual(TestDocument.i_attr_2._collect_doc_classes(), [TestDocument])
+        self.assertEqual(TestDocument.i_attr_2.get_field().get_name(), 'i_attr_2')
+        self.assert_expression(TestDocument.i_attr_2, 'i_attr_2')
+        self.assertIsInstance(TestDocument.b_attr_1, AttributedField)
+        self.assertIsInstance(TestDocument.b_attr_1.get_field().get_type(), Boolean)
+        self.assertEqual(TestDocument.b_attr_1._collect_doc_classes(), [TestDocument])
+        self.assertEqual(TestDocument.b_attr_1.get_field().get_name(), 'b_attr_1')
+        self.assert_expression(TestDocument.b_attr_1, 'b_attr_1')
         self.assertRaises(AttributeError, lambda: TestDocument.fake_attr_1)
         self.assertIsInstance(TestDocument.wildcard('date_*'), AttributedField)
         self.assertIsInstance(TestDocument.wildcard('date_*').get_field().get_type(), Type)
@@ -145,7 +193,7 @@ class DocumentTestCase(BaseTestCase):
         self.assertIs(TestDocument.tags.group.name, TestDocument.tags.group.name)
         self.assertIs(TestDocument.tags.group.name.raw, TestDocument.tags.group.name.raw)
         # TODO: May be we should cache dynamic fields?
-        self.assertIsNot(TestDocument.attr_2, TestDocument.attr_2)
+        self.assertIsNot(TestDocument.i_attr_2, TestDocument.i_attr_2)
         self.assertIsNot(TestDocument._id, GroupDocument._id)
         self.assertIsNot(GroupDocument.name, TestDocument.group.name)
         self.assertIsNot(GroupDocument.name, TestDocument.tags.group.name)
@@ -231,7 +279,7 @@ class DocumentTestCase(BaseTestCase):
                            price=101.5,
                            tags=[TagDocument(id=1, name='Test tag'),
                                  TagDocument(id=2, name='Just tag')],
-                           attr_3=45)
+                           i_attr_3=45)
         self.assertEqual(
             doc.to_source(),
             {
@@ -245,7 +293,7 @@ class DocumentTestCase(BaseTestCase):
                     {'id': 1, 'name': 'Test tag'},
                     {'id': 2, 'name': 'Just tag'},
                 ],
-                'attr_3': 45
+                'i_attr_3': 45
             }
         )
 
@@ -299,14 +347,14 @@ class DocumentTestCase(BaseTestCase):
             {}
         )
 
-        doc = InheritedDocument(_id=123, status=0, name='Test', attr_1=1, attr_2=2, face_attr_3=3)
+        doc = InheritedDocument(_id=123, status=0, name='Test', i_attr_1=1, i_attr_2=2, face_attr_3=3)
         self.assertEqual(
             doc.to_source(),
             {
                 'status': 0,
                 'name': 'Test',
-                'attr_1': 1,
-                'attr_2': 2,
+                'i_attr_1': 1,
+                'i_attr_2': 2,
             }
         )
 
