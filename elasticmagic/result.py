@@ -48,8 +48,8 @@ class Result(object):
 class ActionResult(object):
     def __init__(self, raw):
         self.raw = raw
-        self.name = iter(raw.keys()).next()
-        data = iter(raw.values()).next()
+        self.name = next(iter(raw.keys()))
+        data = next(iter(raw.values()))
         self.status = data['status']
         self.found = data.get('found')
         self.error = data.get('error')
@@ -64,7 +64,7 @@ class BulkResult(object):
         self.raw = raw
         self.took = raw['took']
         self.errors = raw['errors']
-        self.items = map(ActionResult, raw['items'])
+        self.items = list(map(ActionResult, raw['items']))
 
     def __iter__(self):
         return iter(self.items)

@@ -610,7 +610,7 @@ class SearchQueryTest(BaseTestCase):
             )
             .with_instance_mapper({self.index.seller: seller_mapper,
                                    self.index.customer: customer_mapper})
-            .filter(self.index.customer.birthday >= datetime.date(1960, 01, 01))
+            .filter(self.index.customer.birthday >= datetime.date(1960, 1, 1))
             .limit(2)
         )
 
@@ -665,7 +665,7 @@ class SearchQueryTest(BaseTestCase):
                             'match': {'name.first': 'Alex'}
                         },
                         'filter': {
-                            'range': {'birthday': {'gte': datetime.date(1960, 01, 01)}}
+                            'range': {'birthday': {'gte': datetime.date(1960, 1, 1)}}
                         }
                     }
                 },

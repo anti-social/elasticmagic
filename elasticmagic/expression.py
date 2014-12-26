@@ -457,7 +457,7 @@ class Field(Expression, FieldOperators):
         self._type = instantiate(self._type)
 
         self._fields = kwargs.pop('fields', {})
-        self._count = self._counter.next()
+        self._count = next(self._counter)
 
     def get_name(self):
         return self._name

@@ -105,7 +105,7 @@ class BaseFilter(object):
     def __new__(cls, *args, **kwargs):
         if args and not isinstance(args[0], string_types):
             return UnboundFilter(cls, args, kwargs)
-        return super(BaseFilter, cls).__new__(cls, *args, **kwargs)
+        return super(BaseFilter, cls).__new__(cls)
 
     def __init__(self, name):
         self.name = name

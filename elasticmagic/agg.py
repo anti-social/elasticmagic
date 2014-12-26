@@ -206,7 +206,7 @@ class MultiBucketAggResult(AggResult):
         if isinstance(raw_buckets, dict):
             raw_buckets_map = raw_buckets
             raw_buckets = []
-            for key, raw_bucket in raw_buckets_map.items():
+            for key, raw_bucket in sorted(raw_buckets_map.items(), key=lambda i: i[0]):
                 raw_bucket = raw_bucket.copy()
                 raw_bucket.setdefault('key', key)
                 raw_buckets.append(raw_bucket)

@@ -202,7 +202,7 @@ class SearchQuery(object):
         if len(doc_classes) != 1:
             raise ValueError('Cannot determine document class')
 
-        return iter(doc_classes).next()
+        return next(iter(doc_classes))
 
     def _get_doc_type(self, doc_cls=None):
         doc_cls = doc_cls or self._get_doc_cls()
