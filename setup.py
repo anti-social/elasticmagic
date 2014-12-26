@@ -19,6 +19,7 @@ setup(
     packages=find_packages(exclude=["tests"]),
     install_requires=[
         "elasticsearch>=1.2.0,<1.3.0",
+        "python-dateutil",
     ],
     tests_require=[
         "nose",
