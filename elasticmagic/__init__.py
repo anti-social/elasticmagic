@@ -8,3 +8,4 @@ from .expression import (
     And, Or, Not, Sort, Boosting, Common, ConstantScore, FunctionScore,
     Field,
 )
+from .version import __version__
