@@ -12,6 +12,7 @@ MAPPING_FIELDS = [
     Field('_uid', String),
     Field('_id', String),
     Field('_type', String),
+    Field('_version', Integer),
     Field('_source', String),
     Field('_all', String),
     Field('_analyzer', String),
