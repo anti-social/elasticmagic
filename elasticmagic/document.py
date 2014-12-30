@@ -25,7 +25,9 @@ MAPPING_FIELDS = [
     Field('_score', Float),
 ]
 
-META_FIELD_NAMES = ['_id', '_index', '_type', '_routing', '_parent', '_timestamp', '_ttl']
+META_FIELD_NAMES = [
+    '_id', '_index', '_type', '_version', '_routing', '_parent', '_timestamp', '_ttl'
+]
 
 
 class DocumentMeta(type):

@@ -1,6 +1,6 @@
 from mock import MagicMock
 
-from elasticmagic import agg, actions, Cluster, SearchQuery
+from elasticmagic import agg, actions, Cluster, SearchQuery, DynamicDocument
 
 from .base import BaseTestCase
 
@@ -115,6 +115,125 @@ class ClusterTest(BaseTestCase):
         self.assertAlmostEqual(doc.price.unit, 5.67)
         self.assertEqual(doc.status, 0)
 
+    def test_get(self):
+        self.client.get = MagicMock(
+            return_value={
+                "_index": "twitter",
+                "_type": "tweet",
+                "_id": "111",
+                "_version": 1,
+                "found": True,
+                "_source": {
+                    "user": "kimchy",
+                    "post_date": "2009-11-15T14:12:12",
+                    "message": "trying out Elasticsearch"
+                }
+            }
+        )
+        doc = self.cluster.get('twitter', 111, doc_type='tweet')
+        self.client.get.assert_called_with(
+            index='twitter',
+            doc_type='tweet',
+            id=111
+        )
+        self.assertIsInstance(doc, DynamicDocument)
+        self.assertEqual(doc._id, '111')
+        self.assertEqual(doc._index, 'twitter')
+        self.assertEqual(doc._type, 'tweet')
+        self.assertEqual(doc._version, 1)
+        self.assertEqual(doc.user, 'kimchy')
+        self.assertEqual(doc.post_date, '2009-11-15T14:12:12')
+        self.assertEqual(doc.message, 'trying out Elasticsearch')
+
+        doc = self.cluster.get('twitter', 111, doc_cls=self.cluster['twitter'].tweet, routing=111)
+        self.client.get.assert_called_with(
+            index='twitter',
+            doc_type='tweet',
+            id=111,
+            routing=111,
+        )
+        self.assertIsInstance(doc, self.cluster['twitter'].tweet)
+        self.assertEqual(doc._id, '111')
+        self.assertEqual(doc._index, 'twitter')
+        self.assertEqual(doc._type, 'tweet')
+        self.assertEqual(doc._version, 1)
+        self.assertEqual(doc.user, 'kimchy')
+        self.assertEqual(doc.post_date, '2009-11-15T14:12:12')
+        self.assertEqual(doc.message, 'trying out Elasticsearch')
+        
+    def test_multi_get(self):
+        self.client.mget = MagicMock(
+            return_value={
+                "docs": [
+                    {
+                        "_index": "twitter",
+                        "_type": "tweet",
+                        "_id": "1",
+                        "_version": 1,
+                        "found": True,
+                        "_source": {
+                            "user": "kimchy",
+                            "post_date": "2009-11-15T14:12:12",
+                            "message": "trying out Elasticsearch"
+                        }
+                    },
+                    {
+                        "_index": "test",
+                        "_type": "tweet",
+                        "_id": "2",
+                        "_version": 1,
+                        "found": True,
+                        "_source": {
+                            "user": "kimchy",
+                            "post_date": "2014-12-29T16:45:58",
+                            "message": "Elasticsearch the best"
+                        }
+                    }
+                ]
+            }
+        )
+        # TODO: index aware document class
+        docs = self.cluster.multi_get(
+            [self.index.tweet(_id=1, _index='twitter'),
+             self.index.tweet(_id=2, _index='test', _version=1)],
+            realtime=False
+        )
+        self.client.mget.assert_called_with(
+            body={
+                "docs": [
+                    {
+                        "_index": "twitter",
+                        "_type": "tweet",
+                        "_id": 1
+                    },
+                    {
+                        "_index": "test",
+                        "_type": "tweet",
+                        "_id": 2,
+                        "_version": 1
+                    }
+                ]
+            },
+            realtime=False
+        )
+        self.assertEqual(len(docs), 2)
+        self.assertIsInstance(docs[0], self.index.tweet)
+        self.assertEqual(docs[0]._id, '1')
+        self.assertEqual(docs[0]._type, 'tweet')
+        self.assertEqual(docs[0]._index, 'twitter')
+        self.assertEqual(docs[0]._version, 1)
+        self.assertEqual(docs[0].user, 'kimchy')
+        self.assertEqual(docs[0].post_date, '2009-11-15T14:12:12')
+        self.assertEqual(docs[0].message, 'trying out Elasticsearch')
+        self.assertIsInstance(docs[1], self.index.tweet)
+        self.assertEqual(docs[1]._id, '2')
+        self.assertEqual(docs[1]._type, 'tweet')
+        self.assertEqual(docs[1]._index, 'test')
+        self.assertEqual(docs[1]._version, 1)
+        self.assertEqual(docs[1].user, 'kimchy')
+        self.assertEqual(docs[1].post_date, '2014-12-29T16:45:58')
+        self.assertEqual(docs[1].message, 'Elasticsearch the best')
+        
     def test_bulk(self):
         self.client.bulk = MagicMock(
             return_value={

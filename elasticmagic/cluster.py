@@ -1,6 +1,7 @@
 from .util import clean_params
 from .index import Index
 from .result import Result, BulkResult
+from .document import DynamicDocument
 from .expression import Params
 
 
@@ -26,6 +27,56 @@ class Cluster(object):
         return SearchQuery(*args, **kwargs)
 
     query = search_query
+
+    def get(self, index, id, doc_cls=None, doc_type=None, source=None,
+            realtime=None, routing=None, parent=None, preference=None,
+            refresh=None, version=None, version_type=None):
+        doc_cls = doc_cls or DynamicDocument
+        doc_type = doc_type or getattr(doc_cls, '__doc_type__', None)
+        params = clean_params({
+            'doc_type': doc_type,
+            '_source': source,
+            'parent': parent,
+            'routing': routing,
+            'preference': preference,
+            'realtime': realtime,
+            'refresh': refresh,
+            'version': version,
+            'version_type': version_type,
+        })
+        raw_doc = self._client.get(index=index, id=id, **params)
+        return doc_cls(_hit=raw_doc)
+
+    # TODO: support ids
+    # need way to know document class for id
+    def multi_get(self, docs, index=None, doc_type=None, source=None,
+                  parent=None, routing=None, preference=None, realtime=None, refresh=None):
+        params = clean_params({
+            'index': index,
+            'doc_type': doc_type,
+            '_source': source,
+            'parent': parent,
+            'routing': routing,
+            'preference': preference,
+            'realtime': realtime,
+            'refresh': refresh,
+        })
+        body = {}
+        body['docs'] = []
+        doc_classes = []
+        for doc in docs:
+            body['docs'].append(doc.to_meta())
+            doc_classes.append(doc.__class__)
+        raw_result = self._client.mget(body=body, **params)
+        result_docs = []
+        for doc_cls, raw_doc in zip(doc_classes, raw_result['docs']):
+            if raw_doc['found']:
+                result_docs.append(doc_cls(_hit=raw_doc))
+            else:
+                result_docs.append(None)
+        return result_docs
+
+    mget = multi_get
 
     def search(self, q, index=None, doc_type=None, routing=None, preference=None, search_type=None):
         params = clean_params({

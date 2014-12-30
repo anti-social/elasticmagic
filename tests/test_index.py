@@ -14,6 +14,96 @@ class IndexTest(BaseTestCase):
 
         self.assertIs(doc_cls, self.index.product)
 
+    def test_get(self):
+        self.client.get = MagicMock(
+            return_value={
+                "_index": "twitter",
+                "_type": "tweet",
+                "_id": "111",
+                "_version": 1,
+                "found": True,
+                "_source": {
+                    "user": "kimchy",
+                    "post_date": "2009-11-15T14:12:12",
+                    "message": "trying out Elasticsearch"
+                }
+            }
+        )
+        doc = self.index.get(111, doc_type='tweet')
+        self.client.get.assert_called_with(
+            index='test',
+            doc_type='tweet',
+            id=111
+        )
+        self.assertIsInstance(doc, DynamicDocument)
+        self.assertEqual(doc._id, '111')
+        self.assertEqual(doc._index, 'twitter')
+        self.assertEqual(doc._type, 'tweet')
+        self.assertEqual(doc._version, 1)
+        self.assertEqual(doc.user, 'kimchy')
+        self.assertEqual(doc.post_date, '2009-11-15T14:12:12')
+        self.assertEqual(doc.message, 'trying out Elasticsearch')
+
+    def test_multi_get(self):
+        self.client.mget = MagicMock(
+            return_value={
+                "docs": [
+                    {
+                        "_index": "twitter",
+                        "_type": "tweet",
+                        "_id": "111",
+                        "_version": 1,
+                        "found": True,
+                        "_source": {
+                            "user": "kimchy",
+                            "post_date": "2009-11-15T14:12:12",
+                            "message": "trying out Elasticsearch"
+                        }
+                    },
+                    {
+                        "_index": "twitter",
+                        "_type": "user",
+                        "_id": "222",
+                        "found": False
+                    }
+                ]
+            }
+        )
+        twitter_index = self.cluster['twitter']
+        docs = twitter_index.multi_get(
+            [
+                twitter_index.tweet(_id=111), 
+                twitter_index.user(_id=222)
+            ],
+            refresh=True
+        )
+        self.client.mget.assert_called_with(
+            body={
+                "docs": [
+                    {
+                        "_type": "tweet",
+                        "_id": 111
+                    },
+                    {
+                        "_type": "user",
+                        "_id": 222
+                    }
+                ]
+            },
+            index='twitter',
+            refresh=True
+        )
+        self.assertEqual(len(docs), 2)
+        self.assertIsInstance(docs[0], DynamicDocument)
+        self.assertEqual(docs[0]._id, '111')
+        self.assertEqual(docs[0]._index, 'twitter')
+        self.assertEqual(docs[0]._type, 'tweet')
+        self.assertEqual(docs[0]._version, 1)
+        self.assertEqual(docs[0].user, 'kimchy')
+        self.assertEqual(docs[0].post_date, '2009-11-15T14:12:12')
+        self.assertEqual(docs[0].message, 'trying out Elasticsearch')
+        self.assertIs(docs[1], None)
+
     def test_count(self):
         self.index.count(MatchAll(), 'car', routing=123)
         self.client.count.assert_called_with(

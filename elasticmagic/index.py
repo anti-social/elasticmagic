@@ -36,6 +36,24 @@ class Index(object):
 
     # Methods that do requests to elasticsearch
 
+    def get(self, id, doc_cls=None, doc_type=None, source=None,
+            realtime=None, routing=None, preference=None, refresh=None,
+            version=None, version_type=None):
+        return self._cluster.get(
+            self._name, id, doc_cls=doc_cls, doc_type=doc_type, source=source,
+            realtime=realtime, routing=routing, preference=preference, refresh=refresh,
+            version=version, version_type=version_type
+        )
+
+    def multi_get(self, docs, doc_type=None, source=None,
+            realtime=None, routing=None, preference=None, refresh=None):
+        return self._cluster.multi_get(
+            docs, index=self._name, doc_type=doc_type, source=source,
+            realtime=realtime, routing=routing, preference=preference, refresh=refresh,
+        )
+
+    mget = multi_get
+
     def search(self, q, doc_type=None, routing=None, preference=None, search_type=None):
         return self._cluster.search(
             q, index=self._name, doc_type=doc_type, 
