@@ -1,6 +1,6 @@
 from .util import cached_property
 from .expression import Expression, Field, FieldOperators
-from .collections import OrderedAttributes
+from .datastructures import OrderedAttributes
 
 
 # really its factory factory

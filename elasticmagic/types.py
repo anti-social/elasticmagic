@@ -3,7 +3,6 @@ import inspect
 import dateutil.parser
 
 from .compat import text_type
-from .collections import OrderedAttributes
 
 
 def instantiate(typeobj, *args, **kwargs):

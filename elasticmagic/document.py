@@ -3,7 +3,7 @@ import fnmatch
 from .types import String, Integer, Float, Date
 from .attribute import AttributedField, DynamicAttributedField, _attributed_field_factory
 from .expression import Field
-from .collections import OrderedAttributes
+from .datastructures import OrderedAttributes
 from .util import cached_property
 from .compat import with_metaclass
 
