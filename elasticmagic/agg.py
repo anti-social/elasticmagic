@@ -144,8 +144,24 @@ class ExtendedStats(Stats):
         super(ExtendedStats, self).__init__(field=field, script=script, **kwargs)
 
 
+class PercentilesAggResult(MultiValueMetricsAggResult):
+    def __init__(self, *args, **kwargs):
+        super(PercentilesAggResult, self).__init__(*args, **kwargs)
+        self.values = sorted(
+            ((float(e[0]), e[1]) for e in self.values.items()),
+            key=lambda e: e[0]
+        )
+
+    def get_value(self, percent):
+        for p, v in self.values:
+            if round(abs(p - percent), 7) == 0:
+                return v
+
+
 class Percentiles(MultiValueMetricsAgg):
     __agg_name__ = 'percentiles'
+
+    result_cls = PercentilesAggResult
 
     def __init__(self, field=None, script=None, percents=None, compression=None, **kwargs):
         super(Percentiles, self).__init__(
@@ -153,8 +169,24 @@ class Percentiles(MultiValueMetricsAgg):
         )
 
 
+class PercentileRanksAggResult(MultiValueMetricsAggResult):
+    def __init__(self, *args, **kwargs):
+        super(PercentileRanksAggResult, self).__init__(*args, **kwargs)
+        self.values = sorted(
+            ((float(e[0]), e[1]) for e in self.values.items()),
+            key=lambda e: e[0]
+        )
+
+    def get_percent(self, value):
+        for v, p in self.values:
+            if round(abs(v - value), 7) == 0:
+                return p
+
+
 class PercentileRanks(MultiValueMetricsAgg):
     __agg_name__ = 'percentile_ranks'
+
+    result_cls = PercentileRanksAggResult
 
     def __init__(self, field=None, script=None, values=None, compression=None, **kwargs):
         super(PercentileRanks, self).__init__(
