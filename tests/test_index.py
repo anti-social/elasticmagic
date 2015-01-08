@@ -203,7 +203,7 @@ class IndexTest(BaseTestCase):
         )
 
     def test_delete(self):
-        self.index.delete(self.index.car(_id='test_id'), doc_type='car', refresh=True)
+        self.index.delete(self.index.car(_id='test_id'), refresh=True)
         self.client.delete.assert_called_with(
             index='test',
             doc_type='car',

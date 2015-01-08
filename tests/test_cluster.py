@@ -233,7 +233,7 @@ class ClusterTest(BaseTestCase):
         self.assertEqual(docs[1].user, 'kimchy')
         self.assertEqual(docs[1].post_date, '2014-12-29T16:45:58')
         self.assertEqual(docs[1].message, 'Elasticsearch the best')
-        
+
     def test_bulk(self):
         self.client.bulk = MagicMock(
             return_value={

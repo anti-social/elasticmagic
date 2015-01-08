@@ -87,8 +87,7 @@ class Index(object):
             timeout=timeout, consistency=consistency, replication=replication
         )
 
-    def delete(self, doc, doc_type,
-               timeout=None, consistency=None, replication=None,
+    def delete(self, doc, doc_type=None, timeout=None, consistency=None, replication=None,
                parent=None, routing=None, refresh=None, version=None, version_type=None):
         return self._cluster.delete(
             doc, index=self._name, doc_type=doc_type, 

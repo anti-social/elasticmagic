@@ -136,9 +136,10 @@ class Cluster(object):
 
     msearch = multi_search
 
-    def delete(self, doc, index, doc_type,
+    def delete(self, doc, index, doc_type=None,
                timeout=None, consistency=None, replication=None,
                parent=None, routing=None, refresh=None, version=None, version_type=None):
+        doc_type = doc_type or doc.__doc_type__
         params = clean_params({'timeout': timeout,
                                'consistency': consistency,
                                'replication': replication,
