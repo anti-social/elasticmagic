@@ -1,6 +1,6 @@
 from mock import MagicMock
 
-from elasticmagic import agg, DynamicDocument, SearchQuery, Term, Match, Index
+from elasticmagic import agg, Document, DynamicDocument, Field, SearchQuery, Term, Match, Index
 from elasticmagic.types import Integer, Float
 from elasticmagic.ext.queryfilter import QueryFilter, FacetFilter, RangeFilter
 from elasticmagic.ext.queryfilter import FacetQueryFilter, FacetQueryValue
@@ -257,6 +257,74 @@ class QueryFilterTest(BaseTestCase):
         self.assertIs(model_filter.all_values[1], model_filter.get_value('Forester'))
 
     def test_range_filter(self):
+        class CarDocument(Document):
+            __doc_type__ = 'car'
+
+            price = Field(Integer)
+            engine_displacement = Field(Float)
+
+        class CarQueryFilter(QueryFilter):
+            price = RangeFilter(CarDocument.price, compute_min_max=False)
+            disp = RangeFilter(CarDocument.engine_displacement, compute_enabled=False)
+
+        qf = CarQueryFilter()
+
+        sq = self.index.query()
+        sq = qf.apply(sq, {'price__lte': ['10000']})
+        self.assert_expression(
+            sq,
+            {
+                "aggregations": {
+                    "qf.price.enabled": {"filter": {"exists": {"field": "price"}}},
+                    "qf.disp.filter": {
+                        "filter": {
+                            "range": {"price": {"lte": 10000}}
+                        },
+                        "aggregations": {
+                            "qf.disp.min": {"min": {"field": "engine_displacement"}},
+                            "qf.disp.max": {"max": {"field": "engine_displacement"}}
+                        }
+                    }
+                },
+                "post_filter": {
+                    "range": {"price": {"lte": 10000}}
+                }
+            }
+        )
+
+        self.client.search = MagicMock(
+            return_value={
+                "hits": {
+                    "hits": [],
+                    "max_score": 1.829381,
+                    "total": 893
+                },
+                "aggregations": {
+                    "qf.price.enabled": {"doc_count": 890},
+                    "qf.disp.filter": {
+                        "doc_count": 237,
+                        "qf.disp.min": {"value": 1.6},
+                        "qf.disp.max": {"value": 3.0}
+                    }
+                }
+            }
+        )
+        qf.process_results(sq.result)
+
+        price_filter = qf.price
+        self.assertEqual(price_filter.enabled, True)
+        self.assertIs(price_filter.min, None)
+        self.assertIs(price_filter.max, None)
+        self.assertIs(price_filter.from_value, None)
+        self.assertEqual(price_filter.to_value, 10000)
+        disp_filter = qf.disp
+        self.assertIs(disp_filter.enabled, None)
+        self.assertAlmostEqual(disp_filter.min, 1.6)
+        self.assertAlmostEqual(disp_filter.max, 3.0)
+        self.assertIs(disp_filter.from_value, None)
+        self.assertIs(disp_filter.to_value, None)
+
+    def test_range_filter_dynamic_document(self):
         class CarQueryFilter(QueryFilter):
             price = RangeFilter(self.index.car.price, type=Integer)
             disp = RangeFilter(self.index.car.engine_displacement, type=Float)

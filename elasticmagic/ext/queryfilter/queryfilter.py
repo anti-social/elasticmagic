@@ -310,7 +310,7 @@ class RangeFilter(FieldFilter):
 
     def __init__(self, name, field, type=None, compute_enabled=True, compute_min_max=True):
         super(RangeFilter, self).__init__(name, field)
-        self.type = instantiate(type or self.field._type)
+        self.type = instantiate(type or self.field.get_type())
         self._compute_enabled = compute_enabled
         self._compute_min_max = compute_min_max
         self.from_value = None
@@ -399,9 +399,11 @@ class RangeFilter(FieldFilter):
         else:
             base_agg = result
 
-        self.enabled = bool(result.get_aggregation(self._enabled_agg_name).doc_count)
-        self.min = base_agg.get_aggregation(self._min_agg_name).value
-        self.max = base_agg.get_aggregation(self._max_agg_name).value
+        if self._compute_enabled:
+            self.enabled = bool(result.get_aggregation(self._enabled_agg_name).doc_count)
+        if self._compute_min_max:
+            self.min = base_agg.get_aggregation(self._min_agg_name).value
+            self.max = base_agg.get_aggregation(self._max_agg_name).value
 
 
 class FacetQueryValue(BaseFilterValue):
