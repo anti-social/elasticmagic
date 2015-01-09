@@ -169,16 +169,22 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(len(a.buckets), 6)
         self.assertEqual(a.buckets[0].key, 0)
         self.assertEqual(a.buckets[0].doc_count, 7353499)
+        self.assertIs(a.buckets[0], a.get_bucket(0))
         self.assertEqual(a.buckets[1].key, 1)
         self.assertEqual(a.buckets[1].doc_count, 2267139)
+        self.assertIs(a.buckets[1], a.get_bucket(1))
         self.assertEqual(a.buckets[2].key, 4)
         self.assertEqual(a.buckets[2].doc_count, 1036951)
+        self.assertIs(a.buckets[2], a.get_bucket(4))
         self.assertEqual(a.buckets[3].key, 2)
         self.assertEqual(a.buckets[3].doc_count, 438384)
+        self.assertIs(a.buckets[3], a.get_bucket(2))
         self.assertEqual(a.buckets[4].key, 3)
         self.assertEqual(a.buckets[4].doc_count, 9594)
+        self.assertIs(a.buckets[4], a.get_bucket(3))
         self.assertEqual(a.buckets[5].key, 5)
         self.assertEqual(a.buckets[5].doc_count, 46)
+        self.assertIs(a.buckets[5], a.get_bucket(5))
 
         a = agg.Terms(f.is_visible, type=Boolean)
         self.assert_expression(
@@ -198,8 +204,10 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(len(a.buckets), 2)
         self.assertEqual(a.buckets[0].key, True)
         self.assertEqual(a.buckets[0].doc_count, 7)
+        self.assertIs(a.buckets[0], a.get_bucket(True))
         self.assertEqual(a.buckets[1].key, False)
         self.assertEqual(a.buckets[1].doc_count, 2)
+        self.assertIs(a.buckets[1], a.get_bucket(False))
 
         a = agg.Terms(f.category, type=List(Integer))
         self.assert_expression(
@@ -219,8 +227,10 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(len(a.buckets), 2)
         self.assertEqual(a.buckets[0].key, 28)
         self.assertEqual(a.buckets[0].doc_count, 792)
+        self.assertIs(a.buckets[0], a.get_bucket(28))
         self.assertEqual(a.buckets[1].key, 3)
         self.assertEqual(a.buckets[1].doc_count, 185)
+        self.assertIs(a.buckets[1], a.get_bucket(3))
 
         class ProductDocument(Document):
             is_visible = Field(Boolean)
@@ -242,8 +252,10 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(len(a.buckets), 2)
         self.assertEqual(a.buckets[0].key, True)
         self.assertEqual(a.buckets[0].doc_count, 7)
+        self.assertIs(a.buckets[0], a.get_bucket(True))
         self.assertEqual(a.buckets[1].key, False)
         self.assertEqual(a.buckets[1].doc_count, 2)
+        self.assertIs(a.buckets[1], a.get_bucket(False))
 
         a = agg.SignificantTerms(f.crime_type)
         self.assert_expression(
@@ -276,10 +288,50 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(a.buckets[0].doc_count, 3640)
         self.assertAlmostEqual(a.buckets[0].score, 0.371)
         self.assertEqual(a.buckets[0].bg_count, 66799)
+        self.assertIs(a.buckets[0], a.get_bucket('Bicycle theft'))
         self.assertEqual(a.buckets[1].key, 'Mobile phone theft')
         self.assertEqual(a.buckets[1].doc_count, 27617)
         self.assertAlmostEqual(a.buckets[1].score, 0.0599)
         self.assertEqual(a.buckets[1].bg_count, 53182)
+        self.assertIs(a.buckets[1], a.get_bucket('Mobile phone theft'))
+
+        a = agg.Range(f.price, ranges=[{'to': 200}, {'from': 200, 'to': 1000}, {'from': 1000}])
+        self.assert_expression(
+            a,
+            {
+                "range": {
+                    "field": "price",
+                    "ranges": [
+                        {"to": 200},
+                        {"from": 200, "to": 1000},
+                        {"from": 1000}
+                    ]
+                }
+            }
+        )
+        a = a.build_agg_result(
+            {
+                "buckets": [
+                    {
+                        "to": 200,
+                        "doc_count": 12
+                    },
+                    {
+                        "from": 200,
+                        "to": 1000,
+                        "doc_count": 197
+                    },
+                    {
+                        "from": 1000,
+                        "doc_count": 8
+                    }
+                ]
+            }
+        )
+        self.assertEqual(len(a.buckets), 3)
+        self.assertEqual(a.buckets[0].doc_count, 12)
+        self.assertEqual(a.buckets[1].doc_count, 197)
+        self.assertEqual(a.buckets[2].doc_count, 8)
 
         a = agg.Filters([Term(f.body, 'error'), Term(f.body, 'warning')])
         self.assert_expression(
@@ -310,6 +362,7 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(a.buckets[0].doc_count, 34)
         self.assertIs(a.buckets[1].key, None)
         self.assertEqual(a.buckets[1].doc_count, 439)
+        self.assertIs(a.get_bucket(None), None)
 
         a = agg.Filters(Params(errors=Term(f.body, 'error'), warnings=Term(f.body, 'warning')))
         self.assert_expression(
@@ -338,8 +391,10 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(len(a.buckets), 2)
         self.assertIs(a.buckets[0].key, 'errors')
         self.assertEqual(a.buckets[0].doc_count, 34)
+        self.assertIs(a.buckets[0], a.get_bucket('errors'))
         self.assertIs(a.buckets[1].key, 'warnings')
         self.assertEqual(a.buckets[1].doc_count, 439)
+        self.assertIs(a.buckets[1], a.get_bucket('warnings'))
 
         a = agg.Nested(f.resellers, aggs={'min_price': agg.Min(f.resellers.price)})
         self.assert_expression(
@@ -437,19 +492,24 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(len(type_agg.buckets), 2)
         self.assertEqual(type_agg.buckets[0].key, 'retail')
         self.assertEqual(type_agg.buckets[0].doc_count, 70)
+        self.assertIs(type_agg.buckets[0], type_agg.get_bucket('retail'))
         self.assertAlmostEqual(type_agg.buckets[0].get_aggregation('price_avg').value, 60.5)
         self.assertAlmostEqual(type_agg.buckets[0].get_aggregation('price_min').value, 1.1)
         self.assertAlmostEqual(type_agg.buckets[0].get_aggregation('price_max').value, 83.4)
         price_hist_agg = type_agg.buckets[0].get_aggregation('price_hist')
         self.assertEqual(price_hist_agg.buckets[0].key, 50)
         self.assertEqual(price_hist_agg.buckets[0].doc_count, 60)
+        self.assertIs(price_hist_agg.buckets[0], price_hist_agg.get_bucket(50))
         self.assertEqual(price_hist_agg.buckets[1].key, 100)
         self.assertEqual(price_hist_agg.buckets[1].doc_count, 7)
+        self.assertIs(price_hist_agg.buckets[1], price_hist_agg.get_bucket(100))
         self.assertEqual(price_hist_agg.buckets[2].key, 150)
         self.assertEqual(price_hist_agg.buckets[2].doc_count, 3)
+        self.assertIs(price_hist_agg.buckets[2], price_hist_agg.get_bucket(150))
         self.assertEqual(len(price_hist_agg.buckets), 3)
         self.assertEqual(type_agg.buckets[1].key, 'wholesale')
         self.assertEqual(type_agg.buckets[1].doc_count, 30)
+        self.assertIs(type_agg.buckets[1], type_agg.get_bucket('wholesale'))
         self.assertAlmostEqual(type_agg.buckets[1].get_aggregation('price_avg').value, 47.9)
         self.assertAlmostEqual(type_agg.buckets[1].get_aggregation('price_min').value, 20.1)
         self.assertAlmostEqual(type_agg.buckets[1].get_aggregation('price_max').value, 64.8)
@@ -457,12 +517,16 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(len(price_hist_agg.buckets), 4)
         self.assertEqual(price_hist_agg.buckets[0].key, 0)
         self.assertEqual(price_hist_agg.buckets[0].doc_count, 17)
+        self.assertIs(price_hist_agg.buckets[0], price_hist_agg.get_bucket(0))
         self.assertEqual(price_hist_agg.buckets[1].key, 50)
         self.assertEqual(price_hist_agg.buckets[1].doc_count, 5)
+        self.assertIs(price_hist_agg.buckets[1], price_hist_agg.get_bucket(50))
         self.assertEqual(price_hist_agg.buckets[2].key, 100)
         self.assertEqual(price_hist_agg.buckets[2].doc_count, 6)
+        self.assertIs(price_hist_agg.buckets[2], price_hist_agg.get_bucket(100))
         self.assertEqual(price_hist_agg.buckets[3].key, 150)
         self.assertEqual(price_hist_agg.buckets[3].doc_count, 2)
+        self.assertIs(price_hist_agg.buckets[3], price_hist_agg.get_bucket(150))
         self.assertEqual(a.get_aggregation('price_avg').value, 56.3)
 
     def test_instance_mapper(self):

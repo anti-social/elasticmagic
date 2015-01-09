@@ -243,11 +243,11 @@ class MultiBucketAggResult(AggResult):
                 raw_bucket.setdefault('key', key)
                 raw_buckets.append(raw_bucket)
 
-        self.buckets = []
+        self._buckets = []
+        self._buckets_map = {}
         for raw_bucket in raw_buckets:
-            self.buckets.append(
-                self.bucket_cls(raw_bucket, agg_expr, self, mapper_registry=mapper_registry)
-            )
+            bucket = self.bucket_cls(raw_bucket, agg_expr, self, mapper_registry=mapper_registry)
+            self.add_bucket(bucket)
 
         self._instance_mapper = instance_mapper
         if mapper_registry is None:
@@ -258,6 +258,17 @@ class MultiBucketAggResult(AggResult):
         if self._instance_mapper:
             self._mapper_registry.setdefault(self._instance_mapper, []).append(self)
 
+    def add_bucket(self, bucket):
+        self._buckets.append(bucket)
+        if bucket.key is not None:
+            self._buckets_map[bucket.key] = bucket
+
+    @property
+    def buckets(self):
+        return list(self._buckets)
+
+    def get_bucket(self, key):
+        return self._buckets_map.get(key)
 
     def _populate_instances(self):
         buckets = list(chain(
@@ -354,9 +365,15 @@ class RangeBucket(Bucket):
         super(RangeBucket, self).__init__(raw_data, agg_expr, parent, mapper_registry=mapper_registry)
         self.from_ = agg_expr._type.to_python_single(raw_data.get('from'))
         self.to = agg_expr._type.to_python_single(raw_data.get('to'))
+        if self.key is None:
+            self.key = (self.from_, self.to)
+
 
 class RangeAggResult(MultiBucketAggResult):
     bucket_cls = RangeBucket
+
+    def __init__(self, *args, **kwargs):
+        super(RangeAggResult, self).__init__(*args, **kwargs)
 
 
 class Range(MultiBucketAgg):

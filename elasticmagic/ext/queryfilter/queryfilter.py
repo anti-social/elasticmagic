@@ -246,7 +246,7 @@ class FacetFilter(FieldFilter):
                 fake_bucket = terms_agg.bucket_cls(
                     fake_agg_data, terms_agg.expr.aggs(None), terms_agg
                 )
-                terms_agg.buckets.append(fake_bucket)
+                terms_agg.add_bucket(fake_bucket)
                 self.qf._set_selected(self.name, fake_bucket.key)
                 self.qf._set_value_data(self.name, fake_bucket.key, {'bucket': fake_bucket})
                 self.add_value(FacetValue(fake_bucket.key).bind(self))
