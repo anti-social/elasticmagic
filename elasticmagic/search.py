@@ -38,8 +38,8 @@ class SearchQuery(object):
     _post_filters = ()
     _order_by = ()
     _aggregations = Params()
-    _boost_functions = ()
-    _boost_params = Params()
+    _function_score = ()
+    _function_score_params = Params()
     _limit = None
     _offset = None
     _rescores = ()
@@ -127,15 +127,13 @@ class SearchQuery(object):
     aggs = aggregations
 
     @_with_clone
-    def boost_function(self, *args, **kwargs):
+    def function_score(self, *args, **kwargs):
         if args == (None,):
-            del self._boost_functions
-            del self._boost_params
+            del self._function_score
+            del self._function_score_params
         else:
-            self._boost_functions = self._boost_functions + args
-            self._boost_params = Params(dict(self._boost_params), **kwargs)
-
-    bf = boost_function
+            self._function_score = self._function_score + args
+            self._function_score_params = Params(dict(self._function_score_params), **kwargs)
 
     @_with_clone
     def limit(self, limit):
@@ -212,11 +210,11 @@ class SearchQuery(object):
             return self._doc_type or doc_cls.__doc_type__
 
     def get_query(self, wrap_function_score=True):
-        if wrap_function_score and self._boost_functions:
+        if wrap_function_score and self._function_score:
             return FunctionScore(
                 query=self._q,
-                functions=self._boost_functions,
-                **self._boost_params
+                functions=self._function_score,
+                **self._function_score_params
             )
         return self._q
 

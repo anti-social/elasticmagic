@@ -134,7 +134,7 @@ class SearchQueryTest(BaseTestCase):
         )
 
         self.assert_expression(
-            SearchQuery().boost_function({'random_score': {"seed": 1234}}),
+            SearchQuery().function_score({'random_score': {"seed": 1234}}),
             {
                 "query": {
                     "function_score": {
@@ -151,13 +151,13 @@ class SearchQueryTest(BaseTestCase):
             (
                 SearchQuery(MultiMatch('Iphone 6', fields=[f.name, f.description]))
                 .filter(f.status == 0)
-                .boost_function({'_score': {"seed": 1234}})
-                .boost_function(None)
-                .boost_function({'field_value_factor': {'field': f.popularity,
+                .function_score({'_score': {"seed": 1234}})
+                .function_score(None)
+                .function_score({'field_value_factor': {'field': f.popularity,
                                                         'factor': 1.2,
                                                         'modifier': 'sqrt'}},
                                 boost_mode='sum')
-                .boost_function({'boost_factor': 3,
+                .function_score({'boost_factor': 3,
                                  'filter': f.region == 12})
             ),
             {
@@ -430,7 +430,7 @@ class SearchQueryTest(BaseTestCase):
         self.assertEqual(
             SearchQuery(index=self.index)
             .filter(self.index.car.status == 1)
-            .boost_function({'boost_factor': 3})
+            .function_score({'boost_factor': 3})
             .count(),
             2
         )
@@ -465,7 +465,7 @@ class SearchQueryTest(BaseTestCase):
         self.assertEqual(
             SearchQuery(index=self.index)
             .filter(self.index.car.status == 1)
-            .boost_function({'boost_factor': 3})
+            .function_score({'boost_factor': 3})
             .exists(),
             False
         )
