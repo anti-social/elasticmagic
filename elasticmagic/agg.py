@@ -263,16 +263,19 @@ class MultiBucketAggResult(AggResult):
         if bucket.key is not None:
             self._buckets_map[bucket.key] = bucket
 
+    def get_bucket(self, key):
+        return self._buckets_map.get(key)
+
     @property
     def buckets(self):
         return list(self._buckets)
 
-    def get_bucket(self, key):
-        return self._buckets_map.get(key)
+    def __iter__(self):
+        return iter(self._buckets)
 
     def _populate_instances(self):
         buckets = list(chain(
-            *(a.buckets for a in self._mapper_registry.get(self._instance_mapper, [self]))
+            *(a._buckets for a in self._mapper_registry.get(self._instance_mapper, [self]))
         ))
         keys = [bucket.key for bucket in buckets]
         instances = self._instance_mapper(keys) if self._instance_mapper else {}
@@ -287,9 +290,6 @@ class MultiBucketAgg(BucketAgg):
         super(MultiBucketAgg, self).__init__(**kwargs)
         self._type = instantiate(type or Type)
         self._instance_mapper = instance_mapper
-
-    def __iter__(self):
-        return iter(self.buckets)
 
     def clone(self):
         return self.__class__(
