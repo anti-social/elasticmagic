@@ -1,5 +1,6 @@
 from .util import clean_params
 from .index import Index
+from .search import SearchQuery
 from .result import Result, BulkResult
 from .document import DynamicDocument
 from .expression import Params

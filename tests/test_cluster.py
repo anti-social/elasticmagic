@@ -6,6 +6,53 @@ from .base import BaseTestCase
 
 
 class ClusterTest(BaseTestCase):
+    def test_search_query(self):
+        self.client.search = MagicMock(
+            return_value={
+                'hits': {
+                    'hits': [
+                        {
+                            '_id': '381',
+                            '_type': 'product',
+                            '_index': 'test1',
+                            '_score': 4.675524,
+                            '_source': {
+                                'name': 'LG',
+                            },
+                        },
+                        {
+                            '_id': '921',
+                            '_type': 'opinion',
+                            '_index': 'test2',
+                            '_score': 3.654321,
+                            '_source': {
+                                'rank': 1.2,
+                            },
+                        }
+                    ],
+                    'max_score': 4.675524,
+                    'total': 6234
+                },
+                'timed_out': False,
+                'took': 57
+            }
+        )
+        sq = self.cluster.search_query()
+        result = sq.result
+        self.client.search.assert_called_with(body={})
+
+        self.assertEqual(len(result.hits), 2)
+        self.assertEqual(result.hits[0]._id, '381')
+        self.assertEqual(result.hits[0]._type, 'product')
+        self.assertEqual(result.hits[0]._index, 'test1')
+        self.assertAlmostEqual(result.hits[0]._score, 4.675524)
+        self.assertEqual(result.hits[0].name, 'LG')
+        self.assertEqual(result.hits[1]._id, '921')
+        self.assertEqual(result.hits[1]._type, 'opinion')
+        self.assertEqual(result.hits[1]._index, 'test2')
+        self.assertAlmostEqual(result.hits[1]._score, 3.654321)
+        self.assertAlmostEqual(result.hits[1].rank, 1.2)
+    
     def test_multi_index_search(self):
         es_log_index = self.cluster[('log_2014-11-19', 'log_2014-11-20', 'log_2014-11-20')]
         self.assertIs(
@@ -83,7 +130,7 @@ class ClusterTest(BaseTestCase):
             }
         )
         ProductDoc = self.index.product
-        sq1 = SearchQuery(doc_cls=ProductDoc, search_type='count')
+        sq1 = SearchQuery(doc_cls=ProductDoc, search_type='count', routing=123)
         sq2 = (
             SearchQuery(index=self.cluster['us'], doc_cls=ProductDoc)
             .filter(ProductDoc.status == 0)
@@ -92,7 +139,7 @@ class ClusterTest(BaseTestCase):
         results = self.cluster.multi_search([sq1, sq2])
         self.client.msearch.assert_called_with(
             body=[
-                {'doc_type': 'product', 'search_type': 'count'},
+                {'doc_type': 'product', 'search_type': 'count', 'routing': 123},
                 {},
                 {'index': 'us', 'doc_type': 'product'},
                 {'query': {'filtered': {'filter': {'term': {'status': 0}}}}, 'size': 1}
@@ -329,6 +376,7 @@ class ClusterTest(BaseTestCase):
         self.assertEqual(result.took, 2)
         self.assertEqual(result.errors, True)
         self.assertEqual(len(result.items), 5)
+        self.assertIs(next(iter(result)), result.items[0])
         self.assertEqual(result.items[0].name, 'index')
         self.assertEqual(result.items[0]._id, '1')
         self.assertEqual(result.items[0]._type, 'car')

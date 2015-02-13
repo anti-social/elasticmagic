@@ -101,14 +101,20 @@ class DocumentTestCase(BaseTestCase):
         self.assertIsInstance(TestDocument._id, AttributedField)
         self.assertIsInstance(TestDocument._id.get_field().get_type(), String)
         self.assertEqual(TestDocument._id.get_field().get_name(), '_id')
+        self.assertEqual(TestDocument._id.get_attr(), '_id')
+        self.assertIs(TestDocument._id.get_parent(), TestDocument)
         self.assert_expression(TestDocument._id, '_id')
         self.assertIsInstance(TestDocument._score, AttributedField)
         self.assertIsInstance(TestDocument._score.get_field().get_type(), Float)
         self.assertEqual(TestDocument._score.get_field().get_name(), '_score')
+        self.assertEqual(TestDocument._score.get_attr(), '_score')
+        self.assertIs(TestDocument._score.get_parent(), TestDocument)
         self.assert_expression(TestDocument._score, '_score')
         self.assertIsInstance(TestDocument.name, AttributedField)
         self.assertIsInstance(TestDocument.name.get_field().get_type(), String)
         self.assertEqual(TestDocument.name.get_field().get_name(), 'test_name')
+        self.assertEqual(TestDocument.name.get_attr(), 'name')
+        self.assertIs(TestDocument.name.get_parent(), TestDocument)
         self.assert_expression(TestDocument.name, 'test_name')
         self.assertEqual(list(TestDocument.name.fields), [TestDocument.name.raw])
         self.assertEqual(TestDocument.name._collect_doc_classes(), [TestDocument])
@@ -116,6 +122,8 @@ class DocumentTestCase(BaseTestCase):
         self.assertIsInstance(TestDocument.name.raw.get_field().get_type(), String)
         self.assert_expression(TestDocument.name.raw, 'test_name.raw')
         self.assertEqual(TestDocument.name.raw.get_field().get_name(), 'test_name.raw')
+        self.assertEqual(TestDocument.name.raw.get_attr(), 'raw')
+        self.assertIsInstance(TestDocument.name.raw.get_parent(), AttributedField)
         self.assertEqual(TestDocument.name.raw._collect_doc_classes(), [TestDocument])
         self.assertIsInstance(TestDocument.status, AttributedField)
         self.assertIsInstance(TestDocument.status.get_field().get_type(), Integer)
@@ -127,10 +135,13 @@ class DocumentTestCase(BaseTestCase):
         self.assertIsInstance(TestDocument.group.name, AttributedField)
         self.assertEqual(list(TestDocument.group.name.fields), [TestDocument.group.name.raw])
         self.assertEqual(TestDocument.group.name.get_field().get_name(), 'group.test_name')
+        self.assertEqual(TestDocument.group.name.raw.get_attr(), 'raw')
         self.assertIsInstance(TestDocument.group.name.get_field().get_type(), String)
+        self.assertIs(TestDocument.group.name.get_parent(), TestDocument)
         self.assertEqual(TestDocument.group.name._collect_doc_classes(), [TestDocument])
         self.assertEqual(TestDocument.group.name.raw.get_field().get_name(), 'group.test_name.raw')
         self.assertIsInstance(TestDocument.group.name.raw.get_field().get_type(), String)
+        self.assertIsInstance(TestDocument.group.name.raw.get_parent(), AttributedField)
         self.assertEqual(TestDocument.group.name.raw._collect_doc_classes(), [TestDocument])
         self.assertIsInstance(TestDocument.tags, AttributedField)
         self.assertIsInstance(TestDocument.tags.get_field().get_type(), List)
@@ -280,7 +291,10 @@ class DocumentTestCase(BaseTestCase):
                            price=101.5,
                            tags=[TagDocument(id=1, name='Test tag'),
                                  TagDocument(id=2, name='Just tag')],
-                           i_attr_3=45)
+                           i_attr_1=None,
+                           i_attr_2='',
+                           i_attr_3=[],
+                           i_attr_4=45)
         self.assertEqual(
             doc.to_source(),
             {
@@ -294,7 +308,7 @@ class DocumentTestCase(BaseTestCase):
                     {'id': 1, 'name': 'Test tag'},
                     {'id': 2, 'name': 'Just tag'},
                 ],
-                'i_attr_3': 45
+                'i_attr_4': 45
             }
         )
 
