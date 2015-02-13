@@ -8,7 +8,7 @@ class Action(object):
     def __init__(self, doc, index=None, doc_type=None,
                  consistency=None, refresh=None,
                  routing=None, parent=None, timestamp=None, ttl=None,
-                 version=None, version_type=None):
+                 version=None, version_type=None, **kwargs):
         from .index import Index as ESIndex
         index = index._name if isinstance(index, ESIndex) else index
 
@@ -23,6 +23,7 @@ class Action(object):
             '_version': version,
             '_version_type': version_type,
         })
+        self.meta.update(clean_params(kwargs))
 
     def get_meta(self):
         if isinstance(self.doc, dict):
@@ -35,7 +36,7 @@ class Action(object):
             doc_meta = self.doc.to_meta()
 
         meta = dict(self.meta, **clean_params(doc_meta))
-        return {self.__action_name__: meta}
+        return meta
 
     def get_source(self):
         if isinstance(self.doc, dict):
@@ -65,17 +66,28 @@ class Create(Action):
 class Update(Action):
     __action_name__ = 'update'
 
-    def __init__(self, doc=None, script=None, script_id=None, retry_on_conflict=None, **kwargs):
-        super(Update, self).__init__(doc, **kwargs)
-        self.script = script
-        self.script_id = script_id
-        self.retry_on_conflict = retry_on_conflict
-
-    def get_meta(self):
-        meta = super(Update, self).get_meta()
-        if self.retry_on_conflict is not None:
-            meta[self.__action_name__]['_retry_on_conflict'] = self.retry_on_conflict
-        return meta
+    def __init__(self, doc=None, script=None, script_id=None,
+                 index=None, doc_type=None,
+                 consistency=None, refresh=None,
+                 routing=None, parent=None,
+                 timestamp=None, ttl=None,
+                 version=None, version_type=None,
+                 detect_noop=None, retry_on_conflict=None,
+                 upsert=None, doc_as_upsert=None,
+                 scripted_upsert=None, params=None,
+                 **kwargs):
+        super(Update, self).__init__(
+            doc, script=script, script_id=script_id,
+            index=index, doc_type=doc_type,
+            consistency=consistency, refresh=refresh,
+            routing=routing, parent=parent,
+            timestamp=timestamp, ttl=ttl,
+            version=version, version_type=version_type,
+            detect_noop=detect_noop, retry_on_conflict=retry_on_conflict,
+            upsert=upsert, doc_as_upsert=doc_as_upsert,
+            scripted_upsert=scripted_upsert, params=params,
+            **kwargs
+        )
 
     def get_source(self):
         source =  super(Update, self).get_source()

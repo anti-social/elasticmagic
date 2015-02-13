@@ -305,7 +305,8 @@ class ClusterTest(BaseTestCase):
                         '_type': 'car',
                         'status': 1
                     },
-                    index=self.index
+                    index=self.index,
+                    doc_as_upsert=True,
                 ),
             ],
             refresh=True,
@@ -317,9 +318,9 @@ class ClusterTest(BaseTestCase):
                 {'delete': {'_index': 'test', '_type': 'car', '_id': '2'}},
                 {'create': {'_index': 'test', '_type': 'car', '_id': '3'}},
                 {'field3': 'value3'},
-                {'update': {'_index': 'test', '_type': 'car', '_id': '4', '_retry_on_conflict': 3}},
+                {'update': {'_index': 'test', '_type': 'car', '_id': '4', 'retry_on_conflict': 3}},
                 {'doc': {'field4': 'value4'}},
-                {'update': {'_index': 'test', '_type': 'car', '_id': '5'}},
+                {'update': {'_index': 'test', '_type': 'car', '_id': '5', 'doc_as_upsert': True}},
                 {'doc': {'status': 1}},
             ],
             refresh=True,

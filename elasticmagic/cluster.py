@@ -172,7 +172,7 @@ class Cluster(object):
                                'replication': replication})
         body = []
         for act in actions:
-            body.append(act.get_meta())
+            body.append({act.__action_name__: act.get_meta()})
             source = act.get_source()
             if source is not None:
                 body.append(source)
