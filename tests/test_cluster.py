@@ -1,3 +1,4 @@
+import warnings
 from mock import MagicMock
 
 from elasticmagic import agg, actions, Cluster, SearchQuery, DynamicDocument
@@ -38,7 +39,9 @@ class ClusterTest(BaseTestCase):
             }
         )
         sq = self.cluster.search_query()
-        result = sq.result
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            result = sq.result
         self.client.search.assert_called_with(body={})
 
         self.assertEqual(len(result.hits), 2)
