@@ -1,3 +1,5 @@
+import warnings
+import collections
 from itertools import chain
 
 from .util import _with_clone, cached_property
@@ -193,21 +195,24 @@ class SearchQuery(object):
 
     def _get_doc_cls(self):
         if self._doc_cls:
-            doc_classes = [self._doc_cls]
+            doc_cls = self._doc_cls
         else:
-            doc_classes = self._collect_doc_classes()
+            doc_cls = self._collect_doc_classes()
 
-        if len(doc_classes) != 1:
-            raise ValueError('Cannot determine document class')
+        if not doc_cls:
+            warnings.warn('Cannot determine document class')
+            return None
 
-        return next(iter(doc_classes))
+        return doc_cls
 
     def _get_doc_type(self, doc_cls=None):
         doc_cls = doc_cls or self._get_doc_cls()
-        if isinstance(doc_cls, tuple):
+        if isinstance(doc_cls, collections.Iterable):
             return ','.join(d.__doc_type__ for d in doc_cls)
-        else:
-            return self._doc_type or doc_cls.__doc_type__
+        elif self._doc_type:
+            return self._doc_type
+        elif doc_cls:
+            return doc_cls.__doc_type__
 
     def get_query(self, wrap_function_score=True):
         if wrap_function_score and self._function_score:

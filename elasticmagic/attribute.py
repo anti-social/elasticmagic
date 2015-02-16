@@ -73,10 +73,7 @@ class AttributedField(Expression, FieldOperators):
         if obj is None:
             return self
 
-        dict_ = obj.__dict__
-        if self._attr in obj.__dict__:
-            return dict_[self._attr]
-        dict_[self._attr] = None
+        obj.__dict__[self._attr] = None
         return None
 
     def _collect_doc_classes(self):

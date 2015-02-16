@@ -1,5 +1,7 @@
+import collections
+
 from .agg import BucketAgg
-from .document import Document
+from .document import DynamicDocument
 
 
 class Result(object):
@@ -7,22 +9,24 @@ class Result(object):
                  doc_cls=None, instance_mapper=None):
         self.raw = raw_result
         self._query_aggs = aggregations or {}
-        if not doc_cls:
-            self._doc_classes = (Document,)
-        elif isinstance(doc_cls, tuple):
-            self._doc_classes = doc_cls
+
+        if doc_cls is None:
+            doc_classes = ()
+        elif not isinstance(doc_cls, collections.Iterable):
+            doc_classes = (doc_cls,)
         else:
-            self._doc_classes = (doc_cls,)
-        self._doc_cls_map = {doc_cls.__doc_type__: doc_cls for doc_cls in self._doc_classes}
+            doc_classes = doc_cls
+        self._doc_cls_map = {doc_cls.__doc_type__: doc_cls for doc_cls in doc_classes}
+
         if isinstance(instance_mapper, dict):
             self._instance_mappers = instance_mapper
         else:
-            self._instance_mappers = {doc_cls: instance_mapper for doc_cls in self._doc_classes}
+            self._instance_mappers = {doc_cls: instance_mapper for doc_cls in doc_classes}
 
         self.total = raw_result['hits']['total']
         self.hits = []
         for hit in raw_result['hits']['hits']:
-            doc_cls = self._doc_cls_map[hit['_type']]
+            doc_cls = self._doc_cls_map.get(hit['_type'], DynamicDocument)
             self.hits.append(doc_cls(_hit=hit, _result=self))
 
         self.aggregations = {}
@@ -40,7 +44,7 @@ class Result(object):
 
     def _populate_instances(self, doc_cls):
         docs = [doc for doc in self.hits if isinstance(doc, doc_cls)]
-        instances = self._instance_mappers[doc_cls]([doc._id for doc in docs])
+        instances = self._instance_mappers.get(doc_cls)([doc._id for doc in docs])
         for doc in docs:
             doc.__dict__['instance'] = instances.get(doc._id)
 

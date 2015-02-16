@@ -18,10 +18,15 @@ class AggregationTest(BaseTestCase):
                 "avg": {"field": "price"}
             }
         )
-        a = a.build_agg_result({
+        res = a.build_agg_result({
             'value': 75.3
         })
-        self.assertAlmostEqual(a.value, 75.3)
+        self.assertAlmostEqual(res.value, 75.3)
+
+        aa = a.clone()
+        self.assertIsNot(a, aa)
+        self.assertEqual(a.__visit_name__, aa.__visit_name__)
+        self.assertEqual(a.params, aa.params)
 
         a = agg.Stats(f.grade)
         self.assert_expression(
@@ -416,8 +421,8 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(a.get_aggregation('min_price').value, 350)
         
         # complex aggregation with sub aggregations
-        a = agg.Global(
-            aggs={
+        a = agg.Global()
+        a = a.aggs({
                 'selling_type': agg.Terms(
                     f.selling_type,
                     aggs={

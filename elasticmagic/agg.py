@@ -37,8 +37,8 @@ class BucketAgg(AggExpression):
         return self.__class__(aggs=self._aggs, **self.params)
 
     @_with_clone
-    def aggregations(self, *args, **aggs):
-        if args == (None,):
+    def aggregations(self, aggs):
+        if aggs is None:
             self._aggs = Params()
         else:
             self._aggs = Params(dict(self._aggs), **aggs)

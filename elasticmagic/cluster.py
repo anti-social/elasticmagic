@@ -1,5 +1,6 @@
 from .util import clean_params
 from .index import Index
+from .search import SearchQuery
 from .result import Result, BulkResult
 from .document import DynamicDocument
 from .expression import Params
@@ -172,7 +173,7 @@ class Cluster(object):
                                'replication': replication})
         body = []
         for act in actions:
-            body.append(act.get_meta())
+            body.append({act.__action_name__: act.get_meta()})
             source = act.get_source()
             if source is not None:
                 body.append(source)
