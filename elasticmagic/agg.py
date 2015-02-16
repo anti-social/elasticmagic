@@ -295,8 +295,8 @@ class MultiBucketAgg(BucketAgg):
         return self.__class__(
             aggs=self._aggs,
             type=self._type,
-            instance_mapper=self._instance_mapper
-            **self.params
+            instance_mapper=self._instance_mapper,
+            **self.params or {}
         )
 
     def build_agg_result(self, raw_data, mapper_registry=None, **kwargs):
@@ -328,7 +328,7 @@ class Terms(MultiBucketAgg):
             type=self._type,
             aggs=self._aggs,
             instance_mapper=self._instance_mapper,
-            **self.params
+            **self.params or {}
         )
 
 
@@ -371,9 +371,6 @@ class RangeBucket(Bucket):
 
 class RangeAggResult(MultiBucketAggResult):
     bucket_cls = RangeBucket
-
-    def __init__(self, *args, **kwargs):
-        super(RangeAggResult, self).__init__(*args, **kwargs)
 
 
 class Range(MultiBucketAgg):

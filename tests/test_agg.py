@@ -11,6 +11,9 @@ class AggregationTest(BaseTestCase):
     def test_aggs(self):
         f = DynamicDocument.fields
 
+        a = agg.AggExpression()
+        self.assertRaises(NotImplementedError, a.build_agg_result, {})
+
         a = agg.Avg(f.price)
         self.assert_expression(
             a,
@@ -138,6 +141,23 @@ class AggregationTest(BaseTestCase):
         self.assertAlmostEqual(a.get_percent(30), 100.0)
         self.assertAlmostEqual(a.get_percent(30.0), 100.0)
 
+        a = agg.Cardinality(f.author, precision_threshold=100)
+        self.assert_expression(
+            a,
+            {
+                "cardinality": {
+                    "field": "author",
+                    "precision_threshold": 100
+                }
+            }
+        )
+        a = a.build_agg_result(
+            {
+                "value": 184
+            }
+        )
+        self.assertEqual(a.value, 184)
+
         a = agg.Global()
         self.assert_expression(a, {"global": {}})
         a = a.build_agg_result(
@@ -159,6 +179,8 @@ class AggregationTest(BaseTestCase):
                 "terms": {"field": "status"}
             }
         )
+        a1 = a.clone()
+        self.assertIsNot(a, a1)
         a = a.build_agg_result(
             {
                 'buckets': [
@@ -172,6 +194,7 @@ class AggregationTest(BaseTestCase):
             }
         )
         self.assertEqual(len(a.buckets), 6)
+        self.assertEqual(list(iter(a)), a.buckets)
         self.assertEqual(a.buckets[0].key, 0)
         self.assertEqual(a.buckets[0].doc_count, 7353499)
         self.assertIs(a.buckets[0], a.get_bucket(0))
@@ -314,6 +337,8 @@ class AggregationTest(BaseTestCase):
                 }
             }
         )
+        a1 = a.clone()
+        self.assertIsNot(a1, a)
         a = a.build_agg_result(
             {
                 "buckets": [
