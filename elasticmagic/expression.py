@@ -11,7 +11,6 @@ from .compat import string_types
 OPERATORS = {
     operator.and_: 'and',
     operator.or_: 'or',
-    operator.inv: 'inv',
 }
 
 
@@ -361,9 +360,6 @@ class Sort(QueryExpression):
 
 
 class FieldOperators(object):
-    def _get_field(self):
-        raise NotImplementedError()
-        
     def __eq__(self, other):
         if other is None:
             return self.missing()
@@ -465,11 +461,6 @@ class Field(Expression, FieldOperators):
     def get_type(self):
         return self._type
 
-    def _collect_doc_classes(self):
-        if self._doc_cls:
-            return [self._doc_cls]
-        return []
-
     def _to_python(self, value):
         return self._type.to_python(value)
 
@@ -493,9 +484,6 @@ class Compiled(object):
         self.expression = expression
         self.params = self.visit(self.expression)
         
-    def __str__(self):
-        return self.string
-
     def visit(self, expr, **kwargs):
         visit_name = None
         if hasattr(expr, '__visit_name__'):

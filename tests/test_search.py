@@ -117,17 +117,38 @@ class SearchQueryTest(BaseTestCase):
         )
 
         self.assert_expression(
-            SearchQuery().fields(f.name, f.company),
+            SearchQuery().source(f.name, f.company),
             {
                 "_source": ["name", "company"]
             }
         )
         self.assert_expression(
-            SearchQuery().fields(f.name, f.company).fields(None),
+            SearchQuery().source(exclude=[f.name, f.company]),
+            {
+                "_source": {
+                    "exclude": ["name", "company"]
+                }
+            }
+        )
+        self.assert_expression(
+            SearchQuery().source(
+                include=[f.obj1.wildcard('*'), f.obj2.wildcard('*')],
+                # FIXME: f.wildcard('*')
+                exclude=DynamicDocument.wildcard('*').description
+            ),
+            {
+                "_source": {
+                    "include": ["obj1.*", "obj2.*"],
+                    "exclude": "*.description"
+                }
+            }
+        )
+        self.assert_expression(
+            SearchQuery().source(f.name, f.company).source(None),
             {}
         )
         self.assert_expression(
-            SearchQuery().fields(f.name, f.company).fields(False),
+            SearchQuery().source(f.name, f.company).source(False),
             {
                 "_source": False
             }

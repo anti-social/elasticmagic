@@ -1,7 +1,7 @@
 from elasticmagic import DynamicDocument
-from elasticmagic import (
-    Term, Terms, Exists, Missing, Match, MatchAll, MultiMatch, Range,
-    Bool, Query, And, Or, Not, Sort,
+from elasticmagic.expression import (
+    Params, Term, Terms, Exists, Missing, Match, MatchAll, MultiMatch, Range,
+    Bool, Query, BooleanExpression, And, Or, Not, Sort, Field,
     Boosting, Common, ConstantScore, FunctionScore, DisMax, Filtered, Ids, Prefix,
 )
 
@@ -11,6 +11,14 @@ from .base import BaseTestCase
 class ExpressionTestCase(BaseTestCase):
     def test_expression(self):
         f = DynamicDocument.fields
+
+        e = Params({'foo': 'bar'})
+        self.assert_expression(
+            e,
+            {"foo": "bar"}
+        )
+        self.assertEqual(e['foo'], 'bar')
+        self.assertTrue('foo' in e)
 
         self.assert_expression(
             Match(f.message, 'this is a test'),
@@ -49,6 +57,12 @@ class ExpressionTestCase(BaseTestCase):
             Term(f.user, 'kimchy', boost=1.2),
             {
                 "term": {"user": {"value": "kimchy", "boost": 1.2}}
+            }
+        )
+        self.assert_expression(
+            Term('user.login', 'kimchy'),
+            {
+                "term": {"user.login": "kimchy"}
             }
         )
 
@@ -308,6 +322,8 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
 
+        self.assertRaises(NotImplementedError, BooleanExpression)
+
         self.assert_expression(
             And(
                 Range(f.post_date, from_='2010-03-01', to='2010-04-01'),
@@ -447,6 +463,11 @@ class ExpressionTestCase(BaseTestCase):
 
     def test_field(self):
         f = DynamicDocument.fields
+
+        self.assertRaises(TypeError, Field)
+        self.assertRaises(TypeError, Field, [])
+        self.assertRaises(TypeError, Field, 'name', 1, 2)
+        self.assert_expression(Field('name'), "name")
         
         self.assert_expression(
             f.status == 0,
@@ -493,6 +514,14 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
         self.assert_expression(
+            f.price < 101,
+            {
+                "range": {
+                    "price": {"lt": 101}
+                }
+            }
+        )
+        self.assert_expression(
             f.price <= 1000,
             {
                 "range": {
@@ -516,6 +545,15 @@ class ExpressionTestCase(BaseTestCase):
                         "query": "Hello kitty",
                         "minimum_should_match": 2
                     }
+                }
+            }
+        )
+        self.assert_expression(
+            f.price.asc(mode='min'),
+            {
+                "price": {
+                    "order": "asc",
+                    "mode": "min"
                 }
             }
         )

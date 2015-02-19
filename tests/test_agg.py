@@ -167,6 +167,9 @@ class AggregationTest(BaseTestCase):
 
         a = agg.Filter(f.company == 1)
         self.assert_expression(a, {"filter": {"term": {"company": 1}}})
+        a2 = a.clone()
+        self.assertIsNot(a, a2)
+        self.assert_expression(a2, {"filter": {"term": {"company": 1}}})
         a = a.build_agg_result(
             {"doc_count": 148}
         )
