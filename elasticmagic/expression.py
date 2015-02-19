@@ -479,6 +479,51 @@ class BoostExpression(Expression):
         return self.expr._collect_doc_classes()
 
 
+class SpanFirst(QueryExpression):
+    __query_name__ = 'span_first'
+
+    def __init__(self, match, end=None, boost=None, **kwargs):
+        super(SpanFirst, self).__init__(match=match, end=end, boost=boost, **kwargs)
+
+
+class SpanMulti(QueryExpression):
+    __query_name__ = 'span_multi'
+
+    def __init__(self, match, **kwargs):
+        super(SpanMulti, self).__init__(match=match, **kwargs)
+
+
+class SpanNear(QueryExpression):
+    __query_name__ = 'span_near'
+
+    def __init__(self, clauses, slop=None, in_order=None, collect_payloads=None, **kwargs):
+        super(SpanNear, self).__init__(
+            clauses=clauses, slop=slop,
+            in_order=in_order, collect_payloads=collect_payloads,
+            **kwargs
+        )
+
+
+class SpanNot(QueryExpression):
+    __query_name__ = 'span_not'
+
+    def __init__(self, include, exclude, dist=None, pre=None, post=None, boost=None, **kwargs):
+        super(SpanNot, self).__init__(
+            include=include, exclude=exclude, dist=dist, pre=pre, post=post, boost=boost, **kwargs
+        )
+
+
+class SpanOr(QueryExpression):
+    __query_name__ = 'span_or'
+
+    def __init__(self, clauses, boost=None, **kwargs):
+        super(SpanOr, self).__init__(clauses=clauses, boost=None, **kwargs )
+
+
+class SpanTerm(Term):
+    __query_name__ = 'span_term'
+
+
 class Compiled(object):
     def __init__(self, expression):
         self.expression = expression

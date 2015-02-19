@@ -6,6 +6,6 @@ from .expression import (
     Params, Term, Terms, Exists, Missing, Match, MultiMatch, MatchAll, Range,
     Bool, Query, DisMax, Filtered, Ids, Prefix,
     And, Or, Not, Sort, Boosting, Common, ConstantScore, FunctionScore,
-    Field,
+    Field, SpanFirst, SpanMulti, SpanNear, SpanNot, SpanOr, SpanTerm,
 )
 from .version import __version__

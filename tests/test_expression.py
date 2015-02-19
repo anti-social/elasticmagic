@@ -3,6 +3,7 @@ from elasticmagic.expression import (
     Params, Term, Terms, Exists, Missing, Match, MatchAll, MultiMatch, Range,
     Bool, Query, BooleanExpression, And, Or, Not, Sort, Field,
     Boosting, Common, ConstantScore, FunctionScore, DisMax, Filtered, Ids, Prefix,
+    SpanFirst, SpanMulti, SpanNear, SpanNot, SpanOr, SpanTerm,
 )
 
 from .base import BaseTestCase
@@ -460,6 +461,96 @@ class ExpressionTestCase(BaseTestCase):
                 }
             }
         )
+
+        self.assert_expression(
+            SpanFirst(SpanTerm(f.user, 'kimchy'), end=3),
+            {
+                "span_first": {
+                    "match": {
+                        "span_term": {"user": "kimchy"}
+                    },
+                    "end": 3
+                }
+            }
+        )
+
+        self.assert_expression(
+            SpanMulti(Prefix(f.user, 'ki', boost=1.08)),
+            {
+                "span_multi": {
+                    "match": {
+                        "prefix": {
+                            "user":  {"value": "ki", "boost": 1.08}
+                        }
+                    }
+                }
+            }
+        )
+
+        self.assert_expression(
+            SpanNear(
+                [SpanTerm(f.field, 'value1'),
+                 SpanTerm(f.field, 'value2'),
+                 SpanTerm(f.field, 'value3')],
+                slop=12,
+                in_order=False,
+                collect_payloads=False,
+            ),
+            {
+                "span_near": {
+                    "clauses": [
+                        {"span_term": {"field": "value1"}},
+                        {"span_term": {"field": "value2"}},
+                        {"span_term": {"field": "value3"}}
+                    ],
+                    "slop": 12,
+                    "in_order": False,
+                    "collect_payloads": False
+                }
+            }
+        )
+        
+        self.assert_expression(
+            SpanNot(
+                SpanTerm(f.field1, 'hoya'),
+                SpanNear([SpanTerm(f.field1, 'la'), SpanTerm(f.field1, 'hoya')], slop=0, in_order=True),
+            ),
+            {
+                "span_not": {
+                    "include": {
+                        "span_term": {"field1": "hoya"}
+                    },
+                    "exclude": {
+                        "span_near": {
+                            "clauses": [
+                                {"span_term": {"field1": "la"}},
+                                {"span_term": {"field1": "hoya"}}
+                            ],
+                            "slop": 0,
+                            "in_order": True
+                        }
+                    }
+                }
+            }
+        )
+
+        self.assert_expression(
+            SpanOr(
+                [SpanTerm(f.field, 'value1'),
+                 SpanTerm(f.field, 'value2'),
+                 SpanTerm(f.field, 'value3')]
+            ),
+            {
+                "span_or": {
+                    "clauses": [
+                        {"span_term": {"field": "value1"}},
+                        {"span_term": {"field": "value2"}},
+                        {"span_term": {"field": "value3"}}
+                    ]
+                }
+            }
+        )
+
 
     def test_field(self):
         f = DynamicDocument.fields
