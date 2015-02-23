@@ -88,7 +88,8 @@ class SearchQuery(object):
     @_with_clone
     def source(self, *args, **kwargs):
         if len(args) == 1 and args[0] is None:
-            del self._source
+            if '_source' in self.__dict__:
+                del self._source
         elif len(args) == 1 and args[0] is False:
             self._source = Source(args[0], **kwargs)
         else:
@@ -131,8 +132,9 @@ class SearchQuery(object):
     @_with_clone
     def function_score(self, *args, **kwargs):
         if args == (None,):
-            del self._function_score
-            del self._function_score_params
+            if '_function_score' in self.__dict__:
+                del self._function_score
+                del self._function_score_params
         else:
             self._function_score = self._function_score + args
             self._function_score_params = Params(dict(self._function_score_params), **kwargs)
@@ -153,7 +155,8 @@ class SearchQuery(object):
     def rescore(self, query, window_size=None,
                 query_weight=None, rescore_query_weight=None, score_mode=None):
         if query is None:
-            del self._rescores
+            if '_rescore' in self.__dict__:
+                del self._rescores
             return
         rescore = Rescore(
             query, window_size=window_size, query_weight=query_weight,

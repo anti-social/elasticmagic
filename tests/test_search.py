@@ -144,18 +144,24 @@ class SearchQueryTest(BaseTestCase):
             }
         )
         self.assert_expression(
-            SearchQuery().source(f.name, f.company).source(None),
+            SearchQuery()
+            .source(None)
+            .source(f.name, f.company)
+            .source(None),
             {}
         )
         self.assert_expression(
-            SearchQuery().source(f.name, f.company).source(False),
+            SearchQuery()
+            .source(f.name, f.company)
+            .source(False),
             {
                 "_source": False
             }
         )
 
         self.assert_expression(
-            SearchQuery().function_score({'random_score': {"seed": 1234}}),
+            SearchQuery()
+            .function_score({'random_score': {"seed": 1234}}),
             {
                 "query": {
                     "function_score": {
@@ -172,6 +178,7 @@ class SearchQueryTest(BaseTestCase):
             (
                 SearchQuery(MultiMatch('Iphone 6', fields=[f.name, f.description]))
                 .filter(f.status == 0)
+                .function_score(None)
                 .function_score({'_score': {"seed": 1234}})
                 .function_score(None)
                 .function_score({'field_value_factor': {'field': f.popularity,
@@ -220,6 +227,7 @@ class SearchQueryTest(BaseTestCase):
 
         self.assert_expression(
             SearchQuery(self.index.t.field1.match('the quick brown', type='boolean', operator='or'))
+            .rescore(None)
             .rescore(self.index.t.field1.match('the quick brown', type='phrase', slop=2),
                      window_size=100,
                      query_weight=0.7,
