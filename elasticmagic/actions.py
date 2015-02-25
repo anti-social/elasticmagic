@@ -22,6 +22,8 @@ class Action(object):
             '_ttl': ttl,
             '_version': version,
             '_version_type': version_type,
+            'refresh': refresh,
+            'consistency': consistency,
         })
         self.meta.update(clean_params(kwargs))
 
@@ -83,12 +85,17 @@ class Update(Action):
             routing=routing, parent=parent,
             timestamp=timestamp, ttl=ttl,
             version=version, version_type=version_type,
-            detect_noop=detect_noop, retry_on_conflict=retry_on_conflict,
-            upsert=upsert, doc_as_upsert=doc_as_upsert,
-            scripted_upsert=scripted_upsert, params=params,
+            _retry_on_conflict=retry_on_conflict,
             **kwargs
         )
+        self.source_params = clean_params({
+            'detect_noop': detect_noop,
+            'upsert': upsert,
+            'doc_as_upsert': doc_as_upsert,
+            'scripted_upsert': scripted_upsert,
+            'params': params,
+        })
 
     def get_source(self):
         source =  super(Update, self).get_source()
-        return {'doc': source}
+        return dict({'doc': source}, **self.source_params)

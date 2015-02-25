@@ -345,8 +345,8 @@ class ClusterTest(BaseTestCase):
         doc4 = self.index.car(_id='4', field4='value4')
         result = self.cluster.bulk(
             [
-                actions.Index(doc1, index=self.index),
-                actions.Delete(doc2, index=self.index),
+                actions.Index(doc1, index=self.index, consistency='one'),
+                actions.Delete(doc2, index=self.index, refresh=True),
                 actions.Create(doc3, index=self.index),
                 actions.Update(doc4, index=self.index, retry_on_conflict=3),
                 actions.Update(
@@ -363,15 +363,15 @@ class ClusterTest(BaseTestCase):
         )
         self.client.bulk.assert_called_with(
             body=[
-                {'index': {'_index': 'test', '_type': 'car', '_id': '1', '_ttl': '1d'}},
+                {'index': {'_index': 'test', '_type': 'car', '_id': '1', '_ttl': '1d', 'consistency': 'one'}},
                 {'field1': 'value1'},
-                {'delete': {'_index': 'test', '_type': 'car', '_id': '2'}},
+                {'delete': {'_index': 'test', '_type': 'car', '_id': '2', 'refresh': True}},
                 {'create': {'_index': 'test', '_type': 'car', '_id': '3'}},
                 {'field3': 'value3'},
-                {'update': {'_index': 'test', '_type': 'car', '_id': '4', 'retry_on_conflict': 3}},
+                {'update': {'_index': 'test', '_type': 'car', '_id': '4', '_retry_on_conflict': 3}},
                 {'doc': {'field4': 'value4'}},
-                {'update': {'_index': 'test', '_type': 'car', '_id': '5', 'doc_as_upsert': True}},
-                {'doc': {'status': 1}},
+                {'update': {'_index': 'test', '_type': 'car', '_id': '5'}},
+                {'doc': {'status': 1}, 'doc_as_upsert': True},
             ],
             refresh=True,
         )
