@@ -1,9 +1,10 @@
 import operator
 import functools
+from math import ceil
 from itertools import chain
 
 from elasticmagic import Params, Term, Terms, MatchAll, Query, Bool, agg
-from elasticmagic.types import String, instantiate
+from elasticmagic.types import String, Integer, instantiate
 from elasticmagic.compat import text_type, string_types, with_metaclass
 
 from .codec import SimpleCodec
@@ -39,7 +40,7 @@ class QueryFilter(object):
     def _filter_types(self):
         types = {}
         for filt in self._filters:
-            types[filt.name] = filt._types
+            types.update(filt._types)
         return types
 
     def _set_selected(self, name, value):
@@ -75,7 +76,7 @@ class QueryFilter(object):
 
         # First filter query with all filters
         for f in self._filters:
-            search_query = f._apply_filter(search_query, self._params.get(f.name) or {})
+            search_query = f._apply_filter(search_query, self._params)
 
         # then add aggregations
         for f in self._filters:
@@ -83,9 +84,11 @@ class QueryFilter(object):
 
         return search_query
 
-    def process_results(self, results):
+    def process_result(self, result):
         for f in self._filters:
-            f._process_agg(results, self._params.get(f.name) or {})
+            f._process_result(result, self._params)
+
+    process_results = process_result
 
     def get_filter(self, name):
         return getattr(self, name, None)
@@ -103,7 +106,7 @@ class UnboundFilter(object):
 
 class BaseFilter(object):
     def __new__(cls, *args, **kwargs):
-        if args and not isinstance(args[0], string_types):
+        if not args or not isinstance(args[0], string_types):
             return UnboundFilter(cls, args, kwargs)
         return super(BaseFilter, cls).__new__(cls)
 
@@ -116,7 +119,7 @@ class BaseFilter(object):
 
     @property
     def _types(self):
-        return []
+        return {}
 
     def _get_active_filters(self, filters):
         active_filters = []
@@ -133,7 +136,7 @@ class BaseFilter(object):
     def _apply_agg(self, search_query):
         raise NotImplementedError()
 
-    def _process_agg(self, result, params):
+    def _process_result(self, result, params):
         pass
 
 
@@ -181,7 +184,7 @@ class FacetFilter(FieldFilter):
 
     @property
     def _types(self):
-        return [self.type]
+        return {self.name: self.type}
 
     @property
     def _agg_name(self):
@@ -196,7 +199,7 @@ class FacetFilter(FieldFilter):
         return list(filter(is_not_none, map(first, values)))
 
     def _apply_filter(self, search_query, params):
-        values = self._get_values_from_params(params)
+        values = self._get_values_from_params(params.get(self.name, {}))
         if not values:
             return search_query
 
@@ -222,8 +225,8 @@ class FacetFilter(FieldFilter):
 
         return search_query.aggregations(**aggs)
         
-    def _process_agg(self, result, params):
-        values = self._get_values_from_params(params)
+    def _process_result(self, result, params):
+        values = self._get_values_from_params(params.get(self.name, {}))
 
         if result.get_aggregation(self._filter_agg_name):
             terms_agg = result \
@@ -328,7 +331,7 @@ class RangeFilter(FieldFilter):
 
     @property
     def _types(self):
-        return [self.type]
+        return {self.name: self.type}
 
     @property
     def _filter_agg_name(self):
@@ -355,6 +358,7 @@ class RangeFilter(FieldFilter):
         return to_values[0][0] if to_values else None
 
     def _apply_filter(self, search_query, params):
+        params = params.get(self.name) or {}
         self.from_value = self._get_from_value(params)
         self.to_value = self._get_to_value(params)
         if self.from_value is None and self.to_value is None:
@@ -393,7 +397,7 @@ class RangeFilter(FieldFilter):
 
         return search_query.aggregations(**aggs)
 
-    def _process_agg(self, result, params):
+    def _process_result(self, result, params):
         if result.get_aggregation(self._filter_agg_name):
             base_agg = result.get_aggregation(self._filter_agg_name)
         else:
@@ -483,7 +487,7 @@ class FacetQueryFilter(BaseFilter):
         return '{}.{}:{}'.format(self.qf._name, self.name, value)
 
     def _apply_filter(self, search_query, params):
-        values = params.get('exact')
+        values = params.get(self.name, {}).get('exact')
         if not values:
             if self.default:
                 values = [[self.default]]
@@ -519,8 +523,8 @@ class FacetQueryFilter(BaseFilter):
 
         return search_query.aggregations(**aggs)
 
-    def _process_agg(self, result, params):
-        values = params.get('exact', [])
+    def _process_result(self, result, params):
+        values = params.get(self.name, {}).get('exact', [])
         values = list(chain(*values))
         if result.get_aggregation(self._filter_agg_name):
             filters_agg = result.get_aggregation(self._filter_agg_name)
@@ -564,7 +568,7 @@ class OrderingFilter(BaseFilter):
         self.selected_value = None
 
     def _apply_filter(self, search_query, params):
-        values = params.get('exact')
+        values = params.get(self.name, {}).get('exact')
 
         ordering_value = None
         if values:
@@ -578,3 +582,56 @@ class OrderingFilter(BaseFilter):
 
     def _apply_agg(self, search_query):
         return search_query
+
+
+class PageFilter(BaseFilter):
+    DEFAULT_PER_PAGE_PARAM = 'per_page'
+    DEFAULT_PER_PAGE = 10
+
+    def __init__(self, name, per_page_param=None, per_page_values=None):
+        super(PageFilter, self).__init__(name)
+        self.per_page_param = per_page_param or self.DEFAULT_PER_PAGE_PARAM
+        self.per_page_values = per_page_values or [self.DEFAULT_PER_PAGE]
+
+        self.per_page = None
+        self.page = None
+        self.total = None
+        self.items = None
+        self.pages = None
+
+    @property
+    def _types(self):
+        return {
+            self.name: Integer,
+            self.per_page_param: Integer,
+        }
+
+    def _apply_filter(self, search_query, params):
+        per_page = params.get(self.per_page_param, {}).get('exact')
+        if per_page:
+            self.per_page = per_page[0][0]
+        if self.per_page not in self.per_page_values:
+            self.per_page = self.per_page_values[0]
+        search_query = search_query.limit(self.per_page)
+
+        page_num = params.get(self.name, {}).get('exact')
+        if page_num:
+            self.page = page_num[0][0]
+        else:
+            self.page = 1
+
+        if self.page > 1:
+            search_query = search_query.offset((self.page - 1) * self.per_page)
+
+        return search_query
+
+    def _apply_agg(self, search_query):
+        return search_query
+
+    def _process_result(self, result, params):
+        self.total = result.total
+        self.items = result.hits
+        self.pages = int(ceil(self.total / float(self.per_page)))
+        self.has_prev = self.page > 1
+        self.has_next = self.page < self.pages
+

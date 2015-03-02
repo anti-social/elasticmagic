@@ -5,6 +5,7 @@ from elasticmagic.types import Integer, Float
 from elasticmagic.ext.queryfilter import QueryFilter, FacetFilter, RangeFilter
 from elasticmagic.ext.queryfilter import FacetQueryFilter, FacetQueryValue
 from elasticmagic.ext.queryfilter import OrderingFilter, OrderingValue
+from elasticmagic.ext.queryfilter import PageFilter
 
 from .base import BaseTestCase
 
@@ -745,6 +746,70 @@ class QueryFilterTest(BaseTestCase):
         self.assertEqual(qf.sort.selected_value.selected, True)
         self.assertEqual(qf.sort.get_value('popularity').selected, False)
         self.assertEqual(qf.sort.get_value('-price').selected, False)
+
+    def test_page(self):
+        class CarQueryFilter(QueryFilter):
+            page = PageFilter(per_page_values=[10, 25, 50])
+
+        sq = self.index.search_query()
+
+        qf = CarQueryFilter()
+        self.assert_expression(
+            qf.apply(sq, {}),
+            {
+                "size": 10
+            }
+        )
+
+        self.assert_expression(
+            qf.apply(sq, {'page': 3}),
+            {
+                "size": 10,
+                "from": 20
+            }
+        )
+
+        self.assert_expression(
+            qf.apply(sq, {'per_page': 25}),
+            {
+                "size": 25
+            }
+        )
+
+        self.assert_expression(
+            qf.apply(sq, {'page': 3, 'per_page': 100}),
+            {
+                "size": 10,
+                "from": 20
+            }
+        )
+
+        self.client.search = MagicMock(
+            return_value={
+                "hits": {
+                    "hits": [
+                        {"_id": "21", "_type": "car"},
+                        {"_id": "22", "_type": "car"},
+                        {"_id": "23", "_type": "car"},
+                        {"_id": "24", "_type": "car"},
+                        {"_id": "25", "_type": "car"},
+                        {"_id": "26", "_type": "car"},
+                        {"_id": "27", "_type": "car"},
+                        {"_id": "28", "_type": "car"},
+                        {"_id": "29", "_type": "car"},
+                        {"_id": "30", "_type": "car"},
+                    ],
+                    "max_score": 5.487631,
+                    "total": 105
+                }
+            }
+        )
+        qf.process_results(sq.result)
+        self.assertEqual(qf.page.total, 105)
+        self.assertEqual(qf.page.pages, 11)
+        self.assertEqual(qf.page.has_next, True)
+        self.assertEqual(qf.page.has_prev, True)
+        self.assertEqual(len(qf.page.items), 10)
 
    # def test_nested(self):
     #     f = DynamicDocument.fields
