@@ -119,7 +119,7 @@ class Cluster(object):
                 query_header['index'] = q._index._name
             doc_type = q._get_doc_type()
             if doc_type:
-                query_header['doc_type'] = doc_type
+                query_header['type'] = doc_type
             if q._routing:
                 query_header['routing'] = q._routing
             if q._search_type:

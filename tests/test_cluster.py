@@ -142,9 +142,9 @@ class ClusterTest(BaseTestCase):
         results = self.cluster.multi_search([sq1, sq2])
         self.client.msearch.assert_called_with(
             body=[
-                {'doc_type': 'product', 'search_type': 'count', 'routing': 123},
+                {'type': 'product', 'search_type': 'count', 'routing': 123},
                 {},
-                {'index': 'us', 'doc_type': 'product'},
+                {'index': 'us', 'type': 'product'},
                 {'query': {'filtered': {'filter': {'term': {'status': 0}}}}, 'size': 1}
             ]
         )
