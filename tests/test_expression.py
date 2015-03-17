@@ -602,6 +602,17 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
         self.assert_expression(
+            f.name.span_first("iphone", 2),
+            {
+                "span_first": {
+                    "match": {
+                        "span_term": {"name": "iphone"}
+                    },
+                    "end": 2
+                }
+            }
+        )
+        self.assert_expression(
             f.status.in_([0, 2, 3]),
             {
                 "terms": {"status": [0, 2, 3]}

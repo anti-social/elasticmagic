@@ -393,6 +393,12 @@ class FieldOperators(object):
     def term(self, term, **kwargs):
         return Term(self, term, **kwargs)
 
+    def span_term(self, term, **kwargs):
+        return SpanTerm(self, term, **kwargs)
+
+    def span_first(self, term, end, **kwargs):
+        return SpanFirst(self.span_term(term), end, **kwargs)
+
     def exists(self, **kwargs):
         return Exists(self, **kwargs)
 
@@ -490,7 +496,7 @@ class BoostExpression(Expression):
 class SpanFirst(QueryExpression):
     __query_name__ = 'span_first'
 
-    def __init__(self, match, end=None, boost=None, **kwargs):
+    def __init__(self, match, end, boost=None, **kwargs):
         super(SpanFirst, self).__init__(match=match, end=end, boost=boost, **kwargs)
 
 
