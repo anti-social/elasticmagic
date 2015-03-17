@@ -154,6 +154,17 @@ class ExpressionTestCase(BaseTestCase):
         )
 
         self.assert_expression(
+            Range(self.index.product.price, lte=100, boost=2.2, execution='index', _cache=False),
+            {
+                "range": {
+                    "price": {"lte": 100, "boost": 2.2},
+                    "execution": "index",
+                    "_cache": False
+                }
+            }
+        )
+
+        self.assert_expression(
             Boosting(
                 positive=Term(f.field1, 'value1'),
                 negative=Term(f.field2, 'value2'),

@@ -4,6 +4,7 @@ import operator
 import collections
 from itertools import chain, count
 
+from .util import clean_params
 from .types import instantiate, Type
 from .compat import string_types
 
@@ -37,14 +38,7 @@ class QueryExpression(Expression):
 
     def __init__(self, **kwargs):
         super(QueryExpression, self).__init__()
-        params = {}
-        for k, v in kwargs.items():
-            if v is None:
-                continue
-            if k.endswith('_') and not k.startswith('_'):
-                k = k.rstrip('_')
-            params[k] = v
-        self.params = Params(params)
+        self.params = Params(kwargs)
 
     def _collect_doc_classes(self):
         doc_classes = []
@@ -58,7 +52,11 @@ class Params(Expression, collections.Mapping):
     __visit_name__ = 'params'
 
     def __init__(self, *args, **kwargs):
-        self._params = dict(*args, **kwargs)
+        self._params = {}
+        for k, v in clean_params(dict(*args, **kwargs)).items():
+            if k.endswith('_') and not k.startswith('_'):
+                k = k.rstrip('_')
+            self._params[k] = v
 
     def __len__(self):
         return len(self._params)
@@ -270,8 +268,18 @@ class Ids(QueryExpression):
 class Range(FieldExpression):
     __visit_name__ = 'range'
 
-    def __init__(self, field, gte=None, gt=None, lte=None, lt=None, boost=None, **kwargs):
-        super(Range, self).__init__(field, gte=gte, gt=gt, lte=lte, lt=lt, boost=boost, **kwargs)
+    def __init__(self, field, gte=None, gt=None, lte=None, lt=None,
+                 from_=None, to=None, include_lower=None, include_upper=None,
+                 boost=None, time_zone=None, format=None, execution=None,
+                 _name=None, _cache=None, _cache_key=None, **kwargs):
+        super(Range, self).__init__(
+            field, gte=gte, gt=gt, lte=lte, lt=lt,
+            from_=from_, to=to, include_lower=include_lower, include_upper=include_upper,
+            boost=boost, time_zone=time_zone, format=format,
+        )
+        self.range_params = Params(
+            execution=execution, _name=_name, _cache=_cache, _cache_key=_cache_key, **kwargs
+        )
 
 
 class Prefix(FieldQueryExpression):
@@ -397,8 +405,8 @@ class FieldOperators(object):
     def match(self, query, **kwargs):
         return Match(self, query, **kwargs)
 
-    def range(self, gte=None, lte=None, gt=None, lt=None):
-        return Range(self, gte=gte, lte=lte, gt=gt, lt=lt)
+    def range(self, gte=None, lte=None, gt=None, lt=None, **kwargs):
+        return Range(self, gte=gte, lte=lte, gt=gt, lt=lt, **kwargs)
 
     def asc(
             self, mode=None, missing=None, nested_path=None,
@@ -592,10 +600,11 @@ class Compiled(object):
             }
 
     def visit_range(self, expr):
+        field_params = {
+            self.visit(expr.field): self.visit(expr.params)
+        }
         return {
-            'range': {
-                self.visit(expr.field): self.visit(expr.params)
-            }
+            'range': dict(self.visit(expr.range_params), **field_params)
         }
 
     def visit_terms(self, expr):
