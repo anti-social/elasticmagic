@@ -4,7 +4,7 @@ import operator
 import collections
 from itertools import chain, count
 
-from .util import clean_params
+from .util import clean_params, collect_doc_classes
 from .types import instantiate, Type
 from .compat import string_types
 
@@ -41,11 +41,7 @@ class QueryExpression(Expression):
         self.params = Params(kwargs)
 
     def _collect_doc_classes(self):
-        doc_classes = []
-        for v in self.params.values():
-            if hasattr(v, '_collect_doc_classes'):
-                doc_classes += v._collect_doc_classes()
-        return doc_classes
+        return collect_doc_classes(self.params)
 
 
 class Params(Expression, collections.Mapping):
@@ -57,6 +53,9 @@ class Params(Expression, collections.Mapping):
             if k.endswith('_') and not k.startswith('_'):
                 k = k.rstrip('_')
             self._params[k] = v
+
+    def _collect_doc_classes(self):
+        return collect_doc_classes(self._params)
 
     def __len__(self):
         return len(self._params)
@@ -80,8 +79,10 @@ class FieldExpression(QueryExpression):
         self.field = _wrap_literal(field)
 
     def _collect_doc_classes(self):
-        return super(FieldExpression, self)._collect_doc_classes() \
-            + self.field._collect_doc_classes()
+        return set().union(
+            super(FieldExpression, self)._collect_doc_classes(),
+            collect_doc_classes(self.field),
+        )
 
 
 class FieldQueryExpression(FieldExpression):
@@ -91,6 +92,12 @@ class FieldQueryExpression(FieldExpression):
     def __init__(self, field, query, **kwargs):
         super(FieldQueryExpression, self).__init__(field, **kwargs)
         self.query = query
+
+    def _collect_doc_classes(self):
+        return set().union(
+            super(FieldQueryExpression, self)._collect_doc_classes(),
+            collect_doc_classes(self.query),
+        )
 
 
 class Term(FieldQueryExpression):
@@ -150,8 +157,10 @@ class MultiMatch(QueryExpression):
         self.fields = fields
 
     def _collect_doc_classes(self):
-        return super(MultiMatch, self)._collect_doc_classes() \
-            + list(chain(*[f._collect_doc_classes() for f in self.fields]))
+        return set().union(
+            super(MultiMatch, self)._collect_doc_classes(),
+            collect_doc_classes(self.fields),
+        )
 
 
 class MatchAll(QueryExpression):
@@ -297,6 +306,12 @@ class Query(QueryExpression):
         super(Query, self).__init__(**kwargs)
         self.query = query
 
+    def _collect_doc_classes(self):
+        return set().union(
+            super(Query, self)._collect_doc_classes(),
+            collect_doc_classes(self.query),
+        )
+
 
 class BooleanExpression(QueryExpression):
     __visit_name__ = 'boolean_expression'
@@ -315,6 +330,12 @@ class BooleanExpression(QueryExpression):
         self.expressions = expressions
         return self
         
+    def _collect_doc_classes(self):
+        return set().union(
+            super(BooleanExpression, self)._collect_doc_classes(),
+            collect_doc_classes(self.expressions),
+        )
+
     @classmethod
     def and_(cls, *expressions, **kwargs):
         return cls._construct(operator.and_, *expressions, **kwargs)
@@ -334,6 +355,12 @@ class Not(QueryExpression):
     def __init__(self, expr, **kwargs):
         super(Not, self).__init__(**kwargs)
         self.expr = expr
+
+    def _collect_doc_classes(self):
+        return set().union(
+            super(Not, self)._collect_doc_classes(),
+            collect_doc_classes(self.expr),
+        )
 
 
 class Exists(QueryExpression):
@@ -365,6 +392,12 @@ class Sort(QueryExpression):
         )
         self.expr = expr
         self.order = order
+
+    def _collect_doc_classes(self):
+        return set().union(
+            super(Sort, self)._collect_doc_classes(),
+            collect_doc_classes(self.expr),
+        )
 
 
 class FieldOperators(object):
@@ -490,7 +523,7 @@ class BoostExpression(Expression):
         self.weight = weight
 
     def _collect_doc_classes(self):
-        return self.expr._collect_doc_classes()
+        return collect_doc_classes(self.expr)
 
 
 class SpanFirst(QueryExpression):

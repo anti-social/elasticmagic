@@ -1,4 +1,5 @@
 from functools import wraps
+from itertools import chain
 
 
 def _with_clone(fn):
@@ -30,3 +31,18 @@ def to_camel_case(s):
 
 def clean_params(params):
     return {p: v for p, v in params.items() if v is not None}
+
+
+def collect_doc_classes(expr):
+    if hasattr(expr, '_collect_doc_classes'):
+        return expr._collect_doc_classes()
+
+    if isinstance(expr, dict):
+        return set().union(
+            *[collect_doc_classes(e) for e in chain(expr.keys(), expr.values())]
+        )
+
+    if isinstance(expr, (list, tuple)):
+        return set().union(*[collect_doc_classes(e) for e in expr])
+
+    return set()

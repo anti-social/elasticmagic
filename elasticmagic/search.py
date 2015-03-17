@@ -2,7 +2,7 @@ import warnings
 import collections
 from itertools import chain
 
-from .util import _with_clone, cached_property
+from .util import _with_clone, cached_property, collect_doc_classes
 from .result import Result
 from .expression import Expression, Params, Filtered, And, Bool, FunctionScore, Compiled
 
@@ -18,6 +18,13 @@ class Source(Expression):
         self.include = include
         self.exclude = exclude
 
+    def _collect_doc_classes(self):
+        return set().union(
+            collect_doc_classes(self.fields),
+            collect_doc_classes(self.include),
+            collect_doc_classes(self.exclude),
+        )
+
 
 class Rescore(Expression):
     __visit_name__ = 'rescore'
@@ -29,6 +36,9 @@ class Rescore(Expression):
         self.query_weight = query_weight
         self.rescore_query_weight = rescore_query_weight
         self.score_mode = score_mode
+
+    def _collect_doc_classes(self):
+        return collect_doc_classes(self.query)
 
 
 class SearchQuery(object):
@@ -296,16 +306,19 @@ class SearchQuery(object):
         )
 
     def _collect_doc_classes(self):
-        doc_types = set()
-        for expr in chain([self._q],
-                          [self._source],
-                          chain(*[f for f, m in self._filters]),
-                          chain(*[f for f, m in self._post_filters]),
-                          self._order_by,
-                          self._aggregations.values()):
-            if expr and hasattr(expr, '_collect_doc_classes'):
-                doc_types.update(expr._collect_doc_classes())
-        return doc_types
+        return set().union(
+            *map(
+                collect_doc_classes,
+                [
+                    self._q,
+                    self._source,
+                    list(chain(*[f for f, m in self._filters])),
+                    list(chain(*[f for f, m in self._post_filters])),
+                    self._order_by,
+                    self._aggregations.values(),
+                ]
+            )
+        )
 
     def __iter__(self):
         if self._iter_instances:
