@@ -725,6 +725,36 @@ class SearchQueryTest(BaseTestCase):
         self.assertAlmostEqual(doc.rating, 4.8)
         self.assertEqual(doc.instance, '21-21')
 
+    def test_search_scroll(self):
+        self.client.search = MagicMock(
+            return_value={
+                '_scroll_id': 'c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1',
+                'hits': {
+                    'total': 93570,
+                    'max_score': 0,
+                    'hits': []
+                },
+                'timed_out': False,
+                'took': 90
+            }
+        )
+        sq = (
+            self.index.search_query(search_type='scan', scroll='1m')
+            .limit(1000)
+        )
+        result = sq.result
+
+        self.client.search.assert_called_with(
+            index='test',
+            body={
+                'size': 1000
+            },
+            search_type='scan',
+            scroll='1m',
+        )
+        self.assertEqual(result.scroll_id, 'c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1')
+        self.assertEqual(list(result), [])
+
     def test_delete(self):
         self.index.query(self.index.car.vendor == 'Focus').delete()
         self.client.delete_by_query.assert_called_with(

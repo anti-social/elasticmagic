@@ -36,6 +36,8 @@ class Result(object):
             agg_result = agg_expr.build_agg_result(raw_agg_data, mapper_registry=self._mapper_registry)
             self.aggregations[agg_name] = agg_result
 
+        self.scroll_id = raw_result.get('_scroll_id')
+            
     def __iter__(self):
         return iter(self.hits)
 

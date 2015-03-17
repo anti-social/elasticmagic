@@ -79,10 +79,11 @@ class Cluster(object):
 
     mget = multi_get
 
-    def search(self, q, index=None, doc_type=None, routing=None, preference=None, search_type=None):
+    def search(self, q, index=None, doc_type=None, routing=None, preference=None, search_type=None, scroll=None):
         params = clean_params({
             'index': index, 'doc_type': doc_type, 
-            'routing': routing, 'preference': preference, 'search_type': search_type
+            'routing': routing, 'preference': preference,
+            'search_type': search_type, 'scroll': scroll,
         })
         raw_result = self._client.search(body=q.to_dict(), **params)
         return Result(raw_result, q._aggregations,
@@ -105,6 +106,13 @@ class Cluster(object):
                                'routing': routing})
         return self._client.exists(body=body, **params)['exists']
 
+    def scroll(self, scroll_id, scroll, doc_cls=None, instance_mapper=None):
+        return Result(
+            self._client.scroll(scroll_id=scroll_id, scroll=scroll),
+            doc_cls=doc_cls,
+            instance_mapper=instance_mapper,
+        )
+    
     def multi_search(self, queries, index=None, doc_type=None, 
                      routing=None, preference=None, search_type=None):
         params = clean_params({'index': index,

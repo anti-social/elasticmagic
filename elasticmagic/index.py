@@ -54,10 +54,10 @@ class Index(object):
 
     mget = multi_get
 
-    def search(self, q, doc_type=None, routing=None, preference=None, search_type=None):
+    def search(self, q, doc_type=None, routing=None, preference=None, search_type=None, scroll=None):
         return self._cluster.search(
             q, index=self._name, doc_type=doc_type, 
-            routing=routing, preference=preference, search_type=search_type,
+            routing=routing, preference=preference, search_type=search_type, scroll=scroll,
         )
 
     def multi_search(self, queries, doc_type=None, routing=None, preference=None, search_type=None):
@@ -76,6 +76,11 @@ class Index(object):
     def exists(self, q, doc_type=None, refresh=None, routing=None):
         return self._cluster.exists(
             q, index=self._name, doc_type=doc_type, refresh=refresh, routing=routing,
+        )
+
+    def scroll(self, scroll_id, scroll, doc_cls=None, instance_mapper=None):
+        return self._cluster.scroll(
+            scroll_id, scroll, doc_cls=doc_cls, instance_mapper=instance_mapper,
         )
 
     def add(self, docs, doc_type=None, timeout=None, consistency=None, replication=None):

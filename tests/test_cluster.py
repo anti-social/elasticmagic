@@ -165,6 +165,49 @@ class ClusterTest(BaseTestCase):
         self.assertAlmostEqual(doc.price.unit, 5.67)
         self.assertEqual(doc.status, 0)
 
+    def test_scroll(self):
+        self.client.scroll = MagicMock(
+            return_value={
+                "_scroll_id": "c2NhbjsxNjsxNTM4NDo1ajYydHRRZVNDeXBrS2RNODVYUkt",
+                "took": 570,
+                "timed_out": False,
+                "hits": {
+                    "total": 93570,
+                    "max_score": 0,
+                    "hits": [
+                        {
+                            "_index": "test",
+                            "_type": "product",
+                            "_id": "55377178",
+                            "_score": 0,
+                            "_source": {
+                                "name": "Super iPhone case"
+                            }
+                        },
+                        {
+                            "_index": "test",
+                            "_type": "product",
+                            "_id": "55377196",
+                            "_score": 0,
+                            "_source": {
+                                "name": "Endorphone case for iPhone 5/5s Battlefield"
+                            }
+                        }
+                    ]
+                }
+            }
+        )
+        result = self.cluster.scroll(
+            scroll_id='c2NhbjsxNjsxNDk2MTg6TndpSEZscTBSUnlVc2I4NkcwNUQwUTsx',
+            scroll='30m'
+        )
+        self.client.scroll.assert_called_with(
+            scroll_id='c2NhbjsxNjsxNDk2MTg6TndpSEZscTBSUnlVc2I4NkcwNUQwUTsx',
+            scroll='30m'
+        )
+        self.assertEqual(len(result.hits), 2)
+        self.assertEqual(result.scroll_id, 'c2NhbjsxNjsxNTM4NDo1ajYydHRRZVNDeXBrS2RNODVYUkt')
+
     def test_get(self):
         self.client.get = MagicMock(
             return_value={

@@ -52,6 +52,7 @@ class SearchQuery(object):
     _doc_type = None
     _routing = None
     _search_type = None
+    _scroll = None
 
     _instance_mapper = None
     _iter_instances = False
@@ -59,7 +60,7 @@ class SearchQuery(object):
     def __init__(self, q=None, 
                  cluster=None, index=None,
                  doc_cls=None, doc_type=None,
-                 routing=None, search_type=None):
+                 routing=None, search_type=None, scroll=None):
         if q is not None:
             self._q = q
         if cluster:
@@ -74,6 +75,8 @@ class SearchQuery(object):
             self._routing = routing
         if search_type:
             self._search_type = search_type
+        if scroll:
+            self._scroll = scroll
 
     def clone(self):
         cls = self.__class__
@@ -196,6 +199,10 @@ class SearchQuery(object):
     def with_search_type(self, search_type):
         self._search_type = search_type
 
+    @_with_clone
+    def with_scroll(self, scroll):
+        self._scroll = scroll
+
     def _get_doc_cls(self):
         if self._doc_cls:
             doc_cls = self._doc_cls
@@ -257,6 +264,7 @@ class SearchQuery(object):
             doc_type=doc_type,
             routing=self._routing,
             search_type=self._search_type,
+            scroll=self._scroll,
         )
 
     @property
