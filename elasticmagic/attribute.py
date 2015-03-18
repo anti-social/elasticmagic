@@ -79,7 +79,7 @@ class AttributedField(Expression, FieldOperators):
     def _collect_doc_classes(self):
         if isinstance(self._parent, AttributedField):
             return self._parent._collect_doc_classes()
-        return [self._parent]
+        return {self._parent}
 
     def _to_python(self, value):
         return self._field._to_python(value)

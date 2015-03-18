@@ -149,8 +149,8 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
         self.assertEqual(
-            list(set(e._collect_doc_classes())),
-            [self.index.star]
+            e._collect_doc_classes(),
+            {self.index.star}
         )
 
         self.assert_expression(

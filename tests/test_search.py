@@ -7,6 +7,7 @@ from elasticmagic import (
     SearchQuery, Params, Term, Bool, MultiMatch,
     FunctionScore, Sort, agg
 )
+from elasticmagic.util import collect_doc_classes
 from elasticmagic.types import String, Integer, Float, Object
 from elasticmagic.expression import Field
 
@@ -17,13 +18,13 @@ class SearchQueryTest(BaseTestCase):
     def test_search_query_compile(self):
         f = DynamicDocument.fields
 
-        self.assert_expression(
-            SearchQuery(),
-            {}
-        )
+        sq = SearchQuery()
+        self.assert_expression(sq, {})
+        self.assertEqual(collect_doc_classes(sq), set())
 
+        sq = SearchQuery(Term(f.user, 'kimchy')).limit(10).offset(0)
         self.assert_expression(
-            SearchQuery(Term(f.user, 'kimchy')).limit(10).offset(0),
+            sq,
             {
                 "from": 0,
                 "size": 10,
@@ -32,9 +33,11 @@ class SearchQueryTest(BaseTestCase):
                 }
             }
         )
+        self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
 
+        sq = SearchQuery(Term(f.user, 'kimchy')).filter(f.age >= 16)
         self.assert_expression(
-            SearchQuery(Term(f.user, 'kimchy')).filter(f.age >= 16),
+            sq,
             {
                 "query": {
                     "filtered": {
@@ -50,10 +53,15 @@ class SearchQueryTest(BaseTestCase):
                 }
             }
         )
-        self.assert_expression(
+        self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
+
+        sq = (
             SearchQuery(Term(f.user, 'kimchy'))
             .filter(f.age >= 16)
-            .filter(f.lang == 'English'),
+            .filter(f.lang == 'English')
+        )
+        self.assert_expression(
+            sq,
             {
                 "query": {
                     "filtered": {
@@ -80,13 +88,18 @@ class SearchQueryTest(BaseTestCase):
                 }
             }
         )
+        self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
 
-        self.assert_expression(
-            SearchQuery().order_by(
+        sq = (
+            SearchQuery()
+            .order_by(
                 f.opinion_rating.desc(missing='_last'),
                 f.opinion_count.desc(),
                 f.id
-            ),
+            )
+        )
+        self.assert_expression(
+            sq,
             {
                 "sort": [
                     {
@@ -102,40 +115,51 @@ class SearchQueryTest(BaseTestCase):
                 ]
             }
         )
-        self.assert_expression(
-            (
-                SearchQuery()
-                .order_by(
-                    f.opinion_rating.desc(missing='_last'),
-                    f.opinion_count.desc(),
-                    f.id
-                )
-                .order_by(None)
-                .order_by(None)
-            ),
-            {}
-        )
+        self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
 
+        sq = (
+            SearchQuery()
+            .order_by(
+                f.opinion_rating.desc(missing='_last'),
+                f.opinion_count.desc(),
+                f.id
+            )
+            .order_by(None)
+            .order_by(None)
+        )
+        self.assert_expression(sq, {})
+        self.assertEqual(collect_doc_classes(sq), set())
+
+        sq = SearchQuery().source(f.name, f.company)
         self.assert_expression(
-            SearchQuery().source(f.name, f.company),
+            sq,
             {
                 "_source": ["name", "company"]
             }
         )
+        self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
+
+        sq = SearchQuery().source(exclude=[f.name, f.company])
         self.assert_expression(
-            SearchQuery().source(exclude=[f.name, f.company]),
+            sq,
             {
                 "_source": {
                     "exclude": ["name", "company"]
                 }
             }
         )
-        self.assert_expression(
-            SearchQuery().source(
+        self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
+
+        sq = (
+            SearchQuery()
+            .source(
                 include=[f.obj1.wildcard('*'), f.obj2.wildcard('*')],
                 # FIXME: f.wildcard('*')
                 exclude=DynamicDocument.wildcard('*').description
-            ),
+            )
+        )
+        self.assert_expression(
+            sq,
             {
                 "_source": {
                     "include": ["obj1.*", "obj2.*"],
@@ -143,21 +167,29 @@ class SearchQueryTest(BaseTestCase):
                 }
             }
         )
-        self.assert_expression(
+        self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
+
+        sq = (
             SearchQuery()
             .source(None)
             .source(f.name, f.company)
-            .source(None),
-            {}
+            .source(None)
         )
-        self.assert_expression(
+        self.assert_expression(sq, {})
+        self.assertEqual(collect_doc_classes(sq), set())
+
+        sq = (
             SearchQuery()
             .source(f.name, f.company)
-            .source(False),
+            .source(False)
+        )
+        self.assert_expression(
+            sq,
             {
                 "_source": False
             }
         )
+        self.assertEqual(collect_doc_classes(sq), set())
 
         self.assert_expression(
             SearchQuery()
@@ -174,20 +206,22 @@ class SearchQueryTest(BaseTestCase):
                 }
             }
         )
+
+        sq = (
+            SearchQuery(MultiMatch('Iphone 6', fields=[f.name, f.description]))
+            .filter(f.status == 0)
+            .function_score(None)
+            .function_score({'_score': {"seed": 1234}})
+            .function_score(None)
+            .function_score({'field_value_factor': {'field': f.popularity,
+                                                    'factor': 1.2,
+                                                    'modifier': 'sqrt'}},
+                            boost_mode='sum')
+            .function_score({'boost_factor': 3,
+                             'filter': f.region == 12})
+        )
         self.assert_expression(
-            (
-                SearchQuery(MultiMatch('Iphone 6', fields=[f.name, f.description]))
-                .filter(f.status == 0)
-                .function_score(None)
-                .function_score({'_score': {"seed": 1234}})
-                .function_score(None)
-                .function_score({'field_value_factor': {'field': f.popularity,
-                                                        'factor': 1.2,
-                                                        'modifier': 'sqrt'}},
-                                boost_mode='sum')
-                .function_score({'boost_factor': 3,
-                                 'filter': f.region == 12})
-            ),
+            sq,
             {
                 "query": {
                     "filtered": {
@@ -224,8 +258,9 @@ class SearchQueryTest(BaseTestCase):
                 }
             }
         )
+        self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
 
-        self.assert_expression(
+        sq = (
             SearchQuery(self.index.t.field1.match('the quick brown', type='boolean', operator='or'))
             .rescore(None)
             .rescore(self.index.t.field1.match('the quick brown', type='phrase', slop=2),
@@ -234,7 +269,10 @@ class SearchQueryTest(BaseTestCase):
                      rescore_query_weight=1.2)
             .rescore(FunctionScore(script_score={'script': "log10(doc['numeric'].value + 2)"}),
                      window_size=10,
-                     score_mode='multiply'),
+                     score_mode='multiply')
+        )
+        self.assert_expression(
+            sq,
             {
                 "query": {
                     "match": {
@@ -278,20 +316,27 @@ class SearchQueryTest(BaseTestCase):
                 ]
             }
         )
+        self.assertEqual(collect_doc_classes(sq), {self.index.t})
 
+        sq = SearchQuery().post_filter(self.index.shirt.color == 'red')
         self.assert_expression(
-            SearchQuery().post_filter(self.index.shirt.color == 'red'),
+            sq,
             {
                 "post_filter": {
                     "term": {"color": "red"}
                 }
             }
         )
-        self.assert_expression(
+        self.assertEqual(collect_doc_classes(sq), {self.index.shirt})
+
+        sq = (
             SearchQuery()
             .filter(self.index.shirt.brand == 'gucci')
             .post_filter(self.index.shirt.color == 'red')
-            .post_filter(self.index.shirt.model == 't-shirt'),
+            .post_filter(self.index.shirt.model == 't-shirt')
+        )
+        self.assert_expression(
+            sq,
             {
                 "query": {
                     "filtered": {
@@ -310,12 +355,14 @@ class SearchQueryTest(BaseTestCase):
                 }
             }
         )
+        self.assertEqual(collect_doc_classes(sq), {self.index.shirt})
 
     def test_aggregations(self):
         f = DynamicDocument.fields
 
+        sq = SearchQuery().aggregations(min_price=agg.Min(f.price))
         self.assert_expression(
-            SearchQuery().aggregations(min_price=agg.Min(f.price)),
+            sq,
             {
                 "aggregations": {
                     "min_price": {
@@ -324,9 +371,11 @@ class SearchQueryTest(BaseTestCase):
                 }
             }
         )
+        self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
 
+        sq = SearchQuery().aggregations(genders=agg.Terms(f.gender))
         self.assert_expression(
-            SearchQuery().aggregations(genders=agg.Terms(f.gender)),
+            sq,
             {
                 "aggregations": {
                     "genders": {
@@ -335,9 +384,16 @@ class SearchQueryTest(BaseTestCase):
                 }
             }
         )
+        self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
 
+        sq = (
+            SearchQuery()
+            .aggregations(
+                type=agg.Terms(f.type, aggs={'min_price': agg.Min(f.price)})
+            )
+        )
         self.assert_expression(
-            SearchQuery().aggregations(type=agg.Terms(f.type, aggs={'min_price': agg.Min(f.price)})),
+            sq,
             {
                 "aggregations": {
                     "type": {
@@ -351,9 +407,11 @@ class SearchQueryTest(BaseTestCase):
                 }
             },
         )
+        self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
 
-        self.assert_expression(
-            SearchQuery().aggregations(
+        sq = (
+            SearchQuery()
+            .aggregations(
                 top_tags=(
                     agg.Terms(
                         f.tags,
@@ -366,7 +424,10 @@ class SearchQueryTest(BaseTestCase):
                         }
                     )
                 )
-            ),
+            )
+        )
+        self.assert_expression(
+            sq,
             {
                 "aggregations": {
                     "top_tags": {
@@ -391,8 +452,11 @@ class SearchQueryTest(BaseTestCase):
                 }
             }  
         )
-        self.assert_expression(
-            SearchQuery().aggregations(
+        self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
+
+        sq = (
+            SearchQuery()
+            .aggregations(
                 top_sites=(
                     agg.Terms(
                         f.domain,
@@ -403,7 +467,10 @@ class SearchQueryTest(BaseTestCase):
                         }
                     )
                 )
-            ),
+            )
+        )
+        self.assert_expression(
+            sq,
             {
                 "aggregations": {
                     "top_sites": {
@@ -427,6 +494,7 @@ class SearchQueryTest(BaseTestCase):
                 }
             }
         )
+        self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
 
     def test_count(self):
         self.client.count.return_value = {
@@ -580,6 +648,7 @@ class SearchQueryTest(BaseTestCase):
             .filter(CarDocument.seller.rating > 4)
             .with_instance_mapper(obj_mapper)
         )
+        self.assertEqual(collect_doc_classes(sq), {CarDocument})
         results = sq.result
 
         self.client.search.assert_called_with(
@@ -642,6 +711,7 @@ class SearchQueryTest(BaseTestCase):
             .filter(self.index.customer.birthday >= datetime.date(1960, 1, 1))
             .limit(2)
         )
+        self.assertEqual(collect_doc_classes(sq), {self.index.seller, self.index.customer})
 
         self.client.search = MagicMock(
             return_value={

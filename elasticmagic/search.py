@@ -213,6 +213,21 @@ class SearchQuery(object):
     def with_scroll(self, scroll):
         self._scroll = scroll
 
+    def _collect_doc_classes(self):
+        return set().union(
+            *map(
+                collect_doc_classes,
+                [
+                    self._q,
+                    self._source,
+                    list(chain(*[f for f, m in self._filters])),
+                    list(chain(*[f for f, m in self._post_filters])),
+                    self._order_by,
+                    list(self._aggregations.values()),
+                ]
+            )
+        )
+
     def _get_doc_cls(self):
         if self._doc_cls:
             doc_cls = self._doc_cls
@@ -303,21 +318,6 @@ class SearchQuery(object):
             timeout=timeout,
             consistency=consistency,
             replication=replication,
-        )
-
-    def _collect_doc_classes(self):
-        return set().union(
-            *map(
-                collect_doc_classes,
-                [
-                    self._q,
-                    self._source,
-                    list(chain(*[f for f, m in self._filters])),
-                    list(chain(*[f for f, m in self._post_filters])),
-                    self._order_by,
-                    self._aggregations.values(),
-                ]
-            )
         )
 
     def __iter__(self):
