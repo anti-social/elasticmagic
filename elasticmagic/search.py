@@ -2,6 +2,7 @@ import warnings
 import collections
 from itertools import chain
 
+from .agg import merge_aggregations
 from .util import _with_clone, cached_property, collect_doc_classes
 from .result import Result
 from .expression import Expression, Params, Filtered, And, Bool, FunctionScore, Compiled
@@ -146,11 +147,7 @@ class SearchQuery(object):
             if '_aggregations' in self.__dict__:
                 del self._aggregations
         else:
-            aggs = dict(args[0] if args else {})
-            for a in args:
-                aggs.update(a)
-            aggs.update(kwargs)
-            self._aggregations = Params(self._aggregations, **aggs)
+            self._aggregations = merge_aggregations(self._aggregations, args, kwargs)
 
     aggs = aggregations
 

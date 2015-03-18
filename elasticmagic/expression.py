@@ -724,8 +724,8 @@ class Compiled(object):
         params = {
             agg.__agg_name__: self.visit(agg.params)
         }
-        if agg._aggs:
-            params['aggregations'] = self.visit(agg._aggs)
+        if agg._aggregations:
+            params['aggregations'] = self.visit(agg._aggregations)
         return params
 
     def visit_filter_agg(self, agg):

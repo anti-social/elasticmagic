@@ -5,6 +5,14 @@ from .types import instantiate, Type
 from .util import _with_clone, cached_property
 
 
+def merge_aggregations(aggregations, args, kwargs):
+    aggs = dict(args[0] if args else {})
+    for a in args:
+        aggs.update(a)
+    aggs.update(kwargs)
+    return Params(aggregations, **aggs)
+
+
 class AggExpression(QueryExpression):
     __visit_name__ = 'agg'
 
@@ -31,17 +39,17 @@ class BucketAgg(AggExpression):
 
     def __init__(self, aggs=None, **kwargs):
         super(BucketAgg, self).__init__(**kwargs)
-        self._aggs = Params(aggs or {}, **kwargs.pop('aggregations', {}))
+        self._aggregations = Params(aggs or {}, **kwargs.pop('aggregations', {}))
 
     def clone(self):
-        return self.__class__(aggs=self._aggs, **self.params)
+        return self.__class__(aggs=self._aggregations, **self.params)
 
     @_with_clone
-    def aggregations(self, aggs):
-        if aggs is None:
-            self._aggs = Params()
+    def aggregations(self, *args, **kwargs):
+        if len(args) == 1 and args[0] is None:
+            self._aggregations = Params()
         else:
-            self._aggs = Params(dict(self._aggs), **aggs)
+            self._aggregations = merge_aggregations(self._aggregations, args, kwargs)
 
     aggs = aggregations
 
@@ -215,7 +223,7 @@ class Bucket(object):
         self.doc_count = raw_data['doc_count']
         self.parent = parent
         self.aggregations = {}
-        for agg_name, agg_expr in agg_expr._aggs.items():
+        for agg_name, agg_expr in agg_expr._aggregations.items():
             result_agg = agg_expr.build_agg_result(raw_data[agg_name], mapper_registry=mapper_registry)
             self.aggregations[agg_name] = result_agg
 
@@ -293,7 +301,7 @@ class MultiBucketAgg(BucketAgg):
 
     def clone(self):
         return self.__class__(
-            aggs=self._aggs,
+            aggs=self._aggregations,
             type=self._type,
             instance_mapper=self._instance_mapper,
             **self.params
@@ -326,7 +334,7 @@ class Terms(MultiBucketAgg):
     def clone(self):
         return self.__class__(
             type=self._type,
-            aggs=self._aggs,
+            aggs=self._aggregations,
             instance_mapper=self._instance_mapper,
             **self.params
         )
@@ -399,7 +407,7 @@ class SingleBucketAggResult(AggResult):
 
         self.doc_count = raw_data.get('doc_count')
         self.aggregations = {}
-        for agg_name, agg_expr in agg_expr._aggs.items():
+        for agg_name, agg_expr in agg_expr._aggregations.items():
             agg_result = agg_expr.build_agg_result(
                 raw_data.get(agg_name, {}), mapper_registry=mapper_registry
             )
@@ -426,7 +434,7 @@ class Filter(SingleBucketAgg):
         self.filter = filter
 
     def clone(self):
-        return self.__class__(self.filter, aggs=self._aggs, **self.params)
+        return self.__class__(self.filter, aggs=self._aggregations, **self.params)
 
 
 class Missing(SingleBucketAgg):
