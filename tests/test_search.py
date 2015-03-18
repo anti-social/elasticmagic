@@ -57,6 +57,33 @@ class SearchQueryTest(BaseTestCase):
 
         sq = (
             SearchQuery(Term(f.user, 'kimchy'))
+            .query(f.user != 'kimchy')
+        )
+        self.assert_expression(
+            sq,
+            {
+                "query": {
+                    "bool": {
+                        "must_not": [
+                            {
+                                "term": {"user": "kimchy"}
+                            }
+                        ]
+                    }
+                }
+            }
+        )
+        self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
+
+        sq = (
+            SearchQuery(Term(f.user, 'kimchy'))
+            .query(None)
+        )
+        self.assert_expression(sq, {})
+        self.assertEqual(collect_doc_classes(sq), set())
+
+        sq = (
+            SearchQuery(Term(f.user, 'kimchy'))
             .filter(f.age >= 16)
             .filter(f.lang == 'English')
         )

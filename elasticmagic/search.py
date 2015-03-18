@@ -115,6 +115,14 @@ class SearchQuery(object):
         self._source = self._source + fields
 
     @_with_clone
+    def query(self, q):
+        if q is None:
+            if '_q' in self.__dict__:
+                del self._q
+        else:
+            self._q = q
+        
+    @_with_clone
     def filter(self, *filters, **kwargs):
         meta = kwargs.pop('meta', None)
         self._filters = self._filters + ((filters, meta),)
