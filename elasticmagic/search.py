@@ -180,7 +180,7 @@ class SearchQuery(object):
     def rescore(self, query, window_size=None,
                 query_weight=None, rescore_query_weight=None, score_mode=None):
         if query is None:
-            if '_rescore' in self.__dict__:
+            if '_rescores' in self.__dict__:
                 del self._rescores
             return
         rescore = Rescore(
@@ -234,8 +234,9 @@ class SearchQuery(object):
                     self._source,
                     list(chain(*[f for f, m in self._filters])),
                     list(chain(*[f for f, m in self._post_filters])),
-                    self._order_by,
                     list(self._aggregations.values()),
+                    self._order_by,
+                    self._rescores,
                 ]
             )
         )

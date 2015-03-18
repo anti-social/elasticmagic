@@ -288,41 +288,39 @@ class SearchQueryTest(BaseTestCase):
         self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
 
         sq = (
-            SearchQuery(self.index.t.field1.match('the quick brown', type='boolean', operator='or'))
+            SearchQuery()
+            .rescore(
+                self.index.t.field1.match('the quick brown', type='phrase', slop=2)
+            )
             .rescore(None)
-            .rescore(self.index.t.field1.match('the quick brown', type='phrase', slop=2),
-                     window_size=100,
-                     query_weight=0.7,
-                     rescore_query_weight=1.2)
-            .rescore(FunctionScore(script_score={'script': "log10(doc['numeric'].value + 2)"}),
-                     window_size=10,
-                     score_mode='multiply')
+            .rescore(
+                self.index.t.field1.match('the quick brown fox', type='phrase', slop=2),
+                window_size=100,
+                query_weight=0.7,
+                rescore_query_weight=1.2
+            )
+            .rescore(
+                FunctionScore(script_score={'script': "log10(doc['numeric'].value + 2)"}),
+                window_size=10,
+                score_mode='multiply'
+            )
         )
         self.assert_expression(
             sq,
             {
-                "query": {
-                    "match": {
-                        "field1": {
-                            "operator": "or",
-                            "query": "the quick brown",
-                            "type": "boolean"
-                        }
-                    }
-                },
                 "rescore": [
                     {
                         "window_size": 100,
                         "query": {
-                        "rescore_query": {
-                            "match": {
-                                "field1": {
-                                    "query": "the quick brown",
-                                    "type": "phrase",
-                                    "slop": 2
+                            "rescore_query": {
+                                "match": {
+                                    "field1": {
+                                        "query": "the quick brown fox",
+                                        "type": "phrase",
+                                        "slop": 2
+                                    }
                                 }
-                            }
-                        },
+                            },
                             "query_weight": 0.7,
                             "rescore_query_weight": 1.2
                         }
