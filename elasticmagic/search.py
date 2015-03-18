@@ -141,12 +141,16 @@ class SearchQuery(object):
             self._order_by = self._order_by + orders
 
     @_with_clone
-    def aggregations(self, *args, **aggs):
+    def aggregations(self, *args, **kwargs):
         if len(args) == 1 and args[0] is None:
             if '_aggregations' in self.__dict__:
                 del self._aggregations
-        if aggs:
-            self._aggregations = Params(dict(self._aggregations), **aggs)
+        else:
+            aggs = dict(args[0] if args else {})
+            for a in args:
+                aggs.update(a)
+            aggs.update(kwargs)
+            self._aggregations = Params(self._aggregations, **aggs)
 
     aggs = aggregations
 

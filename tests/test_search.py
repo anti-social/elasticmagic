@@ -483,18 +483,16 @@ class SearchQueryTest(BaseTestCase):
 
         sq = (
             SearchQuery()
-            .aggregations(
-                top_sites=(
-                    agg.Terms(
-                        f.domain,
-                        order=Sort('top_hit', 'desc'),
-                        aggs={
-                            'top_tags_hits': agg.TopHits(),
-                            'top_hit': agg.Max(script='_doc.score'),
-                        }
-                    )
+            .aggregations({
+                'top_sites': agg.Terms(
+                    f.domain,
+                    order=Sort('top_hit', 'desc'),
+                    aggs={
+                        'top_tags_hits': agg.TopHits(),
+                        'top_hit': agg.Max(script='_doc.score'),
+                    }
                 )
-            )
+            })
         )
         self.assert_expression(
             sq,
