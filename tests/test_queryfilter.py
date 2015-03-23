@@ -34,7 +34,7 @@ class QueryFilterTest(BaseTestCase):
         class CarQueryFilter(QueryFilter):
             type = FacetFilter(self.index.car.type, instance_mapper=type_mapper, type=Integer)
             vendor = FacetFilter(self.index.car.vendor, aggs={'min_price': agg.Min(self.index.car.price)})
-            model = FacetFilter(self.index.car.model)
+            model = FacetFilter(self.index.car.model, alias='m')
 
         qf = CarQueryFilter()
 
@@ -57,6 +57,49 @@ class QueryFilterTest(BaseTestCase):
                     },
                     "qf.model": {
                         "terms": {"field": "model"}
+                    }
+                }
+            }
+        )
+
+        sq = self.index.query()
+        sq = qf.apply(sq, {'m': ['vrx']})
+        self.assert_expression(
+            sq,
+            {
+                "aggregations": {
+                    "qf.type.filter": {
+                        "filter": {
+                            "term": {"model": "vrx"}
+                        },
+                        "aggregations": {
+                            "qf.type": {
+                                "terms": {"field": "type"}
+                            }
+                        }
+                    },
+                    "qf.vendor.filter": {
+                        "filter": {
+                            "term": {"model": "vrx"}
+                        },
+                        "aggregations": {
+                            "qf.vendor": {
+                                "terms": {"field": "vendor"},
+                                "aggregations": {
+                                    "min_price": {
+                                        "min": {"field": "price"}
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "qf.model": {
+                        "terms": {"field": "model"}
+                    }
+                },
+                "post_filter": {
+                    "term": {
+                        "model": "vrx"
                     }
                 }
             }
@@ -266,9 +309,25 @@ class QueryFilterTest(BaseTestCase):
 
         class CarQueryFilter(QueryFilter):
             price = RangeFilter(CarDocument.price, compute_min_max=False)
-            disp = RangeFilter(CarDocument.engine_displacement, compute_enabled=False)
+            disp = RangeFilter(CarDocument.engine_displacement, alias='ed', compute_enabled=False)
 
         qf = CarQueryFilter()
+
+        sq = self.index.query()
+        sq = qf.apply(sq, {'ed__gte': ['1.9']})
+        self.assert_expression(
+            sq,
+            {
+                "aggregations": {
+                    "qf.price.enabled": {"filter": {"exists": {"field": "price"}}},
+                    "qf.disp.min": {"min": {"field": "engine_displacement"}},
+                    "qf.disp.max": {"max": {"field": "engine_displacement"}}
+                },
+                "post_filter": {
+                    "range": {"engine_displacement": {"gte": 1.9}}
+                }
+            }
+        )
 
         sq = self.index.query()
         sq = qf.apply(sq, {'price__lte': ['10000']})
@@ -396,7 +455,8 @@ class QueryFilterTest(BaseTestCase):
     def test_facet_query_filter(self):
         class CarQueryFilter(QueryFilter):
             is_new = FacetQueryFilter(
-                FacetQueryValue('true', self.index.car.state == 'new')
+                FacetQueryValue('true', self.index.car.state == 'new'),
+                alias='new'
             )
             price = FacetQueryFilter(
                 FacetQueryValue('*-10000', self.index.car.price <= 10000),
@@ -414,7 +474,7 @@ class QueryFilterTest(BaseTestCase):
         )
 
         sq = self.index.query()
-        sq = qf.apply(sq, {'is_new': ['true', 'false']})
+        sq = qf.apply(sq, {'new': ['true', 'false']})
         self.assert_expression(
             sq,
             {
@@ -713,6 +773,7 @@ class QueryFilterTest(BaseTestCase):
                 ),
                 OrderingValue('price', [self.index.car.price]),
                 OrderingValue('-price', [self.index.car.price.desc()]),
+                alias='o',
                 default='popularity',
             )
 
@@ -746,7 +807,7 @@ class QueryFilterTest(BaseTestCase):
 
         qf = CarQueryFilter()
         self.assert_expression(
-            qf.apply(sq, {'sort': ['price']}),
+            qf.apply(sq, {'o': ['price']}),
             {
                 "sort": [
                     "price"
@@ -760,7 +821,7 @@ class QueryFilterTest(BaseTestCase):
 
     def test_page(self):
         class CarQueryFilter(QueryFilter):
-            page = PageFilter(per_page_values=[10, 25, 50])
+            page = PageFilter(alias='p', per_page_values=[10, 25, 50])
 
         sq = self.index.search_query()
 
@@ -773,7 +834,7 @@ class QueryFilterTest(BaseTestCase):
         )
 
         self.assert_expression(
-            qf.apply(sq, {'page': 3}),
+            qf.apply(sq, {'p': 3}),
             {
                 "size": 10,
                 "from": 20
@@ -788,7 +849,7 @@ class QueryFilterTest(BaseTestCase):
         )
 
         self.assert_expression(
-            qf.apply(sq, {'page': 3, 'per_page': 100}),
+            qf.apply(sq, {'p': 3, 'per_page': 100}),
             {
                 "size": 10,
                 "from": 20

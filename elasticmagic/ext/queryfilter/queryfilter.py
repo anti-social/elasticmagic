@@ -110,8 +110,9 @@ class BaseFilter(object):
             return UnboundFilter(cls, args, kwargs)
         return super(BaseFilter, cls).__new__(cls)
 
-    def __init__(self, name):
+    def __init__(self, name, alias=None):
         self.name = name
+        self.alias = alias or self.name
         self.qf = None
 
     def _reset(self):
@@ -141,8 +142,8 @@ class BaseFilter(object):
 
 
 class FieldFilter(BaseFilter):
-    def __init__(self, name, field):
-        super(FieldFilter, self).__init__(name)
+    def __init__(self, name, field, alias=None):
+        super(FieldFilter, self).__init__(name, alias=alias)
         self.field = field
 
 
@@ -164,8 +165,8 @@ class BaseFilterValue(object):
 
 
 class FacetFilter(FieldFilter):
-    def __init__(self, name, field, type=None, instance_mapper=None, **kwargs):
-        super(FacetFilter, self).__init__(name, field)
+    def __init__(self, name, field, alias=None, type=None, instance_mapper=None, **kwargs):
+        super(FacetFilter, self).__init__(name, field, alias=alias)
         self.type = instantiate(type or self.field.get_type())
         self.instance_mapper = instance_mapper
         self.agg_kwargs = kwargs
@@ -183,7 +184,7 @@ class FacetFilter(FieldFilter):
 
     @property
     def _types(self):
-        return {self.name: self.type}
+        return {self.alias: self.type}
 
     @property
     def _agg_name(self):
@@ -198,7 +199,7 @@ class FacetFilter(FieldFilter):
         return list(filter(is_not_none, map(first, values)))
 
     def _apply_filter(self, search_query, params):
-        values = self._get_values_from_params(params.get(self.name, {}))
+        values = self._get_values_from_params(params.get(self.alias, {}))
         if not values:
             return search_query
 
@@ -225,7 +226,7 @@ class FacetFilter(FieldFilter):
         return search_query.aggregations(**aggs)
         
     def _process_result(self, result, params):
-        values = self._get_values_from_params(params.get(self.name, {}))
+        values = self._get_values_from_params(params.get(self.alias, {}))
 
         if result.get_aggregation(self._filter_agg_name):
             terms_agg = result \
@@ -310,8 +311,8 @@ class FacetValue(BaseFilterValue):
 
 class RangeFilter(FieldFilter):
 
-    def __init__(self, name, field, type=None, compute_enabled=True, compute_min_max=True):
-        super(RangeFilter, self).__init__(name, field)
+    def __init__(self, name, field, alias=None, type=None, compute_enabled=True, compute_min_max=True):
+        super(RangeFilter, self).__init__(name, field, alias=alias)
         self.type = instantiate(type or self.field.get_type())
         self._compute_enabled = compute_enabled
         self._compute_min_max = compute_min_max
@@ -330,7 +331,7 @@ class RangeFilter(FieldFilter):
 
     @property
     def _types(self):
-        return {self.name: self.type}
+        return {self.alias: self.type}
 
     @property
     def _filter_agg_name(self):
@@ -357,7 +358,7 @@ class RangeFilter(FieldFilter):
         return to_values[0][0] if to_values else None
 
     def _apply_filter(self, search_query, params):
-        params = params.get(self.name) or {}
+        params = params.get(self.alias) or {}
         self.from_value = self._get_from_value(params)
         self.to_value = self._get_to_value(params)
         if self.from_value is None and self.to_value is None:
@@ -371,28 +372,23 @@ class RangeFilter(FieldFilter):
     def _apply_agg(self, search_query):
         filters = self._get_active_filters(search_query.iter_post_filters_with_meta())
 
+        aggs = {}
         if self._compute_enabled:
-            enabled_aggs = {
+            aggs.update({
                 self._enabled_agg_name: agg.Filter(self.field != None),
-            }
-        else:
-            enabled_aggs = {}
+            })
 
         if self._compute_min_max:
             stat_aggs = {
                 self._min_agg_name: agg.Min(self.field),
                 self._max_agg_name: agg.Max(self.field),
             }
-        else:
-            stat_aggs = {}
-
-        if filters:
-            aggs = dict(
-                {self._filter_agg_name: agg.Filter(Bool.must(*filters), aggs=stat_aggs)},
-                **enabled_aggs
-            )
-        else:
-            aggs = dict(stat_aggs, **enabled_aggs)
+            if filters:
+                aggs.update({
+                    self._filter_agg_name: agg.Filter(Bool.must(*filters), aggs=stat_aggs)
+                })
+            else:
+                aggs.update(stat_aggs)
 
         return search_query.aggregations(**aggs)
 
@@ -458,7 +454,7 @@ class FacetQueryValue(BaseFilterValue):
 
 class FacetQueryFilter(BaseFilter):
     def __init__(self, name, *values, **kwargs):
-        super(FacetQueryFilter, self).__init__(name)
+        super(FacetQueryFilter, self).__init__(name, alias=kwargs.pop('alias', None))
         self._values = [fv.bind(self) for fv in values]
         self.values_map = {fv.value: fv for fv in self._values}
         self.default = kwargs.pop('default', None)
@@ -487,7 +483,7 @@ class FacetQueryFilter(BaseFilter):
         return '{}.{}:{}'.format(self.qf._name, self.name, value)
 
     def _apply_filter(self, search_query, params):
-        values = params.get(self.name, {}).get('exact')
+        values = params.get(self.alias, {}).get('exact')
         if not values:
             if self.default:
                 values = [[self.default]]
@@ -524,7 +520,7 @@ class FacetQueryFilter(BaseFilter):
         return search_query.aggregations(**aggs)
 
     def _process_result(self, result, params):
-        values = params.get(self.name, {}).get('exact', [])
+        values = params.get(self.alias, {}).get('exact', [])
         values = list(chain(*values))
         if result.get_aggregation(self._filter_agg_name):
             filters_agg = result.get_aggregation(self._filter_agg_name)
@@ -555,7 +551,7 @@ class OrderingValue(BaseFilterValue):
 
 class OrderingFilter(BaseFilter):
     def __init__(self, name, *values, **kwargs):
-        super(OrderingFilter, self).__init__(name)
+        super(OrderingFilter, self).__init__(name, alias=kwargs.pop('alias', None))
         self.values = [fv.bind(self) for fv in values]
         for ordering_value in self.values:
             ordering_value.filter = self
@@ -571,7 +567,7 @@ class OrderingFilter(BaseFilter):
         self.selected_value = None
 
     def _apply_filter(self, search_query, params):
-        values = params.get(self.name, {}).get('exact')
+        values = params.get(self.alias, {}).get('exact')
 
         ordering_value = None
         if values:
@@ -591,8 +587,8 @@ class PageFilter(BaseFilter):
     DEFAULT_PER_PAGE_PARAM = 'per_page'
     DEFAULT_PER_PAGE = 10
 
-    def __init__(self, name, per_page_param=None, per_page_values=None):
-        super(PageFilter, self).__init__(name)
+    def __init__(self, name, alias=None, per_page_param=None, per_page_values=None):
+        super(PageFilter, self).__init__(name, alias=alias)
         self.per_page_param = per_page_param or self.DEFAULT_PER_PAGE_PARAM
         self.per_page_values = per_page_values or [self.DEFAULT_PER_PAGE]
 
@@ -605,7 +601,7 @@ class PageFilter(BaseFilter):
     @property
     def _types(self):
         return {
-            self.name: Integer,
+            self.alias: Integer,
             self.per_page_param: Integer,
         }
 
@@ -617,7 +613,7 @@ class PageFilter(BaseFilter):
             self.per_page = self.per_page_values[0]
         search_query = search_query.limit(self.per_page)
 
-        page_num = params.get(self.name, {}).get('exact')
+        page_num = params.get(self.alias, {}).get('exact')
         if page_num:
             self.page = page_num[0][0]
         else:
