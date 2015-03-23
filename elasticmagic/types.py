@@ -26,6 +26,8 @@ class Type(object):
 
 
 class String(Type):
+    __visit_name__ = 'string'
+
     def to_python(self, value):
         if value is None:
             return None
@@ -33,6 +35,8 @@ class String(Type):
 
 
 class Byte(Type):
+    __visit_name__ = 'byte'
+
     MIN_VALUE = -(1 << 7)
     MAX_VALUE = (1 << 7) - 1
 
@@ -43,6 +47,8 @@ class Byte(Type):
 
 
 class Short(Type):
+    __visit_name__ = 'short'
+
     MIN_VALUE = -(1 << 15)
     MAX_VALUE = (1 << 15) - 1
 
@@ -53,6 +59,8 @@ class Short(Type):
 
 
 class Integer(Type):
+    __visit_name__ = 'integer'
+
     MIN_VALUE = -(1 << 31)
     MAX_VALUE = (1 << 31) - 1
 
@@ -62,7 +70,9 @@ class Integer(Type):
         return int(value)
 
 
-class Long(Type):
+class Long(Type): 
+    __visit_name__ = 'long'
+
     MIN_VALUE = -(1 << 63)
     MAX_VALUE = (1 << 63) - 1
 
@@ -73,6 +83,8 @@ class Long(Type):
 
 
 class Float(Type):
+    __visit_name__ = 'float'
+
     def to_python(self, value):
         if value is None:
             return None
@@ -80,6 +92,8 @@ class Float(Type):
 
 
 class Double(Type):
+    __visit_name__ = 'double'
+
     def to_python(self, value):
         if value is None:
             return None
@@ -87,6 +101,8 @@ class Double(Type):
 
 
 class Date(Type):
+    __visit_name__ = 'date'
+
     # def __init__(self, format=None):
     #     self.format = format
 
@@ -97,6 +113,8 @@ class Date(Type):
 
 
 class Boolean(Type):
+    __visit_name__ = 'boolean'
+
     def to_python(self, value):
         if value is None:
             return None
@@ -106,17 +124,23 @@ class Boolean(Type):
 
 
 class Binary(Type):
+    __visit_name__ = 'binary'
+
     def to_python(self, value):
         # TODO: decode base64
         return value
 
 
 class Ip(Type):
+    __visit_name__ = 'ip'
+
     def to_python(self, value):
         return value
 
 
 class Object(Type):
+    __visit_name__ = 'object'
+
     def __init__(self, doc_cls):
         self.doc_cls = doc_cls
 
@@ -136,12 +160,16 @@ class Object(Type):
 
 
 class Nested(Object):
-    pass
+    __visit_name__ = 'nested'
 
 
 class List(Type):
     def __init__(self, sub_type):
         self.sub_type = instantiate(sub_type)
+
+    @property
+    def __visit_name__(self):
+        return self.sub_type.__visit_name__
 
     @property
     def doc_cls(self):

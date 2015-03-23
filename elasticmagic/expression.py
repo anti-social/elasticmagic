@@ -501,6 +501,7 @@ class Field(Expression, FieldOperators):
 
         self._fields = kwargs.pop('fields', {})
         self._count = next(self._counter)
+        self._kwargs = kwargs
 
     def get_name(self):
         return self._name
@@ -513,6 +514,25 @@ class Field(Expression, FieldOperators):
 
     def _from_python(self, value):
         return self._type.from_python(value)
+
+    def to_mapping(self):
+        mapping = {
+            'type': self._type.__visit_name__
+        }
+
+        if self._fields:
+            if isinstance(self._fields, collections.Mapping):
+                for fname, ftype in self._fields.items():
+                    mapping.setdefault('fields', {}).update({fname: {'type': ftype.__visit_name__}})
+            else:
+                for f in self._fields:
+                    mapping.setdefault('fields', {}).update(f.to_mapping())
+
+        mapping.update(self._kwargs)
+                
+        return {
+            self._name: mapping
+        }
 
 
 class BoostExpression(Expression):

@@ -1,4 +1,5 @@
 from elasticmagic import DynamicDocument
+from elasticmagic.types import String, Integer, List
 from elasticmagic.expression import (
     Params, Term, Terms, Exists, Missing, Match, MatchAll, MultiMatch, Range,
     Bool, Query, BooleanExpression, And, Or, Not, Sort, Field,
@@ -679,4 +680,69 @@ class ExpressionTestCase(BaseTestCase):
         self.assert_expression(
             f.description.boost(0.1),
             "description^0.1"
+        )
+
+    def test_field_mapping(self):
+        f = Field('name', String)
+        self.assertEqual(
+            f.to_mapping(),
+            {
+                "name": {
+                    "type": "string"
+                }
+            }
+        )
+
+        f = Field('name', String, fields={'sort': String})
+        self.assertEqual(
+            f.to_mapping(),
+            {
+                "name": {
+                    "type": "string",
+                    "fields": {
+                        "sort": {
+                            "type": "string",
+                        }
+                    }
+                }
+            }
+        )
+
+        f = Field(
+            'name', String,
+            fields=[Field('raw', String, index='not_analyzed')]
+        )
+        self.assertEqual(
+            f.to_mapping(),
+            {
+                "name": {
+                    "type": "string",
+                    "fields": {
+                        "raw": {
+                            "type": "string",
+                            "index": "not_analyzed"
+                        }
+                    }
+                }
+            }
+        )
+
+        f = Field('status', Integer)
+        self.assertEqual(
+            f.to_mapping(),
+            {
+                "status": {
+                    "type": "integer"
+                }
+            }
+        )
+
+        f = Field('tag', List(Integer))
+        self.assertEqual(
+            f.to_mapping(),
+            {
+                "tag": {
+                    "type": "integer"
+                }
+            }
         )
