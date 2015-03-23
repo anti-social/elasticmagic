@@ -147,13 +147,12 @@ class FieldFilter(BaseFilter):
 
 
 class BaseFilterValue(object):
-    def __init__(self, value):
+    def __init__(self, value, _filter=None):
         self.value = value
-        self.filter = None
+        self.filter = _filter
 
     def bind(self, filter):
-        self.filter = filter
-        return self
+        return self.__class__(self.value, _filter=filter)
 
     @property
     def data(self):
@@ -240,7 +239,7 @@ class FacetFilter(FieldFilter):
             if bucket.key in values:
                 self.qf._set_selected(self.name, bucket.key)
             self.qf._set_value_data(self.name, bucket.key, {'bucket': bucket})
-            self.add_value(FacetValue(bucket.key).bind(self))
+            self.add_value(FacetValue(bucket.key, _filter=self))
             processed_values.add(bucket.key)
 
         for v in values:
@@ -411,10 +410,13 @@ class RangeFilter(FieldFilter):
 
 
 class FacetQueryValue(BaseFilterValue):
-    def __init__(self, value, expr, **opts):
-        super(FacetQueryValue, self).__init__(value)
+    def __init__(self, value, expr, _filter=None, **opts):
+        super(FacetQueryValue, self).__init__(value, _filter=_filter)
         self.expr = expr
         self.opts = opts
+
+    def bind(self, filter):
+        return self.__class__(self.value, self.expr, _filter=filter, **self.opts)
 
     @property
     def agg(self):
@@ -457,9 +459,7 @@ class FacetQueryValue(BaseFilterValue):
 class FacetQueryFilter(BaseFilter):
     def __init__(self, name, *values, **kwargs):
         super(FacetQueryFilter, self).__init__(name)
-        self._values = values
-        for fv in self._values:
-            fv.bind(self)
+        self._values = [fv.bind(self) for fv in values]
         self.values_map = {fv.value: fv for fv in self._values}
         self.default = kwargs.pop('default', None)
         self.agg_kwargs = kwargs
@@ -538,10 +538,13 @@ class FacetQueryFilter(BaseFilter):
 
 
 class OrderingValue(BaseFilterValue):
-    def __init__(self, value, orderings, **kwargs):
-        super(OrderingValue, self).__init__(value)
+    def __init__(self, value, orderings, _filter=None, **kwargs):
+        super(OrderingValue, self).__init__(value, _filter=_filter)
         self.orderings = orderings
         self.opts = kwargs
+
+    def bind(self, filter):
+        return self.__class__(self.value, self.orderings, _filter=filter, **self.opts)
 
     def __unicode__(self):
         return unicode(self.opts.get('title', self.value))
@@ -553,7 +556,7 @@ class OrderingValue(BaseFilterValue):
 class OrderingFilter(BaseFilter):
     def __init__(self, name, *values, **kwargs):
         super(OrderingFilter, self).__init__(name)
-        self.values = values
+        self.values = [fv.bind(self) for fv in values]
         for ordering_value in self.values:
             ordering_value.filter = self
         self.default_value = self.get_value(kwargs.get('default')) or self.values[0]

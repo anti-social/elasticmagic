@@ -408,6 +408,11 @@ class QueryFilterTest(BaseTestCase):
 
         qf = CarQueryFilter()
 
+        self.assertIsNot(
+            CarQueryFilter().get_filter('price').get_value('*-10000'),
+            qf.get_filter('price').get_value('*-10000')
+        )
+
         sq = self.index.query()
         sq = qf.apply(sq, {'is_new': ['true', 'false']})
         self.assert_expression(
@@ -714,6 +719,12 @@ class QueryFilterTest(BaseTestCase):
         sq = self.index.query()
 
         qf = CarQueryFilter()
+
+        self.assertIsNot(
+            CarQueryFilter().get_filter('sort').get_value('popularity'), 
+            qf.get_filter('sort').get_value('popularity')
+        )
+        
         self.assert_expression(
             qf.apply(sq, {}),
             {
