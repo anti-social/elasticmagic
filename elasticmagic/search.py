@@ -5,7 +5,8 @@ from itertools import chain
 from .agg import merge_aggregations
 from .util import _with_clone, cached_property, collect_doc_classes
 from .result import Result
-from .expression import Expression, Params, Filtered, And, Bool, FunctionScore, Compiled
+from .compiler import QueryCompiled
+from .expression import Expression, Params, Filtered, And, Bool, FunctionScore
 
 
 __all__ = ['SearchQuery']
@@ -97,7 +98,7 @@ class SearchQuery(object):
         return q
 
     def to_dict(self):
-        return Compiled(self).params
+        return QueryCompiled(self).params
 
     @_with_clone
     def source(self, *args, **kwargs):
@@ -273,6 +274,9 @@ class SearchQuery(object):
         if self._filters:
             return Filtered(query=q, filter=Bool.must(*self.iter_filters()))
         return q
+
+    def get_post_filter(self):
+        return Bool.must(*self.iter_post_filters())
 
     def iter_filters_with_meta(self):
         for filters, meta in self._filters:

@@ -2,6 +2,8 @@ import fnmatch
 
 
 class OrderedAttributes(object):
+    __visit_name__ = 'ordered_attributes'
+
     def __init__(self, data=None, defaults=None):
         self._dict = {}
         self._keys = []

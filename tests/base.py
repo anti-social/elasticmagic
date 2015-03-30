@@ -3,7 +3,7 @@ import unittest
 from mock import MagicMock
 
 from elasticmagic import Cluster, Index
-from elasticmagic.expression import Compiled
+from elasticmagic.expression import QueryCompiled
 
 
 class BaseTestCase(unittest.TestCase):
@@ -17,6 +17,6 @@ class BaseTestCase(unittest.TestCase):
         self.index = Index(self.cluster, 'test')
 
     def assert_expression(self, expr, params):
-        c = Compiled(expr)
+        c = QueryCompiled(expr)
         self.assertEqual(c.params, params)
 

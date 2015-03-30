@@ -28,6 +28,8 @@ class TagDocument(Document):
 
 
 class TestDocument(Document):
+    _all = Field(String, enable=False)
+    
     name = Field('test_name', String(), fields={'raw': Field(String)})
     status = Field(Integer)
     group = Field(Object(GroupDocument))
@@ -44,35 +46,6 @@ class TestDocument(Document):
 
 class DocumentTestCase(BaseTestCase):
     def test_document(self):
-        class GroupDocument(Document):
-            id = Field(Integer)
-            name = Field('test_name', String, fields={'raw': Field(String)})
-
-            __dynamic_fields__ = [
-                Field('group_id_*', Integer),
-            ]
-
-
-        class TagDocument(Document):
-            id = Field(Integer)
-            name = Field(String)
-            group = Field(Object(GroupDocument))
-
-
-        class TestDocument(Document):
-            name = Field('test_name', String(), fields={'raw': Field(String)})
-            status = Field(Integer)
-            group = Field(Object(GroupDocument))
-            price = Field(Float)
-            tags = Field(List(Object(TagDocument)))
-            date_created = Field(Date)
-            unused = Field(String)
-
-            __dynamic_fields__ = [
-                Field('i_attr_*', Integer),
-                Field('b_attr_*', Boolean),
-            ]
-
         self.assertEqual(
             list(TestDocument.fields),
             [
@@ -81,7 +54,6 @@ class DocumentTestCase(BaseTestCase):
                 TestDocument._type,
                 TestDocument._version,
                 TestDocument._source,
-                TestDocument._all,
                 TestDocument._analyzer,
                 TestDocument._parent,
                 TestDocument._routing,
@@ -90,6 +62,7 @@ class DocumentTestCase(BaseTestCase):
                 TestDocument._timestamp,
                 TestDocument._ttl,
                 TestDocument._score,
+                TestDocument._all,
                 TestDocument.name,
                 TestDocument.status,
                 TestDocument.group,
@@ -97,6 +70,37 @@ class DocumentTestCase(BaseTestCase):
                 TestDocument.tags,
                 TestDocument.date_created,
                 TestDocument.unused,
+            ]
+        )
+        self.assertEqual(
+            list(TestDocument.user_fields),
+            [
+                TestDocument.name,
+                TestDocument.status,
+                TestDocument.group,
+                TestDocument.price,
+                TestDocument.tags,
+                TestDocument.date_created,
+                TestDocument.unused,
+            ]
+        )
+        self.assertEqual(
+            list(TestDocument.mapping_fields),
+            [
+                TestDocument._uid,
+                TestDocument._id,
+                TestDocument._type,
+                TestDocument._version,
+                TestDocument._source,
+                TestDocument._analyzer,
+                TestDocument._parent,
+                TestDocument._routing,
+                TestDocument._index,
+                TestDocument._size,
+                TestDocument._timestamp,
+                TestDocument._ttl,
+                TestDocument._score,
+                TestDocument._all,
             ]
         )
         self.assertIsInstance(TestDocument._id, AttributedField)
@@ -402,3 +406,113 @@ class DocumentTestCase(BaseTestCase):
         self.assertEqual(DynamicDocument.group.name.raw.get_field().get_name(), 'group.name.raw')
         self.assert_expression(DynamicDocument.group.name.raw, 'group.name.raw')
         self.assertEqual(collect_doc_classes(DynamicDocument.group.name.raw), {DynamicDocument})
+
+    def test_to_mapping(self):
+        class ProductGroupDocument(Document):
+            __doc_type__ = 'product_group'
+
+            id = Field(Integer)
+            name = Field(String, norms={'enabled': False})
+
+        self.assertEqual(
+            ProductGroupDocument.to_mapping(),
+            {
+                "product_group": {
+                    "properties": {
+                        "id": {
+                            "type": "integer"
+                        },
+                        "name": {
+                            "type": "string",
+                            "norms": {
+                                "enabled": False
+                            }
+                        }
+                    }
+                }
+            }
+        )
+
+        class ProductGroupSubDocument(Document):
+            id = Field(Integer)
+            name = Field(String, norms={'enabled': False})
+
+        class ProductDocument(Document):
+            __doc_type__ = 'product'
+
+            _routing = Field(String, required=True, path='company_id')
+            _all = Field(String, enabled=False)
+
+            name = Field(String)
+            company_id = Field(Integer)
+            group = Field(Object(ProductGroupSubDocument))
+            popularity = Field(Float, doc_values=True)
+
+            __dynamic_fields__ = [
+                Field('attr_*', Integer)
+            ]
+
+            __mapping_options__ = {
+                'dynamic': False
+            }
+
+        ProductDocument.tags = Field(List(String))
+
+        # print ProductDocument._routing
+        # import pprint; pprint.pprint(ProductDocument.to_mapping())
+
+        self.assertEqual(
+            ProductDocument.to_mapping(),
+            {
+                "product": {
+                    "dynamic": False,
+                    "dynamic_templates": [
+                        {
+                            "attr_*": {
+                                "path_match": "attr_*",
+                                "mapping": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    ],
+                    "_routing": {
+                        "required": True,
+                        "path": "company_id"
+                    },
+                    "_all": {
+                        "enabled": False
+                    },
+                    "properties": {
+                        "name": {
+                            "type": "string"
+                        },
+                        "company_id": {
+                            "type": "integer"
+                        },
+                        "group": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "norms": {
+                                        "enabled": False
+                                    }
+                                }
+                            }
+                        },
+                        "popularity": {
+                            "type": "float",
+                            "doc_values": True
+                        },
+                        "tags": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        )
+        

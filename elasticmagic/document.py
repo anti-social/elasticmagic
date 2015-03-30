@@ -1,33 +1,41 @@
 import fnmatch
 
 from .types import String, Integer, Float, Date
+from .compiler import MappingCompiled
 from .attribute import AttributedField, DynamicAttributedField, _attributed_field_factory
-from .expression import Field
+from .expression import Field, MappingField
 from .datastructures import OrderedAttributes
 from .util import cached_property
 from .compat import with_metaclass
 
 
-MAPPING_FIELDS = [
-    Field('_uid', String),
-    Field('_id', String),
-    Field('_type', String),
-    Field('_version', Integer),
-    Field('_source', String),
-    Field('_all', String),
-    Field('_analyzer', String),
-    Field('_parent', String),
-    Field('_routing', String),
-    Field('_index', String),
-    Field('_size', Integer),
-    Field('_timestamp', Date),
-    Field('_ttl', String),
-    Field('_score', Float),
-]
+MAPPING_FIELD_NAMES = {
+    '_uid',
+    '_id',
+    '_type',
+    '_version',
+    '_source',
+    '_all',
+    '_analyzer',
+    '_parent',
+    '_routing',
+    '_index',
+    '_size',
+    '_timestamp',
+    '_ttl',
+    '_score',
+}
 
-META_FIELD_NAMES = [
-    '_id', '_index', '_type', '_version', '_routing', '_parent', '_timestamp', '_ttl'
-]
+META_FIELD_NAMES = {
+    '_id',
+    '_index',
+    '_type',
+    '_version',
+    '_routing',
+    '_parent',
+    '_timestamp',
+    '_ttl',
+}
 
 
 class DocumentMeta(type):
@@ -42,23 +50,22 @@ class DocumentMeta(type):
         cls._dynamic_fields = OrderedAttributes()
         cls._field_name_map = {}
 
-        for field in MAPPING_FIELDS:
-            if field._name not in cls.__dict__:
-                cls._add_field(field._name, field, user=False)
+        process_fields = []
 
-        user_fields = []
         for attr_name in dir(cls):
             field = getattr(cls, attr_name)
-            if isinstance(field, AttributedField) and field._attr not in cls.__dict__:
-                user_fields.append((attr_name, field._field))
+            if isinstance(field, AttributedField):
+                if field._attr not in cls.__dict__:
+                    # inherited from base document class
+                    process_fields.append((attr_name, field._field))
             elif isinstance(field, Field):
-                user_fields.append((attr_name, field))
-        user_fields = sorted(user_fields, key=lambda v: v[1]._count)
+                process_fields.append((attr_name, field))
+        process_fields = sorted(process_fields, key=lambda v: v[1]._count)
 
-        for attr_name, field in user_fields:
+        for attr_name, field in process_fields:
             if attr_name in cls.__dict__:
                 delattr(cls, attr_name)
-            cls._add_field(attr_name, Field(field._name or attr_name, field._type, fields=field._fields))
+            setattr(cls, attr_name, field)
 
         for dyn_field in cls.__dynamic_fields__:
             cls._dynamic_fields[dyn_field.get_name()] = AttributedField(cls, dyn_field.get_name(), dyn_field)
@@ -72,15 +79,28 @@ class DocumentMeta(type):
             dynamic_defaults[dyn_field.get_name()] = default
         return dynamic_defaults
 
-    def _add_field(cls, attr_name, field, user=True):
-        attr_field = AttributedField(cls, attr_name, field)
-        setattr(cls, attr_name, attr_field)
-        cls._fields[attr_name] = attr_field
-        if user:
-            cls._user_fields[attr_name] = attr_field
-        else:
-            cls._mapping_fields[attr_name] = attr_field
-        cls._field_name_map[field._name] = attr_field
+    def __setattr__(cls, name, value):
+        if isinstance(value, Field):
+            if name in MAPPING_FIELD_NAMES:
+                field = value.clone(cls=MappingField)
+            else:
+                field = value.clone()
+
+            if field._name is None:
+                field._name = name
+
+            attr_field = AttributedField(cls, name, field)
+
+            if name in MAPPING_FIELD_NAMES:
+                cls._mapping_fields[name] = attr_field
+            else:
+                cls._user_fields[name] = attr_field
+            cls._fields[name] = attr_field
+            cls._field_name_map[field._name] = attr_field
+
+            value = attr_field
+
+        super(DocumentMeta, cls).__setattr__(name, value)
     
     @property
     def fields(cls):
@@ -106,7 +126,26 @@ class DocumentMeta(type):
 
 
 class Document(with_metaclass(DocumentMeta)):
+    __visit_name__ = 'document'
+
+    _uid = Field(String)
+    _id = Field(String)
+    _type = Field(String)
+    _version = Field(Integer)
+    _source = Field(String)
+    _all = Field(String)
+    _analyzer = Field(String)
+    _parent = Field(String)
+    _routing = Field(String)
+    _index = Field(String)
+    _size = Field(Integer)
+    _timestamp = Field(Date)
+    _ttl = Field(String)
+    _score = Field(Float)
+
     __dynamic_fields__ = []
+
+    __mapping_options__ = {}
 
     def __init__(self, _hit=None, _result=None, **kwargs):
         self._index = self._type = self._id = self._score = None
@@ -152,6 +191,10 @@ class Document(with_metaclass(DocumentMeta)):
                 res[attr_field._attr] = attr_field._from_python(value)
 
         return res
+
+    @classmethod
+    def to_mapping(cls):
+        return MappingCompiled(cls).params
 
     @cached_property
     def instance(self):
