@@ -1,5 +1,5 @@
 from elasticmagic import DynamicDocument
-from elasticmagic.types import String, Integer, List
+from elasticmagic.types import Type, String, Integer, List
 from elasticmagic.expression import (
     Params, Term, Terms, Exists, Missing, Match, MatchAll, MultiMatch, Range,
     Bool, Query, BooleanExpression, And, Or, Not, Sort, Field,
@@ -565,27 +565,27 @@ class ExpressionTestCase(BaseTestCase):
 
 
     def test_field(self):
-        f = DynamicDocument.fields
+        self.assertEqual(Field().get_type().__class__, Type)
+        self.assertIs(Field().get_name(), None)
 
-        self.assertRaises(TypeError, Field)
         self.assertRaises(TypeError, Field, [])
         self.assertRaises(TypeError, Field, 'name', 1, 2)
         self.assert_expression(Field('name'), "name")
         
         self.assert_expression(
-            f.status == 0,
+            Field('status') == 0,
             {
                 "term": {"status": 0}
             }
         )
         self.assert_expression(
-            f.presence == None,
+            Field('presence') == None,
             {
                 "missing": {"field": "presence"}
             }
         )
         self.assert_expression(
-            f.status != 1,
+            Field('status') != 1,
             {
                 "bool": {
                     "must_not": [
@@ -597,13 +597,13 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
         self.assert_expression(
-            f.presence != None,
+            Field('presence') != None,
             {
                 "exists": {"field": "presence"}
             }
         )
         self.assert_expression(
-            f.name.span_first("iphone", 2),
+            Field('name').span_first("iphone", 2),
             {
                 "span_first": {
                     "match": {
@@ -614,13 +614,13 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
         self.assert_expression(
-            f.status.in_([0, 2, 3]),
+            Field('status').in_([0, 2, 3]),
             {
                 "terms": {"status": [0, 2, 3]}
             }
         )
         self.assert_expression(
-            f.price > 99.9,
+            Field('price') > 99.9,
             {
                 "range": {
                     "price": {"gt": 99.9}
@@ -628,7 +628,7 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
         self.assert_expression(
-            f.price < 101,
+            Field('price') < 101,
             {
                 "range": {
                     "price": {"lt": 101}
@@ -636,7 +636,7 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
         self.assert_expression(
-            f.price <= 1000,
+            Field('price') <= 1000,
             {
                 "range": {
                     "price": {"lte": 1000}
@@ -644,7 +644,7 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
         self.assert_expression(
-            f.price.range(gte=100, lt=200),
+            Field('price').range(gte=100, lt=200),
             {
                 "range": {
                     "price": {"gte": 100, "lt": 200}
@@ -652,7 +652,7 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
         self.assert_expression(
-            f.name.match('Hello kitty', minimum_should_match=2),
+            Field('name').match('Hello kitty', minimum_should_match=2),
             {
                 "match": {
                     "name": {
@@ -663,7 +663,7 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
         self.assert_expression(
-            f.price.asc(mode='min'),
+            Field('price').asc(mode='min'),
             {
                 "price": {
                     "order": "asc",
@@ -672,13 +672,13 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
         self.assert_expression(
-            f.price.desc(),
+            Field('price').desc(),
             {
                 "price": "desc"
             }
         )
         self.assert_expression(
-            f.description.boost(0.1),
+            Field('description').boost(0.1),
             "description^0.1"
         )
 

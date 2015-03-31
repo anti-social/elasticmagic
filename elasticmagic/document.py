@@ -1,6 +1,6 @@
 import fnmatch
 
-from .types import String, Integer, Float, Date
+from .types import Type, String, Integer, Float, Date
 from .compiler import MappingCompiled
 from .attribute import AttributedField, DynamicAttributedField, _attributed_field_factory
 from .expression import Field, MappingField
@@ -9,32 +9,15 @@ from .util import cached_property
 from .compat import with_metaclass
 
 
-MAPPING_FIELD_NAMES = {
-    '_uid',
-    '_id',
-    '_type',
-    '_version',
-    '_source',
-    '_all',
-    '_analyzer',
-    '_parent',
-    '_routing',
-    '_index',
-    '_size',
-    '_timestamp',
-    '_ttl',
-    '_score',
-}
-
 META_FIELD_NAMES = {
     '_id',
     '_index',
     '_type',
-    '_version',
     '_routing',
     '_parent',
     '_timestamp',
     '_ttl',
+    '_version',
 }
 
 
@@ -55,7 +38,7 @@ class DocumentMeta(type):
         for attr_name in dir(cls):
             field = getattr(cls, attr_name)
             if isinstance(field, AttributedField):
-                if field._attr not in cls.__dict__:
+                if field._attr_name not in cls.__dict__:
                     # inherited from base document class
                     process_fields.append((attr_name, field._field))
             elif isinstance(field, Field):
@@ -81,8 +64,13 @@ class DocumentMeta(type):
 
     def __setattr__(cls, name, value):
         if isinstance(value, Field):
-            if name in MAPPING_FIELD_NAMES:
+            is_mapping = (
+                isinstance(value, MappingField) or name in Document.mapping_fields
+            )
+            if is_mapping:
                 field = value.clone(cls=MappingField)
+                if field._type.__class__ == Type:
+                    field._type = getattr(cls, name).get_type()
             else:
                 field = value.clone()
 
@@ -91,7 +79,7 @@ class DocumentMeta(type):
 
             attr_field = AttributedField(cls, name, field)
 
-            if name in MAPPING_FIELD_NAMES:
+            if is_mapping:
                 cls._mapping_fields[name] = attr_field
             else:
                 cls._user_fields[name] = attr_field
@@ -128,20 +116,22 @@ class DocumentMeta(type):
 class Document(with_metaclass(DocumentMeta)):
     __visit_name__ = 'document'
 
-    _uid = Field(String)
-    _id = Field(String)
-    _type = Field(String)
-    _version = Field(Integer)
-    _source = Field(String)
-    _all = Field(String)
-    _analyzer = Field(String)
-    _parent = Field(String)
-    _routing = Field(String)
-    _index = Field(String)
-    _size = Field(Integer)
-    _timestamp = Field(Date)
-    _ttl = Field(String)
-    _score = Field(Float)
+    _uid = MappingField(String)
+    _id = MappingField(String)
+    _type = MappingField(String)
+    _source = MappingField(String)
+    _all = MappingField(String)
+    _analyzer = MappingField(String)
+    _boost = MappingField(String)
+    _parent = MappingField(String)
+    _field_names = MappingField(String)
+    _routing = MappingField(String)
+    _index = MappingField(String)
+    _size = MappingField(Integer)
+    _timestamp = MappingField(Date)
+    _ttl = MappingField(String)
+    _version = MappingField(Integer)
+    _score = MappingField(Float)
 
     __dynamic_fields__ = []
 
@@ -152,7 +142,7 @@ class Document(with_metaclass(DocumentMeta)):
         if _hit:
             self._score = _hit.get('_score')
             for attr_field in self._mapping_fields:
-                setattr(self, attr_field._attr, _hit.get(attr_field._field._name))
+                setattr(self, attr_field._attr_name, _hit.get(attr_field._field._name))
             if _hit.get('_source'):
                 for hit_key, hit_value in _hit['_source'].items():
                     setattr(self, *self._process_hit_key_value(hit_key, hit_value))
@@ -165,7 +155,7 @@ class Document(with_metaclass(DocumentMeta)):
     def _process_hit_key_value(self, key, value):
         if key in self._field_name_map:
             attr_field = self._field_name_map[key]
-            return attr_field._attr, attr_field._to_python(value)
+            return attr_field._attr_name, attr_field._to_python(value)
         return key, value
 
     def to_meta(self):
@@ -188,7 +178,7 @@ class Document(with_metaclass(DocumentMeta)):
 
             attr_field = self.__class__.fields.get(key)
             if attr_field:
-                res[attr_field._attr] = attr_field._from_python(value)
+                res[attr_field._attr_name] = attr_field._from_python(value)
 
         return res
 

@@ -16,7 +16,7 @@ class AttributedField(Expression, FieldOperators):
 
     def __init__(self, parent, attr_name, field):
         self._parent = parent
-        self._attr = attr_name
+        self._attr_name = attr_name
         self._field = field
 
         if self._field._type.doc_cls:
@@ -60,8 +60,8 @@ class AttributedField(Expression, FieldOperators):
     def get_parent(self):
         return self._parent
     
-    def get_attr(self):
-        return self._attr
+    def get_attr_name(self):
+        return self._attr_name
     
     def get_field(self):
         return self._field
@@ -73,7 +73,7 @@ class AttributedField(Expression, FieldOperators):
         if obj is None:
             return self
 
-        obj.__dict__[self._attr] = None
+        obj.__dict__[self._attr_name] = None
         return None
 
     def _collect_doc_classes(self):

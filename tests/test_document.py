@@ -28,7 +28,7 @@ class TagDocument(Document):
 
 
 class TestDocument(Document):
-    _all = Field(String, enable=False)
+    _all = Field(enable=False)
     
     name = Field('test_name', String(), fields={'raw': Field(String)})
     status = Field(Integer)
@@ -45,22 +45,63 @@ class TestDocument(Document):
 
 
 class DocumentTestCase(BaseTestCase):
+    # def test(self):
+    #     class TestDocument(Document):
+    #         _all = Field(enable=False)
+    #     1/0
+
+    def assertSameElements(self, expected_seq, actual_seq):
+        first_seq = list(expected_seq)
+        second_seq = list(actual_seq)
+        self.assertEqual(len(first_seq), len(second_seq))
+        for e1, e2 in zip(first_seq, second_seq):
+            self.assertIs(e1, e2)
+
+    def test_base_document(self):
+        self.assertSameElements(
+            list(Document.fields),
+            list(Document.mapping_fields)
+        )
+        self.assertSameElements(
+            list(Document.fields),
+            [
+                Document._uid,
+                Document._id,
+                Document._type,
+                Document._source,
+                Document._all,
+                Document._analyzer,
+                Document._boost,
+                Document._parent,
+                Document._field_names,
+                Document._routing,
+                Document._index,
+                Document._size,
+                Document._timestamp,
+                Document._ttl,
+                Document._version,
+                Document._score,
+            ]
+        )
+    
     def test_document(self):
-        self.assertEqual(
+        self.assertSameElements(
             list(TestDocument.fields),
             [
                 TestDocument._uid,
                 TestDocument._id,
                 TestDocument._type,
-                TestDocument._version,
                 TestDocument._source,
                 TestDocument._analyzer,
+                TestDocument._boost,
                 TestDocument._parent,
+                TestDocument._field_names,
                 TestDocument._routing,
                 TestDocument._index,
                 TestDocument._size,
                 TestDocument._timestamp,
                 TestDocument._ttl,
+                TestDocument._version,
                 TestDocument._score,
                 TestDocument._all,
                 TestDocument.name,
@@ -72,7 +113,7 @@ class DocumentTestCase(BaseTestCase):
                 TestDocument.unused,
             ]
         )
-        self.assertEqual(
+        self.assertSameElements(
             list(TestDocument.user_fields),
             [
                 TestDocument.name,
@@ -84,21 +125,23 @@ class DocumentTestCase(BaseTestCase):
                 TestDocument.unused,
             ]
         )
-        self.assertEqual(
+        self.assertSameElements(
             list(TestDocument.mapping_fields),
             [
                 TestDocument._uid,
                 TestDocument._id,
                 TestDocument._type,
-                TestDocument._version,
                 TestDocument._source,
                 TestDocument._analyzer,
+                TestDocument._boost,
                 TestDocument._parent,
+                TestDocument._field_names,
                 TestDocument._routing,
                 TestDocument._index,
                 TestDocument._size,
                 TestDocument._timestamp,
                 TestDocument._ttl,
+                TestDocument._version,
                 TestDocument._score,
                 TestDocument._all,
             ]
@@ -106,19 +149,25 @@ class DocumentTestCase(BaseTestCase):
         self.assertIsInstance(TestDocument._id, AttributedField)
         self.assertIsInstance(TestDocument._id.get_field().get_type(), String)
         self.assertEqual(TestDocument._id.get_field().get_name(), '_id')
-        self.assertEqual(TestDocument._id.get_attr(), '_id')
+        self.assertEqual(TestDocument._id.get_attr_name(), '_id')
         self.assertIs(TestDocument._id.get_parent(), TestDocument)
         self.assert_expression(TestDocument._id, '_id')
+        self.assertIsInstance(TestDocument._all, AttributedField)
+        self.assertIsInstance(TestDocument._all.get_field().get_type(), String)
+        self.assertEqual(TestDocument._all.get_field().get_name(), '_all')
+        self.assertEqual(TestDocument._all.get_attr_name(), '_all')
+        self.assertIs(TestDocument._all.get_parent(), TestDocument)
+        self.assert_expression(TestDocument._all, '_all')
         self.assertIsInstance(TestDocument._score, AttributedField)
         self.assertIsInstance(TestDocument._score.get_field().get_type(), Float)
         self.assertEqual(TestDocument._score.get_field().get_name(), '_score')
-        self.assertEqual(TestDocument._score.get_attr(), '_score')
+        self.assertEqual(TestDocument._score.get_attr_name(), '_score')
         self.assertIs(TestDocument._score.get_parent(), TestDocument)
         self.assert_expression(TestDocument._score, '_score')
         self.assertIsInstance(TestDocument.name, AttributedField)
         self.assertIsInstance(TestDocument.name.get_field().get_type(), String)
         self.assertEqual(TestDocument.name.get_field().get_name(), 'test_name')
-        self.assertEqual(TestDocument.name.get_attr(), 'name')
+        self.assertEqual(TestDocument.name.get_attr_name(), 'name')
         self.assertIs(TestDocument.name.get_parent(), TestDocument)
         self.assert_expression(TestDocument.name, 'test_name')
         self.assertEqual(list(TestDocument.name.fields), [TestDocument.name.raw])
@@ -127,7 +176,7 @@ class DocumentTestCase(BaseTestCase):
         self.assertIsInstance(TestDocument.name.raw.get_field().get_type(), String)
         self.assert_expression(TestDocument.name.raw, 'test_name.raw')
         self.assertEqual(TestDocument.name.raw.get_field().get_name(), 'test_name.raw')
-        self.assertEqual(TestDocument.name.raw.get_attr(), 'raw')
+        self.assertEqual(TestDocument.name.raw.get_attr_name(), 'raw')
         self.assertIsInstance(TestDocument.name.raw.get_parent(), AttributedField)
         self.assertEqual(collect_doc_classes(TestDocument.name.raw), {TestDocument})
         self.assertIsInstance(TestDocument.status, AttributedField)
@@ -140,7 +189,7 @@ class DocumentTestCase(BaseTestCase):
         self.assertIsInstance(TestDocument.group.name, AttributedField)
         self.assertEqual(list(TestDocument.group.name.fields), [TestDocument.group.name.raw])
         self.assertEqual(TestDocument.group.name.get_field().get_name(), 'group.test_name')
-        self.assertEqual(TestDocument.group.name.raw.get_attr(), 'raw')
+        self.assertEqual(TestDocument.group.name.raw.get_attr_name(), 'raw')
         self.assertIsInstance(TestDocument.group.name.get_field().get_type(), String)
         self.assertIs(TestDocument.group.name.get_parent(), TestDocument)
         self.assertEqual(collect_doc_classes(TestDocument.group.name), {TestDocument})
@@ -321,23 +370,25 @@ class DocumentTestCase(BaseTestCase):
         class InheritedDocument(TestDocument):
             description = Field(String)
 
-        self.assertEqual(
+        self.assertSameElements(
             list(InheritedDocument.fields),
             [
                 InheritedDocument._uid,
                 InheritedDocument._id,
                 InheritedDocument._type,
-                InheritedDocument._version,
                 InheritedDocument._source,
-                InheritedDocument._all,
                 InheritedDocument._analyzer,
+                InheritedDocument._boost,
                 InheritedDocument._parent,
+                InheritedDocument._field_names,
                 InheritedDocument._routing,
                 InheritedDocument._index,
                 InheritedDocument._size,
                 InheritedDocument._timestamp,
                 InheritedDocument._ttl,
+                InheritedDocument._version,
                 InheritedDocument._score,
+                InheritedDocument._all,
                 InheritedDocument.name,
                 InheritedDocument.status,
                 InheritedDocument.group,
@@ -440,8 +491,8 @@ class DocumentTestCase(BaseTestCase):
         class ProductDocument(Document):
             __doc_type__ = 'product'
 
-            _routing = Field(String, required=True, path='company_id')
-            _all = Field(String, enabled=False)
+            _routing = Field(required=True, path='company_id')
+            _all = Field(enabled=False)
 
             name = Field(String)
             company_id = Field(Integer)
@@ -457,9 +508,6 @@ class DocumentTestCase(BaseTestCase):
             }
 
         ProductDocument.tags = Field(List(String))
-
-        # print ProductDocument._routing
-        # import pprint; pprint.pprint(ProductDocument.to_mapping())
 
         self.assertEqual(
             ProductDocument.to_mapping(),

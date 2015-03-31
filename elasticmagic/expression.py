@@ -487,8 +487,8 @@ class Field(Expression, FieldOperators):
                 raise TypeError('Argument must be string or field type: %s found' % args[0].__class__.__name__)
         elif len(args) == 2:
             self._name, self._type = args
-        else:
-            raise TypeError('Takes 1 or 2 positional arguments: %s given' % len(args))
+        elif len(args) >= 3:
+            raise TypeError('Too many positional arguments: %s' % len(args))
 
         if self._type is None:
             self._type = Type()
