@@ -6,8 +6,9 @@ from .datastructures import OrderedAttributes
 # really its factory factory
 def _attributed_field_factory(attr_cls, doc_cls, dynamic_field, make_field_name=None):
     def _attr_field(name):
-        field_name = make_field_name(name) if make_field_name else name
-        return attr_cls(doc_cls, name, Field(field_name, dynamic_field.get_type()))
+        field = dynamic_field.clone()
+        field._name = make_field_name(name) if make_field_name else name
+        return attr_cls(doc_cls, name, field)
     return _attr_field
 
 
@@ -33,15 +34,18 @@ class AttributedField(Expression, FieldOperators):
 
             self._sub_fields = OrderedAttributes(defaults=dynamic_defaults)
             for attr_name, attr_field in doc_cls.user_fields.items():
-                field = attr_field._field
+                field = attr_field._field.clone()
+                field._name = self._make_field_name(field._name)
                 self._sub_fields[attr_name] = AttributedField(
-                    self._parent, attr_name, Field(self._make_field_name(field._name), field._type, fields=field._fields)
+                    self._parent, attr_name, field
                 )
         elif self._field._fields:
             self._sub_fields = OrderedAttributes()
             for field_attr, field in self._field._fields.items():
+                field = field.clone()
+                field._name = self._make_field_name(field_attr)
                 self._sub_fields[field_attr] = AttributedField(
-                    self, field_attr, Field(self._make_field_name(field_attr), field._type)
+                    self, field_attr, field
                 )
         else:
             self._sub_fields = OrderedAttributes()

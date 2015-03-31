@@ -525,6 +525,11 @@ class DocumentTestCase(BaseTestCase):
         class ProductDocument(Document):
             __doc_type__ = 'product'
 
+            __mapping_options__ = {
+                'dynamic': False,
+                'date_detection': False,
+            }
+
             _routing = Field(required=True, path='company_id')
             _all = Field(enabled=False)
 
@@ -537,10 +542,6 @@ class DocumentTestCase(BaseTestCase):
                 Field('attr_*', Integer)
             ]
 
-            __mapping_options__ = {
-                'dynamic': False
-            }
-
         ProductDocument.tags = Field(List(String))
 
         self.assertEqual(
@@ -548,6 +549,7 @@ class DocumentTestCase(BaseTestCase):
             {
                 "product": {
                     "dynamic": False,
+                    "date_detection": False,
                     "dynamic_templates": [
                         {
                             "group.group_id_level_*": {
