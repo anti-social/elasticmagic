@@ -225,11 +225,25 @@ class QueryCompiled(Compiled):
 
 
 class MappingCompiled(Compiled):
+    def __init__(self, expression, ordered=False):
+        self._dict_type = collections.OrderedDict if ordered else dict
+        self._dynamic_templates = []
+        super(MappingCompiled, self).__init__(expression)
+
+    def _visit_dynamic_field(self, field):
+        self._dynamic_templates.append(
+            {
+                field._field._name: {
+                    'path_match': field._field._name,
+                    'mapping': next(iter(self.visit(field).values()))
+                }
+            }
+        )
+        
     def visit_field(self, field):
         field_type = field.get_type()
-        mapping = {
-            'type': field_type.__visit_name__
-        }
+        mapping = self._dict_type()
+        mapping['type'] = field_type.__visit_name__
 
         if field_type.doc_cls:
             mapping['properties'] = self.visit(field_type.doc_cls.user_fields)
@@ -249,35 +263,31 @@ class MappingCompiled(Compiled):
         }
 
     def visit_mapping_field(self, field):
+        mapping = self._dict_type()
         if field._mapping_options:
-            return {
-                field.get_name(): field._mapping_options
-            }
-        return {}
+            mapping[field.get_name()] = field._mapping_options
+        return mapping
 
     def visit_attributed_field(self, field):
+        for f in field.dynamic_fields:
+            self._visit_dynamic_field(f)
         return self.visit(field.get_field())
 
     def visit_ordered_attributes(self, attrs):
-        mapping = {}
+        mapping = self._dict_type()
         for f in attrs:
             mapping.update(self.visit(f))
         return mapping
         
     def visit_document(self, doc_cls):
-        mapping = {}
+        mapping = self._dict_type()
         mapping.update(doc_cls.__mapping_options__)
         mapping.update(self.visit(doc_cls.mapping_fields))
         mapping['properties'] = self.visit(doc_cls.user_fields)
         for f in doc_cls.dynamic_fields:
-            mapping.setdefault('dynamic_templates', []).append(
-                {
-                    f._field._name: {
-                        'path_match': f._field._name,
-                        'mapping': next(iter(self.visit(f).values()))
-                    }
-                }
-            )
+            self._visit_dynamic_field(f)
+        if self._dynamic_templates:
+            mapping['dynamic_templates'] = self._dynamic_templates
         return {
             doc_cls.__doc_type__: mapping
         }

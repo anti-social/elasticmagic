@@ -183,8 +183,8 @@ class Document(with_metaclass(DocumentMeta)):
         return res
 
     @classmethod
-    def to_mapping(cls):
-        return MappingCompiled(cls).params
+    def to_mapping(cls, ordered=False):
+        return MappingCompiled(cls, ordered=ordered).params
 
     @cached_property
     def instance(self):

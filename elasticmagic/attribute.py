@@ -19,11 +19,15 @@ class AttributedField(Expression, FieldOperators):
         self._attr_name = attr_name
         self._field = field
 
+        self._dynamic_fields = OrderedAttributes()
+
         if self._field._type.doc_cls:
             doc_cls = self._field._type.doc_cls
             dynamic_defaults = {}
             for dyn_field_name, dyn_attr_field in doc_cls.dynamic_fields.items():
-                dyn_field = dyn_attr_field._field
+                dyn_field = dyn_attr_field._field.clone()
+                dyn_field._name = self._make_field_name(dyn_field._name)
+                self._dynamic_fields[dyn_field_name] = AttributedField(self._parent, dyn_field_name, dyn_field)
                 default = _attributed_field_factory(AttributedField, self._parent, dyn_field, self._make_field_name)
                 dynamic_defaults[dyn_field_name] = default
 
@@ -48,6 +52,10 @@ class AttributedField(Expression, FieldOperators):
     @property
     def fields(self):
         return self._sub_fields
+
+    @property
+    def dynamic_fields(self):
+        return self._dynamic_fields
 
     def __getattr__(self, name):
         return getattr(self.fields, name)
