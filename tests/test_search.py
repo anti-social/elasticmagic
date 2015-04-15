@@ -5,7 +5,7 @@ from elasticmagic import Index
 from elasticmagic import (
     Index, Document, DynamicDocument,
     SearchQuery, Params, Term, Bool, MultiMatch,
-    FunctionScore, Sort, agg
+    FunctionScore, Sort, QueryRescorer, agg
 )
 from elasticmagic.util import collect_doc_classes
 from elasticmagic.types import String, Integer, Float, Object
@@ -290,19 +290,25 @@ class SearchQueryTest(BaseTestCase):
         sq = (
             SearchQuery()
             .rescore(
-                self.index.t.field1.match('the quick brown', type='phrase', slop=2)
+                QueryRescorer(
+                    self.index.t.field1.match('the quick brown', type='phrase', slop=2)
+                )
             )
             .rescore(None)
             .rescore(
-                self.index.t.field1.match('the quick brown fox', type='phrase', slop=2),
+                QueryRescorer(
+                    self.index.t.field1.match('the quick brown fox', type='phrase', slop=2),
+                    query_weight=0.7,
+                    rescore_query_weight=1.2
+                ),
                 window_size=100,
-                query_weight=0.7,
-                rescore_query_weight=1.2
             )
             .rescore(
-                FunctionScore(script_score={'script': "log10(doc['numeric'].value + 2)"}),
+                QueryRescorer(
+                    FunctionScore(script_score={'script': "log10(doc['numeric'].value + 2)"}),
+                    score_mode='multiply'
+                ),
                 window_size=10,
-                score_mode='multiply'
             )
         )
         self.assert_expression(

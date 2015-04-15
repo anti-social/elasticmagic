@@ -1,5 +1,5 @@
 from .index import Index
-from .search import SearchQuery
+from .search import SearchQuery, QueryRescorer
 from .cluster import Cluster
 from .document import Document, DynamicDocument
 from .expression import (

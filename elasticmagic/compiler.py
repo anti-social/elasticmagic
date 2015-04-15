@@ -187,17 +187,11 @@ class QueryCompiled(Compiled):
             return False
         return [self.visit(f) for f in expr.fields]
 
+    def visit_query_rescorer(self, rescorer):
+        return {'query': self.visit(rescorer.params)}
+    
     def visit_rescore(self, rescore):
-        query_params = {
-            'rescore_query': self.visit(rescore.query)
-        }
-        if rescore.query_weight is not None:
-            query_params['query_weight'] = rescore.query_weight
-        if rescore.rescore_query_weight is not None:
-            query_params['rescore_query_weight'] = rescore.rescore_query_weight
-        if rescore.score_mode is not None:
-            query_params['score_mode'] = rescore.score_mode
-        params = {'query': query_params}
+        params = self.visit(rescore.rescorer)
         if rescore.window_size is not None:
             params['window_size'] = rescore.window_size
         return params
@@ -208,7 +202,7 @@ class QueryCompiled(Compiled):
         if q is not None:
             params['query'] = self.visit(q)
         if query._order_by:
-            params['sort'] = [self.visit(o) for o in query._order_by]
+            params['sort'] = self.visit(query._order_by)
         if query._source:
             params['_source'] = self.visit(query._source)
         if query._aggregations:
@@ -218,7 +212,7 @@ class QueryCompiled(Compiled):
         if query._offset is not None:
             params['from'] = query._offset
         if query._rescores:
-            params['rescore'] = [self.visit(r) for r in query._rescores]
+            params['rescore'] = self.visit(query._rescores)
         if query._post_filters:
             params['post_filter'] = self.visit(query.get_post_filter())
         return params

@@ -6,7 +6,7 @@ from .agg import merge_aggregations
 from .util import _with_clone, cached_property, collect_doc_classes
 from .result import Result
 from .compiler import QueryCompiled
-from .expression import Expression, Params, Filtered, And, Bool, FunctionScore
+from .expression import Expression, QueryExpression, Params, Filtered, And, Bool, FunctionScore
 
 
 __all__ = ['SearchQuery']
@@ -28,19 +28,27 @@ class Source(Expression):
         )
 
 
+class QueryRescorer(QueryExpression):
+    __visit_name__ = 'query_rescorer'
+
+    def __init__(self, rescore_query, query_weight=None, rescore_query_weight=None, score_mode=None, **kwargs):
+        super(QueryRescorer, self).__init__(
+            rescore_query=rescore_query, query_weight=query_weight,
+            rescore_query_weight=rescore_query_weight, score_mode=score_mode,
+            **kwargs
+        )
+
+
 class Rescore(Expression):
     __visit_name__ = 'rescore'
 
-    def __init__(self, query, window_size=None,
-                 query_weight=None, rescore_query_weight=None, score_mode=None):
-        self.query = query
+    def __init__(self, rescorer, window_size=None,
+                 ):
+        self.rescorer = rescorer
         self.window_size = window_size
-        self.query_weight = query_weight
-        self.rescore_query_weight = rescore_query_weight
-        self.score_mode = score_mode
 
     def _collect_doc_classes(self):
-        return collect_doc_classes(self.query)
+        return collect_doc_classes(self.rescorer)
 
 
 class SearchQuery(object):
@@ -175,16 +183,12 @@ class SearchQuery(object):
     from_ = offset
 
     @_with_clone
-    def rescore(self, query, window_size=None,
-                query_weight=None, rescore_query_weight=None, score_mode=None):
-        if query is None:
+    def rescore(self, rescorer, window_size=None):
+        if rescorer is None:
             if '_rescores' in self.__dict__:
                 del self._rescores
             return
-        rescore = Rescore(
-            query, window_size=window_size, query_weight=query_weight,
-            rescore_query_weight=rescore_query_weight, score_mode=score_mode,
-        )
+        rescore = Rescore(rescorer, window_size=window_size)
         self._rescores = self._rescores + (rescore,)
 
     @_with_clone
