@@ -81,9 +81,9 @@ class AggregationTest(BaseTestCase):
         self.assertAlmostEqual(a.variance, 218.2799999999976)
         self.assertAlmostEqual(a.std_deviation, 14.774302013969987)
 
-        a = agg.Percentiles(f.load_time, percents=[95, 99, 99.9])
+        percentiles_agg = agg.Percentiles(f.load_time, percents=[95, 99, 99.9])
         self.assert_expression(
-            a,
+            percentiles_agg,
             {
                 "percentiles": {
                     "field": "load_time",
@@ -91,12 +91,33 @@ class AggregationTest(BaseTestCase):
                 }
             }
         )
-        a = a.build_agg_result(
+        a = percentiles_agg.build_agg_result(
             {
                 "values": {
                     "95.0": 60,
                     "99.0": 150,
                     "99.9": 153,
+                }
+            }
+        )
+        self.assertEqual(
+            a.values,
+            [(95.0, 60), (99.0, 150), (99.9, 153)],
+        )
+        self.assertEqual(a.get_value(95), 60)
+        self.assertEqual(a.get_value(95.0), 60)
+        self.assertEqual(a.get_value(99), 150)
+        self.assertEqual(a.get_value(99.0), 150)
+        self.assertEqual(a.get_value(99.9), 153)
+        a = percentiles_agg.build_agg_result(
+            {
+                "values": {
+                    "95.0": 60,
+                    "95.0_as_string": "60",
+                    "99.0": 150,
+                    "99.0_as_string": "150",
+                    "99.9": 153,
+                    "99.9_as_string": "153",
                 }
             }
         )

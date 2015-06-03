@@ -155,10 +155,13 @@ class ExtendedStats(Stats):
 class PercentilesAggResult(MultiValueMetricsAggResult):
     def __init__(self, *args, **kwargs):
         super(PercentilesAggResult, self).__init__(*args, **kwargs)
-        self.values = sorted(
-            ((float(e[0]), e[1]) for e in self.values.items()),
-            key=lambda e: e[0]
-        )
+        values = []
+        for k, v in self.values.items():
+            try:
+                values.append((float(k), v))
+            except ValueError:
+                pass
+        self.values = sorted(values, key=lambda e: e[0])
 
     def get_value(self, percent):
         for p, v in self.values:
