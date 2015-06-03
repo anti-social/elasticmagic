@@ -33,7 +33,7 @@ class Result(object):
         self._mapper_registry = {}
         for agg_name, agg_expr in self._query_aggs.items():
             raw_agg_data = raw_result['aggregations'][agg_name]
-            agg_result = agg_expr.build_agg_result(raw_agg_data, mapper_registry=self._mapper_registry)
+            agg_result = agg_expr.build_agg_result(raw_agg_data, self._doc_cls_map, mapper_registry=self._mapper_registry)
             self.aggregations[agg_name] = agg_result
 
         self.scroll_id = raw_result.get('_scroll_id')

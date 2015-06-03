@@ -1,5 +1,6 @@
 from itertools import chain
 
+from .document import DynamicDocument
 from .expression import QueryExpression, Params
 from .types import instantiate, Type
 from .util import _with_clone, cached_property
@@ -21,7 +22,7 @@ class AggExpression(QueryExpression):
     def clone(self):
         return self.__class__(**self.params)
 
-    def build_agg_result(self, raw_data, **kwargs):
+    def build_agg_result(self, raw_data, doc_cls_map=None, mapper_registry=None):
         raise NotImplementedError()
 
 
@@ -53,7 +54,7 @@ class BucketAgg(AggExpression):
 
     aggs = aggregations
 
-    def build_agg_result(self, raw_data, mapper_registry=None):
+    def build_agg_result(self, raw_data, doc_cls_map=None, mapper_registry=None):
         return self.result_cls(self, raw_data, mapper_registry=mapper_registry)
 
 
@@ -67,7 +68,7 @@ class SingleValueMetricsAgg(MetricsAgg):
     def __init__(self, field=None, script=None, **kwargs):
         super(SingleValueMetricsAgg, self).__init__(field=field, script=script, **kwargs)
 
-    def build_agg_result(self, raw_data, **kwargs):
+    def build_agg_result(self, raw_data, doc_cls_map=None, mapper_registry=None):
         return SingleValueMetricsAggResult(self, raw_data['value'])
 
 
@@ -83,7 +84,7 @@ class MultiValueMetricsAgg(MetricsAgg):
     def __init__(self, field=None, script=None, **kwargs):
         super(MultiValueMetricsAgg, self).__init__(field=field, script=script, **kwargs)
 
-    def build_agg_result(self, raw_data, **kwargs):
+    def build_agg_result(self, raw_data, doc_cls_map=None, mapper_registry=None):
         if 'values' in raw_data:
             values = raw_data['values']
         else:
@@ -107,13 +108,32 @@ class Avg(SingleValueMetricsAgg):
     __agg_name__ = 'avg'
 
 
-class TopHits(SingleValueMetricsAgg):
+class TopHitsResult(AggResult):
+    def __init__(self, agg_expr, hits, total, max_score):
+        super(TopHitsResult, self).__init__(agg_expr)
+        self.hits = hits
+        self.total = total
+        self.max_score = max_score
+
+
+class TopHits(MetricsAgg):
     __agg_name__ = 'top_hits'
+
+    result_cls = TopHitsResult
 
     def __init__(self, size=None, from_=None, sort=None, _source=None, **kwargs):
         super(TopHits, self).__init__(
             size=size, from_=from_, sort=sort, _source=_source, **kwargs
         )
+
+    def build_agg_result(self, raw_data, doc_cls_map=None, mapper_registry=None):
+        hits_data = raw_data['hits']
+        doc_cls_map = doc_cls_map or {}
+        docs = []
+        for hit in hits_data['hits']:
+            doc_cls = doc_cls_map.get(hit['_type'], DynamicDocument)
+            docs.append(doc_cls(_hit=hit))
+        return self.result_cls(self, docs, hits_data['total'], hits_data['max_score'])
 
 
 class StatsResult(MultiValueMetricsAggResult):
@@ -310,7 +330,7 @@ class MultiBucketAgg(BucketAgg):
             **self.params
         )
 
-    def build_agg_result(self, raw_data, mapper_registry=None, **kwargs):
+    def build_agg_result(self, raw_data, doc_cls_map=None, mapper_registry=None):
         return self.result_cls(self, raw_data, mapper_registry, self._instance_mapper)
 
 

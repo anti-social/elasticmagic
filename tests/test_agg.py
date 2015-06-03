@@ -583,6 +583,155 @@ class AggregationTest(BaseTestCase):
         self.assertIs(price_hist_agg.buckets[3], price_hist_agg.get_bucket(150))
         self.assertEqual(a.get_aggregation('price_avg').value, 56.3)
 
+        top_hits_agg = agg.Terms(
+            f.tags,
+            size=3,
+            aggs={
+                'top_tags_hits': agg.TopHits(
+                    size=1,
+                    sort=f.last_activity_date.desc(),
+                    _source={'include': f.title}
+                )
+            }
+        )
+        self.assert_expression(
+            top_hits_agg,
+            {
+                "terms": {
+                    "field": "tags",
+                    "size": 3
+                },
+                "aggregations": {
+                    "top_tags_hits": {
+                        "top_hits": {
+                            "sort": {
+                                "last_activity_date": "desc"
+                            },
+                            "_source": {
+                                "include": "title"
+                            },
+                            "size" : 1
+                        }
+                    }
+                }
+            }
+        )
+        a = top_hits_agg.build_agg_result(
+            {
+                "buckets": [
+                    {
+                        "key": "windows-7",
+                        "doc_count": 25365,
+                        "top_tags_hits": {
+                            "hits": {
+                                "total": 25365,
+                                "max_score": 1,
+                                "hits": [
+                                    {
+                                        "_index": "stack",
+                                        "_type": "question",
+                                        "_id": "602679",
+                                        "_score": 1,
+                                        "_source": {
+                                            "title": "Windows port opening"
+                                        },
+                                        "sort": [
+                                            1370143231177
+                                        ]
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "key": "linux",
+                        "doc_count": 18342,
+                        "top_tags_hits": {
+                            "hits": {
+                                "total": 18342,
+                                "max_score": 1,
+                                "hits": [
+                                    {
+                                        "_index": "stack",
+                                        "_type": "question",
+                                        "_id": "602672",
+                                        "_score": 1,
+                                        "_source": {
+                                            "title": "Ubuntu RFID Screensaver lock-unlock"
+                                        },
+                                        "sort": [
+                                            1370143379747
+                                        ]
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "key": "windows",
+                        "doc_count": 18119,
+                        "top_tags_hits": {
+                            "hits": {
+                                "total": 18119,
+                                "max_score": 1,
+                                "hits": [
+                                    {
+                                        "_index": "stack",
+                                        "_type": "question",
+                                        "_id": "602678",
+                                        "_score": 1,
+                                        "_source": {
+                                            "title": "If I change my computers date / time, what could be affected?"
+                                        },
+                                        "sort": [
+                                            1370142868283
+                                        ]
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                ]
+            }
+        )
+        self.assertEqual(len(a.buckets), 3)
+        self.assertEqual(a.buckets[0].doc_count, 25365)
+        self.assertEqual(a.buckets[0].key, 'windows-7')
+        top_tags_agg = a.buckets[0].get_aggregation('top_tags_hits')
+        self.assertEqual(top_tags_agg.total, 25365)
+        self.assertEqual(top_tags_agg.max_score, 1)
+        self.assertEqual(len(top_tags_agg.hits), 1)
+        self.assertIsInstance(top_tags_agg.hits[0], DynamicDocument)
+        self.assertEqual(top_tags_agg.hits[0]._index, 'stack')
+        self.assertEqual(top_tags_agg.hits[0]._type, 'question')
+        self.assertEqual(top_tags_agg.hits[0]._score, 1)
+        self.assertEqual(top_tags_agg.hits[0]._id, '602679')
+        self.assertEqual(top_tags_agg.hits[0].title, 'Windows port opening')
+        self.assertEqual(a.buckets[1].doc_count, 18342)
+        self.assertEqual(a.buckets[1].key, 'linux')
+        top_tags_agg = a.buckets[1].get_aggregation('top_tags_hits')
+        self.assertEqual(top_tags_agg.total, 18342)
+        self.assertEqual(top_tags_agg.max_score, 1)
+        self.assertEqual(len(top_tags_agg.hits), 1)
+        self.assertIsInstance(top_tags_agg.hits[0], DynamicDocument)
+        self.assertEqual(top_tags_agg.hits[0]._index, 'stack')
+        self.assertEqual(top_tags_agg.hits[0]._type, 'question')
+        self.assertEqual(top_tags_agg.hits[0]._score, 1)
+        self.assertEqual(top_tags_agg.hits[0]._id, '602672')
+        self.assertEqual(top_tags_agg.hits[0].title, 'Ubuntu RFID Screensaver lock-unlock')
+        self.assertEqual(a.buckets[2].doc_count, 18119)
+        self.assertEqual(a.buckets[2].key, 'windows')
+        top_tags_agg = a.buckets[2].get_aggregation('top_tags_hits')
+        self.assertEqual(top_tags_agg.total, 18119)
+        self.assertEqual(top_tags_agg.max_score, 1)
+        self.assertEqual(len(top_tags_agg.hits), 1)
+        self.assertIsInstance(top_tags_agg.hits[0], DynamicDocument)
+        self.assertEqual(top_tags_agg.hits[0]._index, 'stack')
+        self.assertEqual(top_tags_agg.hits[0]._type, 'question')
+        self.assertEqual(top_tags_agg.hits[0]._score, 1)
+        self.assertEqual(top_tags_agg.hits[0]._id, '602678')
+        self.assertEqual(top_tags_agg.hits[0].title, 'If I change my computers date / time, what could be affected?')
+
     def test_instance_mapper(self):
         class _Gender(object):
             def __init__(self, key, title):
@@ -720,7 +869,7 @@ class AggregationTest(BaseTestCase):
                     ]
                 }
             },
-            {}
+            mapper_registry={}
         )
         self.assertEqual(a.doc_count, 1819)
         all_genders_agg = a.get_aggregation('all_genders')
