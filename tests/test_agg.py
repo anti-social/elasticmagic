@@ -131,9 +131,9 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(a.get_value(99.0), 150)
         self.assertEqual(a.get_value(99.9), 153)
 
-        a = agg.PercentileRanks(f.load_time, values=[14.8, 30])
+        ranks_agg = agg.PercentileRanks(f.load_time, values=[14.8, 30])
         self.assert_expression(
-            a,
+            ranks_agg,
             {
                 "percentile_ranks": {
                     "field": "load_time",
@@ -141,11 +141,33 @@ class AggregationTest(BaseTestCase):
                 }
             }
         )
-        a = a.build_agg_result(
+        a = ranks_agg.build_agg_result(
             {
                 "values": {
                     "14.8": 12.32,
                     "30": 100,
+                }
+            }
+        )
+        self.assertEqual(
+            a.values,
+            [(14.8, 12.32), (30.0, 100)],
+        )
+        self.assertEqual(
+            a.values,
+            [(14.8, 12.32), (30.0, 100)],
+        )
+        self.assertAlmostEqual(a.get_percent(14.8), 12.32)
+        self.assertAlmostEqual(a.get_percent(13.7 + 1.1), 12.32)
+        self.assertAlmostEqual(a.get_percent(30), 100.0)
+        self.assertAlmostEqual(a.get_percent(30.0), 100.0)
+        a = ranks_agg.build_agg_result(
+            {
+                "values": {
+                    "14.8": 12.32,
+                    "14.8_as_string": "12.32",
+                    "30": 100,
+                    "30_as_string": "100",
                 }
             }
         )
