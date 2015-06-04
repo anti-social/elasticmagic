@@ -109,11 +109,44 @@ class Avg(SingleValueMetricsAgg):
 
 
 class TopHitsResult(AggResult):
-    def __init__(self, agg_expr, hits, total, max_score):
+    def __init__(self, agg_expr, hits_data, doc_cls_map, mapper_registry, instance_mapper):
         super(TopHitsResult, self).__init__(agg_expr)
-        self.hits = hits
-        self.total = total
-        self.max_score = max_score
+        self.total = hits_data['total']
+        self.max_score = hits_data['max_score']
+
+        self.hits = []
+        for hit in hits_data['hits']:
+            doc_cls = doc_cls_map.get(hit['_type'], DynamicDocument)
+            self.hits.append(doc_cls(_hit=hit, _result=self))
+
+        if isinstance(instance_mapper, dict):
+            self._instance_mappers = instance_mapper
+        else:
+            self._instance_mappers = {doc_cls: instance_mapper for doc_cls in doc_classes}
+
+        if mapper_registry is None:
+            self._mapper_registry = {}
+        else:
+            self._mapper_registry = mapper_registry
+
+        if self._instance_mappers:
+            for instance_mapper in self._instance_mappers.values():
+                self._mapper_registry.setdefault(instance_mapper, []).append(self)
+
+    def _populate_instances(self, doc_cls):
+        instance_mapper = self._instance_mappers.get(doc_cls)
+        hits = list(chain(
+            *(
+                map(
+                    lambda r: filter(lambda hit: isinstance(hit, doc_cls), r.hits),
+                    self._mapper_registry.get(instance_mapper, [self])
+                )
+            )
+        ))
+        ids = [hit._id for hit in hits]
+        instances = instance_mapper(ids) if instance_mapper else {}
+        for hit in hits:
+            hit.__dict__['instance'] = instances.get(hit._id)
 
 
 class TopHits(MetricsAgg):
@@ -121,19 +154,18 @@ class TopHits(MetricsAgg):
 
     result_cls = TopHitsResult
 
-    def __init__(self, size=None, from_=None, sort=None, _source=None, **kwargs):
+    def __init__(self, size=None, from_=None, sort=None, _source=None, instance_mapper=None, **kwargs):
         super(TopHits, self).__init__(
             size=size, from_=from_, sort=sort, _source=_source, **kwargs
         )
+        self._instance_mapper = instance_mapper
 
     def build_agg_result(self, raw_data, doc_cls_map=None, mapper_registry=None):
         hits_data = raw_data['hits']
         doc_cls_map = doc_cls_map or {}
-        docs = []
-        for hit in hits_data['hits']:
-            doc_cls = doc_cls_map.get(hit['_type'], DynamicDocument)
-            docs.append(doc_cls(_hit=hit))
-        return self.result_cls(self, docs, hits_data['total'], hits_data['max_score'])
+        return self.result_cls(
+            self, hits_data, doc_cls_map, mapper_registry, self._instance_mapper
+        )
 
 
 class StatsResult(MultiValueMetricsAggResult):
@@ -239,7 +271,7 @@ class Cardinality(SingleValueMetricsAgg):
 class Bucket(object):
     _typed_key = True
 
-    def __init__(self, raw_data, agg_expr, parent, mapper_registry=None):
+    def __init__(self, raw_data, agg_expr, parent, doc_cls_map=None, mapper_registry=None):
         self.key = raw_data.get('key')
         if self._typed_key:
             self.key = agg_expr._type.to_python_single(self.key)
@@ -247,7 +279,9 @@ class Bucket(object):
         self.parent = parent
         self.aggregations = {}
         for agg_name, agg_expr in agg_expr._aggregations.items():
-            result_agg = agg_expr.build_agg_result(raw_data[agg_name], mapper_registry=mapper_registry)
+            result_agg = agg_expr.build_agg_result(
+                raw_data[agg_name], doc_cls_map=doc_cls_map, mapper_registry=mapper_registry
+            )
             self.aggregations[agg_name] = result_agg
 
     def get_aggregation(self, name):
@@ -262,7 +296,7 @@ class Bucket(object):
 class MultiBucketAggResult(AggResult):
     bucket_cls = Bucket
 
-    def __init__(self, agg_expr, raw_data, mapper_registry, instance_mapper):
+    def __init__(self, agg_expr, raw_data, doc_cls_map, mapper_registry, instance_mapper):
         super(MultiBucketAggResult, self).__init__(agg_expr)
 
         raw_buckets = raw_data.get('buckets', [])
@@ -277,7 +311,9 @@ class MultiBucketAggResult(AggResult):
         self._buckets = []
         self._buckets_map = {}
         for raw_bucket in raw_buckets:
-            bucket = self.bucket_cls(raw_bucket, agg_expr, self, mapper_registry=mapper_registry)
+            bucket = self.bucket_cls(
+                raw_bucket, agg_expr, self, doc_cls_map=doc_cls_map, mapper_registry=mapper_registry
+            )
             self.add_bucket(bucket)
 
         self._instance_mapper = instance_mapper
@@ -331,7 +367,7 @@ class MultiBucketAgg(BucketAgg):
         )
 
     def build_agg_result(self, raw_data, doc_cls_map=None, mapper_registry=None):
-        return self.result_cls(self, raw_data, mapper_registry, self._instance_mapper)
+        return self.result_cls(self, raw_data, doc_cls_map, mapper_registry, self._instance_mapper)
 
 
 class Terms(MultiBucketAgg):
@@ -364,9 +400,9 @@ class Terms(MultiBucketAgg):
 
 
 class SignificantTermsBucket(Bucket):
-    def __init__(self, raw_data, aggs, parent, mapper_registry=None):
+    def __init__(self, raw_data, aggs, parent, doc_cls_map=None, mapper_registry=None):
         super(SignificantTermsBucket, self).__init__(
-            raw_data, aggs, parent, mapper_registry=mapper_registry
+            raw_data, aggs, parent, doc_cls_map=doc_cls_map, mapper_registry=mapper_registry
         )
         self.score = raw_data['score']
         self.bg_count = raw_data['bg_count']
@@ -392,8 +428,8 @@ class Histogram(MultiBucketAgg):
 class RangeBucket(Bucket):
     _typed_key = False
 
-    def __init__(self, raw_data, agg_expr, parent, mapper_registry=None):
-        super(RangeBucket, self).__init__(raw_data, agg_expr, parent, mapper_registry=mapper_registry)
+    def __init__(self, raw_data, agg_expr, parent, doc_cls_map=None, mapper_registry=None):
+        super(RangeBucket, self).__init__(raw_data, agg_expr, parent, doc_cls_map=doc_cls_map, mapper_registry=mapper_registry)
         self.from_ = agg_expr._type.to_python_single(raw_data.get('from'))
         self.to = agg_expr._type.to_python_single(raw_data.get('to'))
         if self.key is None:

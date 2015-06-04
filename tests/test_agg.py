@@ -583,6 +583,19 @@ class AggregationTest(BaseTestCase):
         self.assertIs(price_hist_agg.buckets[3], price_hist_agg.get_bucket(150))
         self.assertEqual(a.get_aggregation('price_avg').value, 56.3)
 
+        class QuestionDocument(DynamicDocument):
+            pass
+        
+        class PaperDocument(DynamicDocument):
+            pass
+        
+        question_mapper = Mock(
+            return_value={
+                '602679': Mock(id=602679, type='question'),
+                '602678': Mock(id=602678, type='question'),
+            }
+        )
+        paper_mapper = Mock(return_value={'602672': Mock(id=602672, type='paper')})
         top_hits_agg = agg.Terms(
             f.tags,
             size=3,
@@ -590,7 +603,10 @@ class AggregationTest(BaseTestCase):
                 'top_tags_hits': agg.TopHits(
                     size=1,
                     sort=f.last_activity_date.desc(),
-                    _source={'include': f.title}
+                    _source={'include': f.title},
+                    instance_mapper={
+                        QuestionDocument: question_mapper, PaperDocument: paper_mapper
+                    },
                 )
             }
         )
@@ -653,7 +669,7 @@ class AggregationTest(BaseTestCase):
                                 "hits": [
                                     {
                                         "_index": "stack",
-                                        "_type": "question",
+                                        "_type": "paper",
                                         "_id": "602672",
                                         "_score": 1,
                                         "_source": {
@@ -692,7 +708,9 @@ class AggregationTest(BaseTestCase):
                         }
                     }
                 ]
-            }
+            },
+            doc_cls_map={'question': QuestionDocument, 'paper': PaperDocument},
+            mapper_registry={},
         )
         self.assertEqual(len(a.buckets), 3)
         self.assertEqual(a.buckets[0].doc_count, 25365)
@@ -701,24 +719,28 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(top_tags_agg.total, 25365)
         self.assertEqual(top_tags_agg.max_score, 1)
         self.assertEqual(len(top_tags_agg.hits), 1)
-        self.assertIsInstance(top_tags_agg.hits[0], DynamicDocument)
+        self.assertIsInstance(top_tags_agg.hits[0], QuestionDocument)
         self.assertEqual(top_tags_agg.hits[0]._index, 'stack')
         self.assertEqual(top_tags_agg.hits[0]._type, 'question')
         self.assertEqual(top_tags_agg.hits[0]._score, 1)
         self.assertEqual(top_tags_agg.hits[0]._id, '602679')
         self.assertEqual(top_tags_agg.hits[0].title, 'Windows port opening')
+        self.assertEqual(top_tags_agg.hits[0].instance.id, 602679)
+        self.assertEqual(top_tags_agg.hits[0].instance.type, 'question')
         self.assertEqual(a.buckets[1].doc_count, 18342)
         self.assertEqual(a.buckets[1].key, 'linux')
         top_tags_agg = a.buckets[1].get_aggregation('top_tags_hits')
         self.assertEqual(top_tags_agg.total, 18342)
         self.assertEqual(top_tags_agg.max_score, 1)
         self.assertEqual(len(top_tags_agg.hits), 1)
-        self.assertIsInstance(top_tags_agg.hits[0], DynamicDocument)
+        self.assertIsInstance(top_tags_agg.hits[0], PaperDocument)
         self.assertEqual(top_tags_agg.hits[0]._index, 'stack')
-        self.assertEqual(top_tags_agg.hits[0]._type, 'question')
+        self.assertEqual(top_tags_agg.hits[0]._type, 'paper')
         self.assertEqual(top_tags_agg.hits[0]._score, 1)
         self.assertEqual(top_tags_agg.hits[0]._id, '602672')
         self.assertEqual(top_tags_agg.hits[0].title, 'Ubuntu RFID Screensaver lock-unlock')
+        self.assertEqual(top_tags_agg.hits[0].instance.id, 602672)
+        self.assertEqual(top_tags_agg.hits[0].instance.type, 'paper')
         self.assertEqual(a.buckets[2].doc_count, 18119)
         self.assertEqual(a.buckets[2].key, 'windows')
         top_tags_agg = a.buckets[2].get_aggregation('top_tags_hits')
@@ -731,6 +753,10 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(top_tags_agg.hits[0]._score, 1)
         self.assertEqual(top_tags_agg.hits[0]._id, '602678')
         self.assertEqual(top_tags_agg.hits[0].title, 'If I change my computers date / time, what could be affected?')
+        self.assertEqual(top_tags_agg.hits[0].instance.id, 602678)
+        self.assertEqual(top_tags_agg.hits[0].instance.type, 'question')
+        self.assertEqual(question_mapper.call_count, 1)
+        self.assertEqual(paper_mapper.call_count, 1)
 
     def test_instance_mapper(self):
         class _Gender(object):
