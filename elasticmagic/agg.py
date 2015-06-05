@@ -122,7 +122,7 @@ class TopHitsResult(AggResult):
         if isinstance(instance_mapper, dict):
             self._instance_mappers = instance_mapper
         else:
-            self._instance_mappers = {doc_cls: instance_mapper for doc_cls in doc_classes}
+            self._instance_mappers = {doc_cls: instance_mapper for doc_cls in doc_cls_map.values()}
 
         if mapper_registry is None:
             self._mapper_registry = {}
