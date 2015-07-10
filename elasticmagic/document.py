@@ -178,7 +178,7 @@ class Document(with_metaclass(DocumentMeta)):
 
             attr_field = self.__class__.fields.get(key)
             if attr_field:
-                res[attr_field._attr_name] = attr_field._from_python(value)
+                res[attr_field._field._name] = attr_field._from_python(value)
 
         return res
 

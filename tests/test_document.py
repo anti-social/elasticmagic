@@ -382,10 +382,10 @@ class DocumentTestCase(BaseTestCase):
         self.assertEqual(
             doc.to_source(),
             {
-                'name': 'Test name',
+                'test_name': 'Test name',
                 'status': 0,
                 'group': {
-                    'name': 'Test group'
+                    'test_name': 'Test group'
                 },
                 'price': 101.5,
                 'tags': [
@@ -454,7 +454,7 @@ class DocumentTestCase(BaseTestCase):
             doc.to_source(),
             {
                 'status': 0,
-                'name': 'Test',
+                'test_name': 'Test',
                 'i_attr_1': 1,
                 'i_attr_2': 2,
             }
