@@ -693,7 +693,7 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
 
-        f = Field('name', String, fields={'sort': String})
+        f = Field('name', String, fields={'sort': Field(String)})
         self.assertEqual(
             f.to_mapping(),
             {
@@ -708,6 +708,21 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
 
+        f = Field('name', String, fields={'sort': Field('ordering', String)})
+        self.assertEqual(
+            f.to_mapping(),
+            {
+                "name": {
+                    "type": "string",
+                    "fields": {
+                        "ordering": {
+                            "type": "string",
+                        }
+                    }
+                }
+            }
+        )
+        
         f = Field(
             'name', String,
             fields=[Field('raw', String, index='not_analyzed')]

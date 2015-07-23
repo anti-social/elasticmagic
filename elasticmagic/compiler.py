@@ -244,11 +244,13 @@ class MappingCompiled(Compiled):
 
         if field._fields:
             if isinstance(field._fields, collections.Mapping):
-                for fname, ftype in field._fields.items():
-                    mapping.setdefault('fields', {}).update({fname: {'type': ftype.__visit_name__}})
+                for subfield_name, subfield in field._fields.items():
+                    subfield_name = subfield.get_name() or subfield_name
+                    subfield_mapping = next(iter(self.visit(subfield).values()))
+                    mapping.setdefault('fields', {}).update({subfield_name: subfield_mapping})
             else:
-                for f in field._fields:
-                    mapping.setdefault('fields', {}).update(f.to_mapping())
+                for subfield in field._fields:
+                    mapping.setdefault('fields', {}).update(self.visit(subfield))
 
         mapping.update(field._mapping_options)
                 

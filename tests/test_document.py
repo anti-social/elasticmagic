@@ -533,7 +533,17 @@ class DocumentTestCase(BaseTestCase):
             _routing = Field(required=True, path='company_id')
             _all = Field(enabled=False)
 
-            name = Field(String)
+            name = Field(
+                String,
+                fields={
+                    'autocomplete': Field(
+                        String,
+                        analyzer='ngrams',
+                        search_analyzer='text_delimit',
+                        norms={'enabled': False}
+                    )
+                }
+            )
             company_id = Field(Integer)
             group = Field(Object(ProductGroupSubDocument))
             popularity = Field(Float, doc_values=True)
@@ -577,7 +587,15 @@ class DocumentTestCase(BaseTestCase):
                     },
                     "properties": {
                         "name": {
-                            "type": "string"
+                            "type": "string",
+                            "fields": {
+                                "autocomplete": {
+                                    "type": "string",
+                                    "analyzer": "ngrams",
+                                    "search_analyzer": "text_delimit",
+                                    "norms": {"enabled": False}
+                                }
+                            }
                         },
                         "company_id": {
                             "type": "integer"
