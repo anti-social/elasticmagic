@@ -2,7 +2,7 @@ from .util import clean_params
 from .index import Index
 from .search import SearchQuery
 from .result import Result, BulkResult
-from .document import DynamicDocument
+from .document import Document, DynamicDocument
 from .expression import Params
 
 
@@ -144,6 +144,26 @@ class Cluster(object):
         return [q.result for q in queries]
 
     msearch = multi_search
+
+    def put_mapping(self, doc_cls_or_mapping, index, doc_type=None, allow_no_indices=None,
+                    expand_wildcards=None, ignore_conflicts=None, ignore_unavailable=None,
+                    master_timeout=None, timeout=None):
+        if issubclass(doc_cls_or_mapping, Document):
+            mapping = doc_cls_or_mapping.to_mapping()
+        else:
+            mapping = doc_cls_or_mapping
+        doc_type = doc_type or doc_cls_or_mapping.__doc_type__
+        params = clean_params({
+            'allow_no_indices': allow_no_indices,
+            'expand_wildcards': expand_wildcards,
+            'ignore_conflicts': ignore_conflicts,
+            'ignore_unavailable': ignore_unavailable,
+            'master_timeout': master_timeout,
+            'timeout': timeout,
+        })
+        return self._client.indices.put_mapping(
+            doc_type=doc_type, index=index, body=mapping, **params
+        )
 
     def delete(self, doc, index, doc_type=None,
                timeout=None, consistency=None, replication=None,

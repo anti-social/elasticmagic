@@ -1,7 +1,7 @@
 from mock import MagicMock
 
 from elasticmagic import Index, Document, DynamicDocument, MatchAll, Field
-from elasticmagic.types import String
+from elasticmagic.types import String, Date
 
 from .base import BaseTestCase
 
@@ -231,3 +231,31 @@ class IndexTest(BaseTestCase):
     def test_flush(self):
         self.index.flush()
         self.client.indices.flush.assert_called_with(index='test')
+
+    def test_mapping(self):
+        class CarDocument(Document):
+            __doc_type__ = 'car'
+
+            vendor = Field(String)
+            model = Field(String)
+            date_manufactured = Field(Date)
+
+            __mapping_options__ = {
+                'date_detection': False,
+            }
+
+        self.index.put_mapping(CarDocument)
+        self.client.indices.put_mapping.assert_called_with(
+            index='test',
+            doc_type='car',
+            body={
+                'car': {
+                    'date_detection': False,
+                    'properties': {
+                        'vendor': {'type': 'string'},
+                        'model': {'type': 'string'},
+                        'date_manufactured': {'type': 'date'},
+                    }
+                }
+            }
+        )

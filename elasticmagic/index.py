@@ -83,6 +83,16 @@ class Index(object):
             scroll_id, scroll, doc_cls=doc_cls, instance_mapper=instance_mapper,
         )
 
+    def put_mapping(self, doc_cls_or_mapping, doc_type=None, allow_no_indices=None,
+                    expand_wildcards=None, ignore_conflicts=None, ignore_unavailable=None,
+                    master_timeout=None, timeout=None):
+        return self._cluster.put_mapping(
+            doc_cls_or_mapping, index=self._name, doc_type=doc_type,
+            allow_no_indices=allow_no_indices, expand_wildcards=expand_wildcards,
+            ignore_conflicts=ignore_conflicts, ignore_unavailable=ignore_unavailable,
+            master_timeout=master_timeout, timeout=timeout
+        )
+
     def add(self, docs, doc_type=None, timeout=None, consistency=None, replication=None):
         acts = []
         for doc in docs:
