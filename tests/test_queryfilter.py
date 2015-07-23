@@ -2,8 +2,9 @@ from mock import MagicMock
 
 from elasticmagic import agg, Document, DynamicDocument, Field, SearchQuery, Term, Match, Index
 from elasticmagic.types import Integer, Float
-from elasticmagic.ext.queryfilter import QueryFilter, FacetFilter, RangeFilter
+from elasticmagic.ext.queryfilter import QueryFilter, FacetFilter, RangeFilter, SimpleFilter
 from elasticmagic.ext.queryfilter import FacetQueryFilter, FacetQueryValue
+from elasticmagic.ext.queryfilter import SimpleQueryFilter, SimpleQueryValue
 from elasticmagic.ext.queryfilter import OrderingFilter, OrderingValue
 from elasticmagic.ext.queryfilter import PageFilter
 
@@ -30,9 +31,70 @@ def type_mapper(values):
 
 
 class QueryFilterTest(BaseTestCase):
+    def test_simple_filter(self):
+        class CarQueryFilter(QueryFilter):
+            type = SimpleFilter(self.index.car.type, type=Integer)
+            vendor = SimpleFilter(self.index.car.vendor)
+            model = SimpleFilter(self.index.car.model, alias='m')
+
+        qf = CarQueryFilter()
+
+        sq = self.index.query()
+        sq = qf.apply(sq, {})
+        self.assert_expression(sq, {})
+
+        sq = self.index.query()
+        sq = qf.apply(sq, {'m': ['vrx']})
+        self.assert_expression(
+            sq,
+            {
+                "query": {
+                    "filtered": {
+                        "filter": {
+                            "term": {
+                                "model": "vrx"
+                            }
+                        }
+                    }
+                }
+            }
+        )
+
+        sq = (
+            self.index.query(Match(self.index.car.name, 'test'))
+            .filter(self.index.car.status == 0)
+        )
+        sq = qf.apply(sq, {'type': ['0', '1:break', '3', 'null'], 'vendor': ['Subaru']})
+        self.assert_expression(
+            sq,
+            {
+                "query": {
+                    "filtered": {
+                        "query": {
+                            "match": {"name": "test"}
+                        },
+                        "filter": {
+                            "bool": {
+                                "must": [
+                                    {"term": {"status": 0}},
+                                    {"terms": {"type": [0, 1, 3]}},
+                                    {"term": {"vendor": "Subaru"}}
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        )
+
     def test_facet_filter(self):
         class CarQueryFilter(QueryFilter):
-            type = FacetFilter(self.index.car.type, instance_mapper=type_mapper, type=Integer)
+            type = FacetFilter(
+                self.index.car.type,
+                instance_mapper=type_mapper,
+                get_title=lambda v: v.instance.title if v.instance else unicode(v.value),
+                type=Integer,
+            )
             vendor = FacetFilter(self.index.car.vendor, aggs={'min_price': agg.Min(self.index.car.price)})
             model = FacetFilter(self.index.car.model, alias='m')
 
@@ -248,6 +310,7 @@ class QueryFilterTest(BaseTestCase):
         self.assertEqual(type_filter.all_values[0].count, 744)
         self.assertEqual(type_filter.all_values[0].count_text, '744')
         self.assertEqual(type_filter.all_values[0].selected, True)
+        self.assertEqual(type_filter.all_values[0].title, 'Sedan')
         self.assertEqual(type_filter.all_values[0].instance.title, 'Sedan')
         self.assertIs(type_filter.all_values[0], type_filter.get_value(0))
         self.assertIs(type_filter.all_values[0], type_filter.selected_values[0])
@@ -255,6 +318,7 @@ class QueryFilterTest(BaseTestCase):
         self.assertEqual(type_filter.all_values[1].count, 392)
         self.assertEqual(type_filter.all_values[1].count_text, '+392')
         self.assertEqual(type_filter.all_values[1].selected, False)
+        self.assertEqual(type_filter.all_values[1].title, 'Hatchback')
         self.assertEqual(type_filter.all_values[1].instance.title, 'Hatchback')
         self.assertIs(type_filter.all_values[1], type_filter.get_value(2))
         self.assertIs(type_filter.all_values[1], type_filter.values[0])
@@ -262,6 +326,7 @@ class QueryFilterTest(BaseTestCase):
         self.assertEqual(type_filter.all_values[2].count, 162)
         self.assertEqual(type_filter.all_values[2].count_text, '162')
         self.assertEqual(type_filter.all_values[2].selected, True)
+        self.assertEqual(type_filter.all_values[2].title, 'Station Wagon')
         self.assertEqual(type_filter.all_values[2].instance.title, 'Station Wagon')
         self.assertIs(type_filter.all_values[2], type_filter.get_value(1))
         self.assertIs(type_filter.all_values[2], type_filter.selected_values[1])
@@ -269,6 +334,7 @@ class QueryFilterTest(BaseTestCase):
         self.assertIs(type_filter.all_values[3].count, None)
         self.assertEqual(type_filter.all_values[3].count_text, '')
         self.assertEqual(type_filter.all_values[3].selected, True)
+        self.assertEqual(type_filter.all_values[3].title, 'Coupe')
         self.assertEqual(type_filter.all_values[3].instance.title, 'Coupe')
         self.assertIs(type_filter.all_values[3], type_filter.get_value(3))
         self.assertIs(type_filter.all_values[3], type_filter.selected_values[2])
@@ -452,6 +518,78 @@ class QueryFilterTest(BaseTestCase):
         self.assertIs(disp_filter.from_value, None)
         self.assertIs(disp_filter.to_value, None)
         
+    def test_simple_query_filter(self):
+        class CarQueryFilter(QueryFilter):
+            is_new = SimpleQueryFilter(
+                SimpleQueryValue('true', self.index.car.state == 'new'),
+                alias='new'
+            )
+            price = SimpleQueryFilter(
+                SimpleQueryValue('*-10000', self.index.car.price <= 10000),
+                SimpleQueryValue('10000-20000', self.index.car.price.range(gt=10000, lte=20000)),
+                SimpleQueryValue('20000-30000', self.index.car.price.range(gt=20000, lte=30000)),
+                SimpleQueryValue('30000-*', self.index.car.price.range(gt=30000)),
+                aggs={'disp_avg': agg.Avg(self.index.car.engine_displacement)}
+            )
+
+        qf = CarQueryFilter()
+
+        sq = self.index.query()
+        sq = qf.apply(sq, {'new': ['true', 'false']})
+        self.assert_expression(
+            sq,
+            {
+                "query": {
+                    "filtered": {
+                        "filter": {
+                            "term": {"state": "new"}
+                        }
+                    }
+                }
+            }
+        )
+
+        qf = CarQueryFilter()
+        sq = (
+            self.index.query()
+            .filter(self.index.car.year == 2014)
+        )
+        sq = qf.apply(sq, {'price': ['*-10000', '10000-20000', 'null']})
+        self.assert_expression(
+            sq,
+            {
+                "query": {
+                    "filtered": {
+                        "filter": {
+                            "bool": {
+                                "must": [
+                                    {
+                                        "term": {"year": 2014}
+                                    },
+                                    {
+                                        "bool": {
+                                            "should": [
+                                                {
+                                                    "range": {
+                                                        "price": {"lte": 10000}
+                                                    }
+                                                },
+                                                {
+                                                    "range": {
+                                                        "price": {"gt": 10000, "lte": 20000}
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        )
+
     def test_facet_query_filter(self):
         class CarQueryFilter(QueryFilter):
             is_new = FacetQueryFilter(

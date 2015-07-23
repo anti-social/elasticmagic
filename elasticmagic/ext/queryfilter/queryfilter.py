@@ -135,16 +135,21 @@ class BaseFilter(object):
         raise NotImplementedError()
 
     def _apply_agg(self, search_query):
-        raise NotImplementedError()
+        return search_query
 
     def _process_result(self, result, params):
         pass
 
 
 class FieldFilter(BaseFilter):
-    def __init__(self, name, field, alias=None):
+    def __init__(self, name, field, alias=None, type=None):
         super(FieldFilter, self).__init__(name, alias=alias)
         self.field = field
+        self.type = instantiate(type or self.field.get_type())
+
+    @property
+    def _types(self):
+        return {self.alias: self.type}
 
 
 class BaseFilterValue(object):
@@ -164,12 +169,37 @@ class BaseFilterValue(object):
         return self.filter.qf._selected(self.filter.name, self.value)
 
 
-class FacetFilter(FieldFilter):
-    def __init__(self, name, field, alias=None, type=None, instance_mapper=None, **kwargs):
-        super(FacetFilter, self).__init__(name, field, alias=alias)
-        self.type = instantiate(type or self.field.get_type())
-        self.instance_mapper = instance_mapper
-        self.agg_kwargs = kwargs
+class SimpleFilter(FieldFilter):
+    def _get_values_from_params(self, params):
+        values = params.get('exact', [])
+        return list(filter(is_not_none, map(first, values)))
+
+    def _get_expression(self, params):
+        values = self._get_values_from_params(params.get(self.alias, {}))
+        if not values:
+            return None
+
+        if len(values) == 1:
+            return self.field == values[0]
+
+        return self.field.in_(values)
+
+    def _apply_filter(self, search_query, params):
+        expr = self._get_expression(params)
+        if expr is None:
+            return search_query
+        return search_query.filter(expr, meta={'tags': {self.name}})
+
+
+class FacetFilter(SimpleFilter):
+    def __init__(
+            self, name, field, alias=None, type=None,
+            instance_mapper=None, get_title=None, **kwargs
+    ):
+        super(FacetFilter, self).__init__(name, field, alias=alias, type=type)
+        self._instance_mapper = instance_mapper
+        self._get_title = get_title
+        self._agg_kwargs = kwargs
 
         self.values = []
         self.selected_values = []
@@ -183,10 +213,6 @@ class FacetFilter(FieldFilter):
         self.values_map = {}
 
     @property
-    def _types(self):
-        return {self.alias: self.type}
-
-    @property
     def _agg_name(self):
         return '{}.{}'.format(self.qf._name, self.name)
 
@@ -194,26 +220,16 @@ class FacetFilter(FieldFilter):
     def _filter_agg_name(self):
         return '{}.{}.filter'.format(self.qf._name, self.name)
 
-    def _get_values_from_params(self, params):
-        values = params.get('exact', [])
-        return list(filter(is_not_none, map(first, values)))
-
     def _apply_filter(self, search_query, params):
-        values = self._get_values_from_params(params.get(self.alias, {}))
-        if not values:
+        expr = self._get_expression(params)
+        if expr is None:
             return search_query
-
-        if len(values) == 1:
-            expr = self.field == values[0]
-        else:
-            expr = self.field.in_(values)
-
         return search_query.post_filter(expr, meta={'tags': {self.name}})
 
     def _apply_agg(self, search_query):
         filters = self._get_active_filters(search_query.iter_post_filters_with_meta())
 
-        terms_agg = agg.Terms(self.field, instance_mapper=self.instance_mapper, **self.agg_kwargs)
+        terms_agg = agg.Terms(self.field, instance_mapper=self._instance_mapper, **self._agg_kwargs)
         if filters:
             aggs = {
                 self._filter_agg_name: agg.Filter(
@@ -301,6 +317,8 @@ class FacetValue(BaseFilterValue):
 
     @property
     def title(self):
+        if self.filter._get_title:
+            return self.filter._get_title(self)
         if self.instance:
             return text_type(self.instance)
         return text_type(self.value)
@@ -405,6 +423,50 @@ class RangeFilter(FieldFilter):
             self.max = base_agg.get_aggregation(self._max_agg_name).value
 
 
+class SimpleQueryValue(BaseFilterValue):
+    def __init__(self, value, expr, _filter=None, **opts):
+        super(SimpleQueryValue, self).__init__(value, _filter=_filter)
+        self.expr = expr
+        self.opts = opts
+
+    def bind(self, filter):
+        return self.__class__(self.value, self.expr, _filter=filter, **self.opts)
+
+
+class SimpleQueryFilter(BaseFilter):
+    def __init__(self, name, *values, **kwargs):
+        super(SimpleQueryFilter, self).__init__(name, alias=kwargs.pop('alias', None))
+        self._values = [fv.bind(self) for fv in values]
+        self._values_map = {fv.value: fv for fv in self._values}
+        self.default = kwargs.pop('default', None)
+
+    def get_value(self, value):
+        return self._values_map.get(value)
+
+    def _get_expression(self, params):
+        values = params.get(self.alias, {}).get('exact')
+        if not values:
+            if self.default:
+                values = [[self.default]]
+        if not values:
+            return None
+
+        expressions = []
+        for v in values:
+            w = v[0]
+            filter_value = self.get_value(w)
+            if filter_value and not isinstance(filter_value.expr, MatchAll):
+                expressions.append(filter_value.expr)
+
+        return Bool.should(*expressions)
+    
+    def _apply_filter(self, search_query, params):
+        expr = self._get_expression(params)
+        if expr is None:
+            return search_query
+        return search_query.filter(expr, meta={'tags': {self.name}})
+
+
 class FacetQueryValue(BaseFilterValue):
     def __init__(self, value, expr, _filter=None, **opts):
         super(FacetQueryValue, self).__init__(value, _filter=_filter)
@@ -452,12 +514,9 @@ class FacetQueryValue(BaseFilterValue):
         return self.title
 
 
-class FacetQueryFilter(BaseFilter):
+class FacetQueryFilter(SimpleQueryFilter):
     def __init__(self, name, *values, **kwargs):
-        super(FacetQueryFilter, self).__init__(name, alias=kwargs.pop('alias', None))
-        self._values = [fv.bind(self) for fv in values]
-        self.values_map = {fv.value: fv for fv in self._values}
-        self.default = kwargs.pop('default', None)
+        super(FacetQueryFilter, self).__init__(name, *values, **kwargs)
         self.agg_kwargs = kwargs
 
     @property
@@ -473,7 +532,7 @@ class FacetQueryFilter(BaseFilter):
         return [fv for fv in self._values if not fv.selected]
 
     def get_value(self, value):
-        return self.values_map.get(value)
+        return self._values_map.get(value)
 
     @property
     def _filter_agg_name(self):
@@ -483,23 +542,10 @@ class FacetQueryFilter(BaseFilter):
         return '{}.{}:{}'.format(self.qf._name, self.name, value)
 
     def _apply_filter(self, search_query, params):
-        values = params.get(self.alias, {}).get('exact')
-        if not values:
-            if self.default:
-                values = [[self.default]]
-        if not values:
+        expr = self._get_expression(params)
+        if expr is None:
             return search_query
-
-        expressions = []
-        for v in values:
-            w = v[0]
-            filter_value = self.get_value(w)
-            if filter_value and not isinstance(filter_value.expr, MatchAll):
-                expressions.append(filter_value.expr)
-
-        if expressions:
-            return search_query.post_filter(Bool.should(*expressions), meta={'tags': {self.name}})
-        return search_query
+        return search_query.post_filter(expr, meta={'tags': {self.name}})
 
     def _apply_agg(self, search_query):
         filters = self._get_active_filters(search_query.iter_post_filters_with_meta())
@@ -579,9 +625,6 @@ class OrderingFilter(BaseFilter):
         self.qf._set_selected(self.name, ordering_value.value)
         return ordering_value._apply(search_query)
 
-    def _apply_agg(self, search_query):
-        return search_query
-
 
 class PageFilter(BaseFilter):
     DEFAULT_PER_PAGE_PARAM = 'per_page'
@@ -622,9 +665,6 @@ class PageFilter(BaseFilter):
         if self.page > 1:
             search_query = search_query.offset((self.page - 1) * self.per_page)
 
-        return search_query
-
-    def _apply_agg(self, search_query):
         return search_query
 
     def _process_result(self, result, params):
