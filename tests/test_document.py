@@ -522,6 +522,10 @@ class DocumentTestCase(BaseTestCase):
                 Field('group_id_level_*', Integer)
             ]
 
+            __mapping_options__ = {
+                'dynamic': True,
+            }
+
         class ProductDocument(Document):
             __doc_type__ = 'product'
 
@@ -601,6 +605,7 @@ class DocumentTestCase(BaseTestCase):
                             "type": "integer"
                         },
                         "group": {
+                            "dynamic": True,
                             "type": "object",
                             "properties": {
                                 "id": {

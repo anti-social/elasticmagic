@@ -240,6 +240,7 @@ class MappingCompiled(Compiled):
         mapping['type'] = field_type.__visit_name__
 
         if field_type.doc_cls:
+            mapping.update(field_type.doc_cls.__mapping_options__)
             mapping['properties'] = self.visit(field_type.doc_cls.user_fields)
 
         if field._fields:
@@ -287,4 +288,3 @@ class MappingCompiled(Compiled):
         return {
             doc_cls.__doc_type__: mapping
         }
-    
