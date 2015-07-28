@@ -535,6 +535,14 @@ class QueryFilterTest(BaseTestCase):
         qf = CarQueryFilter()
 
         sq = self.index.query()
+        sq = qf.apply(sq, {})
+        self.assert_expression(sq, {})
+
+        sq = self.index.query()
+        sq = qf.apply(sq, {'price': [None]})
+        self.assert_expression(sq, {})
+
+        sq = self.index.query()
         sq = qf.apply(sq, {'new': ['true', 'false']})
         self.assert_expression(
             sq,

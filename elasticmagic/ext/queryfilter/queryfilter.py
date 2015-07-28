@@ -458,6 +458,9 @@ class SimpleQueryFilter(BaseFilter):
             if filter_value and not isinstance(filter_value.expr, MatchAll):
                 expressions.append(filter_value.expr)
 
+        if not expressions:
+            return None
+
         return Bool.should(*expressions)
     
     def _apply_filter(self, search_query, params):
