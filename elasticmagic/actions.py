@@ -13,7 +13,22 @@ class Action(object):
         index = index._name if isinstance(index, ESIndex) else index
 
         self.doc = doc
-        self.meta = clean_params({
+
+        if isinstance(self.doc, Document):
+            self.meta = self.doc.to_meta()
+            self.source = self.doc.to_source()
+        else:
+            self.meta = {}
+            for field_name in META_FIELD_NAMES:
+                value = self.doc.get(field_name)
+                if value:
+                    self.meta[field_name] = value
+
+            self.source = self.doc.copy()
+            for exclude_field in Document.mapping_fields:
+                self.source.pop(exclude_field.get_field().get_name(), None)
+
+        self.meta.update(clean_params({
             '_index': index,
             '_type': doc_type,
             '_routing': routing,
@@ -24,30 +39,14 @@ class Action(object):
             '_version_type': version_type,
             'refresh': refresh,
             'consistency': consistency,
-        })
+        }))
         self.meta.update(clean_params(kwargs))
 
     def get_meta(self):
-        if isinstance(self.doc, dict):
-            doc_meta = {}
-            for field_name in META_FIELD_NAMES:
-                value = self.doc.get(field_name)
-                if value:
-                    doc_meta[field_name] = value
-        else:
-            doc_meta = self.doc.to_meta()
-
-        meta = dict(self.meta, **clean_params(doc_meta))
-        return meta
+        return self.meta
 
     def get_source(self):
-        if isinstance(self.doc, dict):
-            raw_doc = self.doc.copy()
-            for exclude_field in Document.mapping_fields:
-                raw_doc.pop(exclude_field.get_field().get_name(), None)
-            return raw_doc
-        else:
-            return self.doc.to_source()
+        return self.source
 
 
 class Index(Action):
@@ -95,7 +94,4 @@ class Update(Action):
             'scripted_upsert': scripted_upsert,
             'params': params,
         })
-
-    def get_source(self):
-        source =  super(Update, self).get_source()
-        return dict({'doc': source}, **self.source_params)
+        self.source = dict({'doc': self.source}, **self.source_params)
