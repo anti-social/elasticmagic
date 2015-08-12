@@ -1,3 +1,4 @@
+import math
 from mock import Mock, patch
 
 from elasticmagic import agg, Params, Term, Document, DynamicDocument
@@ -25,11 +26,44 @@ class AggregationTest(BaseTestCase):
             'value': 75.3
         })
         self.assertAlmostEqual(res.value, 75.3)
+        res = a.build_agg_result({
+            'value': None
+        })
+        self.assertIs(res.value, None)
 
         aa = a.clone()
         self.assertIsNot(a, aa)
         self.assertEqual(a.__visit_name__, aa.__visit_name__)
         self.assertEqual(a.params, aa.params)
+
+        a = agg.Min(f.price)
+        self.assert_expression(
+            a,
+            {
+                "min": {"field": "price"}
+            }
+        )
+        res = a.build_agg_result({
+            'value': 38
+        })
+        self.assertAlmostEqual(res.value, 38)
+        res = a.build_agg_result({
+            'value': 1297167619690,
+            'value_as_string': '2011-02-08T12:20:19.690Z'
+        })
+        self.assertAlmostEqual(res.value, 1297167619690)
+
+        a = agg.Max(f.price)
+        self.assert_expression(
+            a,
+            {
+                "max": {"field": "price"}
+            }
+        )
+        res = a.build_agg_result({
+            'value': 45693.5
+        })
+        self.assertAlmostEqual(res.value, 45693.5)
 
         a = agg.Stats(f.grade)
         self.assert_expression(
@@ -130,6 +164,37 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(a.get_value(99), 150)
         self.assertEqual(a.get_value(99.0), 150)
         self.assertEqual(a.get_value(99.9), 153)
+
+        percentiles_agg = agg.Percentiles(f.load_time, percents=[50])
+        self.assert_expression(
+            percentiles_agg,
+            {
+                "percentiles": {
+                    "field": "load_time",
+                    "percents": [50]
+                }
+            }
+        )
+        a = percentiles_agg.build_agg_result(
+            {
+                "values": {
+                    "50.0": "NaN",
+                }
+            }
+        )
+        self.assertEqual(
+            len(a.values),
+            1
+        )
+        self.assertAlmostEqual(
+            a.values[0][0],
+            50.0
+        )
+        self.assertTrue(
+            math.isnan(a.values[0][1])
+        )
+        self.assertTrue(math.isnan(a.get_value(50)))
+        self.assertTrue(math.isnan(a.get_value(50.0)))
 
         ranks_agg = agg.PercentileRanks(f.load_time, values=[14.8, 30])
         self.assert_expression(
