@@ -17,6 +17,9 @@ is_not_none = functools.partial(operator.is_not, None)
 class QueryFilter(object):
     NAME = 'qf'
 
+    CONJ_OR = 'CONJ_OR'
+    CONJ_AND = 'CONJ_AND'
+
     def __init__(self, name=None, codec=None):
         self._name = name or self.NAME
         self._codec = codec or SimpleCodec()
@@ -122,12 +125,11 @@ class BaseFilter(object):
     def _types(self):
         return {}
 
-    def _get_active_filters(self, filters):
+    def _get_agg_filters(self, filters, exclude_tags):
         active_filters = []
-        exclude = {self.qf._name, self.name}
         for filt, meta in filters:
             tags = meta.get('tags', set()) if meta else set()
-            if not exclude.intersection(tags):
+            if not exclude_tags.intersection(tags):
                 active_filters.append(filt)
         return active_filters
 
@@ -170,6 +172,10 @@ class BaseFilterValue(object):
 
 
 class SimpleFilter(FieldFilter):
+    def __init__(self, name, field, alias=None, type=None, conj_operator=QueryFilter.CONJ_OR):
+        super(SimpleFilter, self).__init__(name, field, alias=alias, type=type)
+        self._conj_operator = conj_operator
+
     def _get_values_from_params(self, params):
         values = params.get('exact', [])
         return list(filter(is_not_none, map(first, values)))
@@ -182,7 +188,10 @@ class SimpleFilter(FieldFilter):
         if len(values) == 1:
             return self.field == values[0]
 
-        return self.field.in_(values)
+        if self._conj_operator == QueryFilter.CONJ_AND:
+            return Bool.must(*(self.field == v for v in values))
+        else:
+            return self.field.in_(values)
 
     def _apply_filter(self, search_query, params):
         expr = self._get_expression(params)
@@ -193,10 +202,12 @@ class SimpleFilter(FieldFilter):
 
 class FacetFilter(SimpleFilter):
     def __init__(
-            self, name, field, alias=None, type=None,
+            self, name, field, alias=None, type=None, conj_operator=QueryFilter.CONJ_OR,
             instance_mapper=None, get_title=None, **kwargs
     ):
-        super(FacetFilter, self).__init__(name, field, alias=alias, type=type)
+        super(FacetFilter, self).__init__(
+            name, field, alias=alias, type=type, conj_operator=conj_operator
+        )
         self._instance_mapper = instance_mapper
         self._get_title = get_title
         self._agg_kwargs = kwargs
@@ -227,7 +238,12 @@ class FacetFilter(SimpleFilter):
         return search_query.post_filter(expr, meta={'tags': {self.name}})
 
     def _apply_agg(self, search_query):
-        filters = self._get_active_filters(search_query.iter_post_filters_with_meta())
+        exclude_tags = {self.qf._name}
+        if self._conj_operator == QueryFilter.CONJ_OR:
+            exclude_tags.add(self.name)
+        filters = self._get_agg_filters(
+            search_query.iter_post_filters_with_meta(), exclude_tags
+        )
 
         terms_agg = agg.Terms(self.field, instance_mapper=self._instance_mapper, **self._agg_kwargs)
         if filters:
@@ -388,7 +404,9 @@ class RangeFilter(FieldFilter):
         )
 
     def _apply_agg(self, search_query):
-        filters = self._get_active_filters(search_query.iter_post_filters_with_meta())
+        filters = self._get_agg_filters(
+            search_query.iter_post_filters_with_meta(), {self.qf._name, self.name}
+        )
 
         aggs = {}
         if self._compute_enabled:
@@ -438,6 +456,7 @@ class SimpleQueryFilter(BaseFilter):
         super(SimpleQueryFilter, self).__init__(name, alias=kwargs.pop('alias', None))
         self._values = [fv.bind(self) for fv in values]
         self._values_map = {fv.value: fv for fv in self._values}
+        self._conj_operator = kwargs.pop('conj_operator', QueryFilter.CONJ_OR)
         self.default = kwargs.pop('default', None)
 
     def get_value(self, value):
@@ -461,7 +480,10 @@ class SimpleQueryFilter(BaseFilter):
         if not expressions:
             return None
 
-        return Bool.should(*expressions)
+        if self._conj_operator == QueryFilter.CONJ_AND:
+            return Bool.must(*expressions)
+        else:
+            return Bool.should(*expressions)
     
     def _apply_filter(self, search_query, params):
         expr = self._get_expression(params)
@@ -551,7 +573,12 @@ class FacetQueryFilter(SimpleQueryFilter):
         return search_query.post_filter(expr, meta={'tags': {self.name}})
 
     def _apply_agg(self, search_query):
-        filters = self._get_active_filters(search_query.iter_post_filters_with_meta())
+        exclude_tags = {self.qf._name}
+        if self._conj_operator == QueryFilter.CONJ_OR:
+            exclude_tags.add(self.name)
+        filters = self._get_agg_filters(
+            search_query.iter_post_filters_with_meta(), exclude_tags
+        )
 
         filter_aggs = {}
         for fv in self.values:

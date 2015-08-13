@@ -87,6 +87,60 @@ class QueryFilterTest(BaseTestCase):
             }
         )
 
+    def test_simple_filter_with_and_conjunction(self):
+        class ClientQueryFilter(QueryFilter):
+            label = SimpleFilter(self.index.client.label, conj_operator=QueryFilter.CONJ_AND)
+
+        qf = ClientQueryFilter()
+
+        sq = self.index.query()
+        sq = qf.apply(sq, {})
+        self.assert_expression(sq, {})
+
+        sq = self.index.query()
+        sq = qf.apply(sq, {'label': ['greedy']})
+        self.assert_expression(
+            sq,
+            {
+                "query": {
+                    "filtered": {
+                        "filter": {
+                            "term": {
+                                "label": "greedy"
+                            }
+                        }
+                    }
+                }
+            }
+        )
+
+        sq = self.index.query()
+        sq = qf.apply(sq, {'label': ['greedy', 'young', 'nasty']})
+        self.assert_expression(
+            sq,
+            {
+                "query": {
+                    "filtered": {
+                        "filter": {
+                            "bool": {
+                                "must": [
+                                    {
+                                        "term": {"label": "greedy"}
+                                    },
+                                    {
+                                        "term": {"label": "young"}
+                                    },
+                                    {
+                                        "term": {"label": "nasty"}
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        )
+
     def test_facet_filter(self):
         class CarQueryFilter(QueryFilter):
             type = FacetFilter(
@@ -366,6 +420,167 @@ class QueryFilterTest(BaseTestCase):
         self.assertIs(model_filter.all_values[1], model_filter.values[1])
         self.assertIs(model_filter.all_values[1], model_filter.get_value('Forester'))
 
+    def test_facet_filter_with_and_conjunction(self):
+        class ClientQueryFilter(QueryFilter):
+            region = FacetFilter(self.index.client.region_id, type=Integer)
+            label = FacetFilter(self.index.client.label, conj_operator=QueryFilter.CONJ_AND)
+
+        qf = ClientQueryFilter()
+
+        sq = self.index.query()
+        sq = qf.apply(sq, {})
+        self.assert_expression(
+            sq,
+            {
+                "aggregations": {
+                    "qf.region": {
+                        "terms": {
+                            "field": "region_id"
+                        }
+                    },
+                    "qf.label": {
+                        "terms": {
+                            "field": "label"
+                        }
+                    }
+                }
+            }
+        )
+
+        sq = self.index.query()
+        sq = qf.apply(sq, {'label': ['greedy']})
+        self.assert_expression(
+            sq,
+            {
+                "aggregations": {
+                    "qf.region.filter": {
+                        "filter": {
+                            "term": {
+                                "label": "greedy"
+                            }
+                        },
+                        "aggregations": {
+                            "qf.region": {
+                                "terms": {
+                                    "field": "region_id"
+                                }
+                            }
+                        }
+                    },
+                    "qf.label.filter": {
+                        "filter": {
+                            "term": {
+                                "label": "greedy"
+                            }
+                        },
+                        "aggregations": {
+                            "qf.label": {
+                                "terms": {
+                                    "field": "label"
+                                }
+                            }
+                        }
+                    }
+                },
+                "post_filter": {
+                    "term": {
+                        "label": "greedy"
+                    }
+                }
+            }
+        )
+
+        sq = self.index.query()
+        sq = qf.apply(sq, {'region': [123, 456], 'label': ['greedy', 'young', 'nasty']})
+        self.assert_expression(
+            sq,
+            {
+                "aggregations": {
+                    "qf.region.filter": {
+                        "filter": {
+                            "bool": {
+                                "must": [
+                                    {
+                                        "term": {"label": "greedy"}
+                                    },
+                                    {
+                                        "term": {"label": "young"}
+                                    },
+                                    {
+                                        "term": {"label": "nasty"}
+                                    }
+                                ]
+                            }
+                        },
+                        "aggregations": {
+                            "qf.region": {
+                                "terms": {
+                                    "field": "region_id"
+                                }
+                            }
+                        }
+                    },
+                    "qf.label.filter": {
+                        "filter": {
+                            "bool": {
+                                "must": [
+                                    {
+                                        "bool": {
+                                            "must": [
+                                                {
+                                                    "term": {"label": "greedy"}
+                                                },
+                                                {
+                                                    "term": {"label": "young"}
+                                                },
+                                                {
+                                                    "term": {"label": "nasty"}
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    {
+                                        "terms": {"region_id": [123, 456]}
+                                    }
+                                ]
+                            }
+                        },
+                        "aggregations": {
+                            "qf.label": {
+                                "terms": {
+                                    "field": "label"
+                                }
+                            }
+                        }
+                    }
+                },
+                "post_filter": {
+                    "bool": {
+                        "must": [
+                            {
+                                "bool": {
+                                    "must": [
+                                        {
+                                            "term": {"label": "greedy"}
+                                        },
+                                        {
+                                            "term": {"label": "young"}
+                                        },
+                                        {
+                                            "term": {"label": "nasty"}
+                                        }
+                                    ]
+                                }
+                            },
+                            {
+                                "terms": {"region_id": [123, 456]}
+                            }
+                        ]
+                    }
+                }
+            }
+        )
+
     def test_range_filter(self):
         class CarDocument(Document):
             __doc_type__ = 'car'
@@ -589,6 +804,44 @@ class QueryFilterTest(BaseTestCase):
                                                 }
                                             ]
                                         }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        )
+
+    def test_simple_query_filter_with_and_conjunction(self):
+        class ItemQueryFilter(QueryFilter):
+            selling_type = SimpleQueryFilter(
+                SimpleQueryValue('retail', self.index.item.selling_type.in_([1, 2, 3])),
+                SimpleQueryValue('wholesale', self.index.item.selling_type.in_([3, 4, 5])),
+                conj_operator=QueryFilter.CONJ_AND
+            )
+
+        qf = ItemQueryFilter()
+
+        sq = self.index.query()
+        sq = qf.apply(sq, {})
+        self.assert_expression(sq, {})
+
+        sq = self.index.query()
+        sq = qf.apply(sq, {'selling_type': ['retail', 'wholesale']})
+        self.assert_expression(
+            sq,
+            {
+                "query": {
+                    "filtered": {
+                        "filter": {
+                            "bool": {
+                                "must": [
+                                    {
+                                        "terms": {"selling_type": [1, 2, 3]}
+                                    },
+                                    {
+                                        "terms": {"selling_type": [3, 4, 5]}
                                     }
                                 ]
                             }
@@ -908,6 +1161,86 @@ class QueryFilterTest(BaseTestCase):
         self.assertEqual(qf.price.get_value('30000-*').count_text, '+10')
         self.assertEqual(qf.price.get_value('30000-*').selected, False)
         self.assertEqual(qf.price.get_value('30000-*').agg.get_aggregation('disp_avg').value, 2.67)
+
+    def test_facet_query_filter_with_and_conjunction(self):
+        class ItemQueryFilter(QueryFilter):
+            available = FacetQueryFilter(
+                SimpleQueryValue('true', self.index.item.is_available == True),
+            )
+            selling_type = FacetQueryFilter(
+                SimpleQueryValue('retail', self.index.item.selling_type.in_([1, 2, 3])),
+                SimpleQueryValue('wholesale', self.index.item.selling_type.in_([3, 4, 5])),
+                conj_operator=QueryFilter.CONJ_AND
+            )
+
+        qf = ItemQueryFilter()
+        
+        sq = self.index.query()
+        sq = qf.apply(sq, {})
+        self.assert_expression(
+            sq,
+            {
+                "aggregations": {
+                    "qf.available:true": {
+                        "filter": {
+                            "term": {"is_available": True}
+                        }
+                    },
+                    "qf.selling_type:retail": {
+                        "filter": {
+                            "terms": {"selling_type": [1, 2, 3]}
+                        }
+                    },
+                    "qf.selling_type:wholesale": {
+                        "filter": {
+                            "terms": {"selling_type": [3, 4, 5]}
+                        }
+                    }
+                }
+            }
+        )
+
+        sq = self.index.query()
+        sq = qf.apply(sq, {'selling_type': ['retail']})
+        self.assert_expression(
+            sq,
+            {
+                "aggregations": {
+                    "qf.available.filter": {
+                        "filter": {
+                            "terms": {"selling_type": [1, 2, 3]},
+                        },
+                        "aggregations": {
+                            "qf.available:true": {
+                                "filter": {
+                                    "term": {"is_available": True}
+                                }
+                            }
+                        }
+                    },
+                    "qf.selling_type.filter": {
+                        "filter": {
+                            "terms": {"selling_type": [1, 2, 3]},
+                        },
+                        "aggregations": {
+                            "qf.selling_type:retail": {
+                                "filter": {
+                                    "terms": {"selling_type": [1, 2, 3]}
+                                }
+                            },
+                            "qf.selling_type:wholesale": {
+                                "filter": {
+                                    "terms": {"selling_type": [3, 4, 5]}
+                                }
+                            }
+                        }
+                    }
+                },
+                "post_filter": {
+                    "terms": {"selling_type": [1, 2, 3]}
+                }
+            }
+        )
 
     def test_ordering(self):
         class CarQueryFilter(QueryFilter):
