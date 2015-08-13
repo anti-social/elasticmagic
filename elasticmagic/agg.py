@@ -2,8 +2,9 @@ from itertools import chain
 
 from .document import DynamicDocument
 from .expression import QueryExpression, Params
+from .compat import force_unicode
 from .types import instantiate, Type
-from .util import _with_clone, cached_property
+from .util import _with_clone, cached_property, maybe_float
 
 
 def merge_aggregations(aggregations, args, kwargs):
@@ -32,7 +33,8 @@ class AggResult(object):
 
 
 class MetricsAgg(AggExpression):
-    pass
+    def build_agg_result(self, raw_data, doc_cls_map=None, mapper_registry=None):
+        return self.result_cls(self, raw_data)
 
 
 class BucketAgg(AggExpression):
@@ -59,23 +61,26 @@ class BucketAgg(AggExpression):
 
 
 class SingleValueMetricsAggResult(AggResult):
-    def __init__(self, agg_expr, value):
+    def __init__(self, agg_expr, raw_data):
         super(SingleValueMetricsAggResult, self).__init__(agg_expr)
-        self.value = value
+        self.value = maybe_float(raw_data['value'])
+        self.value_as_string = raw_data.get('value_as_string', force_unicode(raw_data['value']))
 
 
 class SingleValueMetricsAgg(MetricsAgg):
+    result_cls = SingleValueMetricsAggResult
+    
     def __init__(self, field=None, script=None, **kwargs):
         super(SingleValueMetricsAgg, self).__init__(field=field, script=script, **kwargs)
 
-    def build_agg_result(self, raw_data, doc_cls_map=None, mapper_registry=None):
-        return SingleValueMetricsAggResult(self, raw_data['value'])
-
 
 class MultiValueMetricsAggResult(AggResult):
-    def __init__(self, agg_expr, values):
+    def __init__(self, agg_expr, raw_data):
         super(MultiValueMetricsAggResult, self).__init__(agg_expr)
-        self.values = values
+        if 'values' in raw_data:
+            self.values = raw_data['values']
+        else:
+            self.values = raw_data
 
 
 class MultiValueMetricsAgg(MetricsAgg):
@@ -83,13 +88,6 @@ class MultiValueMetricsAgg(MetricsAgg):
 
     def __init__(self, field=None, script=None, **kwargs):
         super(MultiValueMetricsAgg, self).__init__(field=field, script=script, **kwargs)
-
-    def build_agg_result(self, raw_data, doc_cls_map=None, mapper_registry=None):
-        if 'values' in raw_data:
-            values = raw_data['values']
-        else:
-            values = raw_data
-        return self.result_cls(self, values)
 
 
 class Min(SingleValueMetricsAgg):
@@ -109,8 +107,9 @@ class Avg(SingleValueMetricsAgg):
 
 
 class TopHitsResult(AggResult):
-    def __init__(self, agg_expr, hits_data, doc_cls_map, mapper_registry, instance_mapper):
+    def __init__(self, agg_expr, raw_data, doc_cls_map, mapper_registry, instance_mapper):
         super(TopHitsResult, self).__init__(agg_expr)
+        hits_data = raw_data['hits']
         self.total = hits_data['total']
         self.max_score = hits_data['max_score']
 
@@ -161,10 +160,9 @@ class TopHits(MetricsAgg):
         self._instance_mapper = instance_mapper
 
     def build_agg_result(self, raw_data, doc_cls_map=None, mapper_registry=None):
-        hits_data = raw_data['hits']
         doc_cls_map = doc_cls_map or {}
         return self.result_cls(
-            self, hits_data, doc_cls_map, mapper_registry, self._instance_mapper
+            self, raw_data, doc_cls_map, mapper_registry, self._instance_mapper
         )
 
 
@@ -210,7 +208,7 @@ class BasePercentilesAggResult(MultiValueMetricsAggResult):
         values = []
         for k, v in self.values.items():
             try:
-                values.append((float(k), v))
+                values.append((float(k), maybe_float(v)))
             except ValueError:
                 pass
         self.values = sorted(values, key=lambda e: e[0])

@@ -46,3 +46,9 @@ def collect_doc_classes(expr):
         return set().union(*[collect_doc_classes(e) for e in expr])
 
     return set()
+
+
+def maybe_float(value):
+    if value is None:
+        return None
+    return float(value)
