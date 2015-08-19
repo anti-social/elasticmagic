@@ -620,6 +620,12 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
         self.assert_expression(
+            Field('status').in_(iter([0, 2, 3])),
+            {
+                "terms": {"status": [0, 2, 3]}
+            }
+        )
+        self.assert_expression(
             Field('price') > 99.9,
             {
                 "range": {

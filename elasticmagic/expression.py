@@ -110,7 +110,7 @@ class Terms(FieldExpression):
         super(Terms, self).__init__(
             field, minimum_should_match=minimum_should_match, boost=boost, **kwargs
         )
-        self.terms = terms
+        self.terms = list(terms)
 
 
 class Match(FieldQueryExpression):
