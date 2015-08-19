@@ -1422,6 +1422,7 @@ class QueryFilterTest(BaseTestCase):
         self.assertEqual(qf.price.name, 'price')
         self.assertEqual(qf.selling_type.name, 'selling_type')
         self.assertEqual(qf.page.name, 'page')
+        self.assertEqual(qf.page.per_page_values, [10])
 
         qf.remove_filter('selling_type')
         self.assertEqual(len(qf.filters), 2)
@@ -1429,6 +1430,10 @@ class QueryFilterTest(BaseTestCase):
         self.assertIs(qf.get_filter('selling_type'), None)
         self.assertRaises(AttributeError, lambda: qf.selling_type)
         self.assertEqual(qf.page.name, 'page')
+
+        qf.add_filter(PageFilter('page', per_page_values=[10, 20]))
+        self.assertEqual(len(qf.filters), 2)
+        self.assertEqual(qf.page.per_page_values, [10, 20])
         
     # def test_nested(self):
     #     f = DynamicDocument.fields
