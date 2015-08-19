@@ -525,6 +525,9 @@ class QueryFilterTest(BaseTestCase):
                             "bool": {
                                 "must": [
                                     {
+                                        "terms": {"region_id": [123, 456]}
+                                    },
+                                    {
                                         "bool": {
                                             "must": [
                                                 {
@@ -538,9 +541,6 @@ class QueryFilterTest(BaseTestCase):
                                                 }
                                             ]
                                         }
-                                    },
-                                    {
-                                        "terms": {"region_id": [123, 456]}
                                     }
                                 ]
                             }
@@ -558,6 +558,9 @@ class QueryFilterTest(BaseTestCase):
                     "bool": {
                         "must": [
                             {
+                                "terms": {"region_id": [123, 456]}
+                            },
+                            {
                                 "bool": {
                                     "must": [
                                         {
@@ -571,9 +574,6 @@ class QueryFilterTest(BaseTestCase):
                                         }
                                     ]
                                 }
-                            },
-                            {
-                                "terms": {"region_id": [123, 456]}
                             }
                         ]
                     }
@@ -1362,7 +1362,75 @@ class QueryFilterTest(BaseTestCase):
         self.assertEqual(qf.page.has_prev, True)
         self.assertEqual(len(qf.page.items), 10)
 
-   # def test_nested(self):
+    def test_query_filter_inheritance(self):
+        class SuperBaseItemQueryFilter(QueryFilter):
+            price = RangeFilter(self.index.item.price)
+
+        class BaseItemQueryFilter(SuperBaseItemQueryFilter):
+            sort = OrderingFilter(
+                OrderingValue('-score', [self.index.item._score])
+            )
+
+        class ItemQueryFilter(BaseItemQueryFilter):
+            selling_type = FacetQueryFilter(
+                SimpleQueryValue('retail', self.index.item.selling_type.in_([1, 2, 3])),
+                SimpleQueryValue('wholesale', self.index.item.selling_type.in_([3, 4, 5])),
+                conj_operator=QueryFilter.CONJ_AND
+            )
+            page = PageFilter()
+            sort = OrderingFilter(
+                OrderingValue('-score', [self.index.item._score]),
+                OrderingValue('price', [self.index.item.price]),
+                OrderingValue('-price', [self.index.item.price.desc()]),
+            )
+
+        qf = ItemQueryFilter()
+        self.assertEqual(
+            [f.name for f in qf.filters],
+            ['price', 'selling_type', 'page', 'sort']
+        )
+        self.assertEqual(
+            [v.value for v in qf.sort.values],
+            ['-score', 'price', '-price']
+        )
+            
+        BaseItemQueryFilter.presence = FacetFilter(self.index.item.presence)
+        ItemQueryFilter.status = FacetFilter(self.index.item.status)
+
+        qf = ItemQueryFilter()
+        self.assertEqual(
+            [f.name for f in qf.filters],
+            ['price', 'presence', 'selling_type', 'page', 'sort', 'status']
+        )
+        self.assertEqual(
+            [v.value for v in qf.sort.values],
+            ['-score', 'price', '-price']
+        )
+        
+    def test_dynamic_filters(self):
+        class ItemQueryFilter(QueryFilter):
+            price = RangeFilter(self.index.item.price)
+            selling_type = FacetQueryFilter(
+                SimpleQueryValue('retail', self.index.item.selling_type.in_([1, 2, 3])),
+                SimpleQueryValue('wholesale', self.index.item.selling_type.in_([3, 4, 5])),
+                conj_operator=QueryFilter.CONJ_AND
+            )
+            page = PageFilter()
+
+        qf = ItemQueryFilter()
+        self.assertEqual(len(qf.filters), 3)
+        self.assertEqual(qf.price.name, 'price')
+        self.assertEqual(qf.selling_type.name, 'selling_type')
+        self.assertEqual(qf.page.name, 'page')
+
+        qf.remove_filter('selling_type')
+        self.assertEqual(len(qf.filters), 2)
+        self.assertEqual(qf.price.name, 'price')
+        self.assertIs(qf.get_filter('selling_type'), None)
+        self.assertRaises(AttributeError, lambda: qf.selling_type)
+        self.assertEqual(qf.page.name, 'page')
+        
+    # def test_nested(self):
     #     f = DynamicDocument.fields
 
     #     qf = QueryFilter()

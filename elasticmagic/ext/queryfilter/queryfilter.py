@@ -14,7 +14,40 @@ first = operator.itemgetter(0)
 is_not_none = functools.partial(operator.is_not, None)
 
 
-class QueryFilter(object):
+class UnboundFilter(object):
+    _current_counter = 0
+
+    def __init__(self, filter_cls, args, kwargs):
+        self.filter_cls = filter_cls
+        self.args = args
+        self.kwargs = kwargs
+        self._counter = UnboundFilter._current_counter
+        UnboundFilter._current_counter += 1
+
+    def bind(self, name):
+        return self.filter_cls(name, *self.args, **self.kwargs)
+
+
+class QueryFilterMeta(type):
+    def __init__(cls, name, bases, attrs):
+        type.__init__(cls, name, bases, attrs)
+
+        cls._unbound_filters = []
+        for attr_name, attr in attrs.items():
+            if isinstance(attr, UnboundFilter):
+                cls._unbound_filters.append((attr_name, attr))
+                delattr(cls, attr_name)
+
+        cls._unbound_filters.sort(key=lambda e: e[1]._counter)
+
+    def __setattr__(cls, name, value):
+        if isinstance(value, UnboundFilter):
+            cls._unbound_filters.append((name, value))
+        else:
+            type.__setattr__(cls, name, value)
+
+
+class QueryFilter(with_metaclass(QueryFilterMeta)):
     NAME = 'qf'
 
     CONJ_OR = 'CONJ_OR'
@@ -29,10 +62,10 @@ class QueryFilter(object):
         self._state = {}
         self._data = {}
 
-        for filt_name in dir(self):
-            unbound_filter = getattr(self, filt_name)
-            if isinstance(unbound_filter, UnboundFilter):
-                self.add_filter(unbound_filter.bind(filt_name))
+        for base_cls in reversed(self.__class__.__mro__):
+            if hasattr(base_cls, '_unbound_filters'):
+                for filter_name, unbound_filter in base_cls._unbound_filters:
+                    self.add_filter(unbound_filter.bind(filter_name))
 
         self.reset()
 
@@ -70,9 +103,18 @@ class QueryFilter(object):
         return self._filters
 
     def add_filter(self, filter):
+        self.remove_filter(filter.name)
         filter.qf = self
         self._filters.append(filter)
         setattr(self, filter.name, filter)
+
+    def remove_filter(self, filter_name):
+        if isinstance(getattr(self, filter_name, None), BaseFilter):
+            delattr(self, filter_name)
+            for ix, f in enumerate(self._filters):
+                if f.name == filter_name:
+                    break
+            self._filters = self._filters[:ix] + self._filters[ix + 1:]
 
     def apply(self, search_query, params):
         self._params = self._codec.decode(params, self._filter_types)
@@ -95,16 +137,6 @@ class QueryFilter(object):
 
     def get_filter(self, name):
         return getattr(self, name, None)
-
-
-class UnboundFilter(object):
-    def __init__(self, filter_cls, args, kwargs):
-        self.filter_cls = filter_cls
-        self.args = args
-        self.kwargs = kwargs
-
-    def bind(self, name):
-        return self.filter_cls(name, *self.args, **self.kwargs)
 
 
 class BaseFilter(object):
