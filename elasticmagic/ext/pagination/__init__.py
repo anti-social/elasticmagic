@@ -27,7 +27,11 @@ class SearchQueryWrapper(object):
         return self.count
 
     @property
-    def results(self):
+    def result(self):
         if self.sliced_query is None:
             raise ValueError('Slice first')
         return self.sliced_query.result
+
+    @property
+    def results(self):
+        return self.result

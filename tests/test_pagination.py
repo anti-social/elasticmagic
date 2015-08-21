@@ -29,7 +29,7 @@ class FlaskPaginationTest(BaseTestCase):
             }
         )
 
-        p = Pagination(self.index.query(doc_cls=self.index.car), page=2, per_page=2)
+        p = Pagination(self.index.search_query(doc_cls=self.index.car), page=2, per_page=2)
 
         self.assertEqual(p.total, 28)
         self.assertEqual(p.pages, 14)
