@@ -97,7 +97,7 @@ class Index(object):
         acts = []
         for doc in docs:
             acts.append(actions.Index(doc))
-        self._cluster.bulk(
+        return self._cluster.bulk(
             acts, index=self._name, doc_type=doc_type,
             timeout=timeout, consistency=consistency, replication=replication
         )
