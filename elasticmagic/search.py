@@ -343,9 +343,6 @@ class SearchQuery(object):
             return iter(doc.instance for doc in self.result.hits if doc.instance)
         return iter(self.result)
 
-    def __len__(self):
-        return len(self.result.hits)
-
     def __getitem__(self, k):
         if not isinstance(k, (slice, int)):
             raise TypeError

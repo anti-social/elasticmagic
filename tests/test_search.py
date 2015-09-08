@@ -888,3 +888,8 @@ class SearchQueryTest(BaseTestCase):
             timeout='1m',
             replication='async',
         )
+
+    def test_as_bool(self):
+        self.assertTrue(bool(self.index.search_query()))
+        self.assertFalse(self.client.count.called)
+        self.assertFalse(self.client.search.called)
