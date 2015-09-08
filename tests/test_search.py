@@ -893,3 +893,42 @@ class SearchQueryTest(BaseTestCase):
         self.assertTrue(bool(self.index.search_query()))
         self.assertFalse(self.client.count.called)
         self.assertFalse(self.client.search.called)
+
+    def test_search_params(self):
+        sq = SearchQuery()
+        self.assertEqual(
+            sq._search_params,
+            {}
+        )
+
+        sq = SearchQuery(search_type='count')
+        self.assertEqual(
+            sq._search_params,
+            {
+                'search_type': 'count'
+            }
+        )
+        sq = sq.with_search_type(None)
+        self.assertEqual(
+            sq._search_params,
+            {}
+        )
+        sq = sq.with_search_params({'search_type': 'count', 'query_cache': True}, unknown_param='none')
+        self.assertEqual(
+            sq._search_params,
+            {
+                'search_type': 'count',
+                'query_cache': True,
+                'unknown_param': 'none',
+            }
+        )
+        sq = sq.with_routing(1234)
+        self.assertEqual(
+            sq._search_params,
+            {
+                'routing': 1234,
+                'search_type': 'count',
+                'query_cache': True,
+                'unknown_param': 'none',
+            }
+        )

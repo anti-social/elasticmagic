@@ -3,7 +3,7 @@ import collections
 from itertools import chain
 
 from .agg import merge_aggregations
-from .util import _with_clone, cached_property, collect_doc_classes
+from .util import _with_clone, cached_property, clean_params, collect_doc_classes
 from .result import Result
 from .compiler import QueryCompiled
 from .expression import Expression, QueryExpression, Params, Filtered, And, Bool, FunctionScore
@@ -70,17 +70,19 @@ class SearchQuery(object):
     _index = None
     _doc_cls = None
     _doc_type = None
-    _routing = None
-    _search_type = None
-    _scroll = None
+
+    _search_params = Params()
 
     _instance_mapper = None
     _iter_instances = False
 
-    def __init__(self, q=None, 
-                 cluster=None, index=None,
-                 doc_cls=None, doc_type=None,
-                 routing=None, search_type=None, scroll=None):
+    def __init__(
+            self, q=None,
+            cluster=None, index=None, doc_cls=None, doc_type=None,
+            routing=None, preference=None, timeout=None, search_type=None,
+            query_cache=None, terminate_after=None, scroll=None,
+            **kwargs
+    ):
         if q is not None:
             self._q = q
         if cluster:
@@ -91,12 +93,19 @@ class SearchQuery(object):
             self._doc_cls = doc_cls
         if doc_type:
             self._doc_type = doc_type
-        if routing:
-            self._routing = routing
-        if search_type:
-            self._search_type = search_type
-        if scroll:
-            self._scroll = scroll
+
+        search_params = Params(
+            routing=routing,
+            preference=preference,
+            timeout=timeout,
+            search_type=search_type,
+            query_cache=query_cache,
+            terminate_after=terminate_after,
+            scroll=scroll,
+            **kwargs
+        )
+        if search_params:
+            self._search_params = search_params
 
     def clone(self):
         cls = self.__class__
@@ -215,17 +224,38 @@ class SearchQuery(object):
     def with_instance_mapper(self, instance_mapper):
         self._instance_mapper = instance_mapper
 
-    @_with_clone
     def with_routing(self, routing):
-        self._routing = routing
+        return self.with_search_params(routing=routing)
 
-    @_with_clone
+    def with_preference(self, preference):
+        return self.with_search_params(preference=preference)
+
+    def with_timeout(self, timeout):
+        return self.with_search_params(timeout=timeout)
+
     def with_search_type(self, search_type):
-        self._search_type = search_type
+        return self.with_search_params(search_type=search_type)
+
+    def with_query_cache(self, query_cache):
+        return self.with_search_params(query_cache=query_cache)
+
+    def with_terminate_after(self, terminate_after):
+        return self.with_search_params(terminate_after=terminate_after)
+
+    def with_scroll(self, scroll):
+        return self.with_search_params(scroll=scroll)
 
     @_with_clone
-    def with_scroll(self, scroll):
-        self._scroll = scroll
+    def with_search_params(self, *args, **kwargs):
+        if len(args) == 1 and args[0] is None:
+            if '_search_params' in self.__dict__:
+                del self._search_params
+        elif args or kwargs:
+            search_params = Params(self._search_params, *args, **kwargs)
+            if not search_params and '_search_params' in self.__dict__:
+                del self._search_params
+            else:
+                self._search_params = search_params
 
     def _collect_doc_classes(self):
         return set().union(
@@ -305,9 +335,7 @@ class SearchQuery(object):
         return (self._index or self._cluster).search(
             self,
             doc_type=doc_type,
-            routing=self._routing,
-            search_type=self._search_type,
-            scroll=self._scroll,
+            **(self._search_params or {})
         )
 
     @property
@@ -318,7 +346,7 @@ class SearchQuery(object):
         return self._index.count(
             self.get_filtered_query(wrap_function_score=False),
             doc_type=self._get_doc_type(),
-            routing=self._routing,
+            routing=self._search_params.get('routing'),
         )
 
     def exists(self, refresh=None):
@@ -326,7 +354,7 @@ class SearchQuery(object):
             self.get_filtered_query(wrap_function_score=False),
             self._get_doc_type(),
             refresh=refresh,
-            routing=self._routing,
+            routing=self._search_params.get('routing'),
         )
 
     def delete(self, timeout=None, consistency=None, replication=None):

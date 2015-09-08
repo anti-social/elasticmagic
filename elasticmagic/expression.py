@@ -43,8 +43,12 @@ class Params(Expression, collections.Mapping):
     __visit_name__ = 'params'
 
     def __init__(self, *args, **kwargs):
+        params = {}
+        for d in args:
+            params.update(d)
+        params.update(kwargs)
         self._params = {}
-        for k, v in clean_params(dict(*args, **kwargs)).items():
+        for k, v in clean_params(params).items():
             if k.endswith('_') and not k.startswith('_'):
                 k = k.rstrip('_')
             self._params[k] = v

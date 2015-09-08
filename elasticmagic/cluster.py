@@ -79,12 +79,20 @@ class Cluster(object):
 
     mget = multi_get
 
-    def search(self, q, index=None, doc_type=None, routing=None, preference=None, search_type=None, scroll=None):
-        params = clean_params({
-            'index': index, 'doc_type': doc_type, 
-            'routing': routing, 'preference': preference,
-            'search_type': search_type, 'scroll': scroll,
-        })
+    def search(
+            self, q, index=None, doc_type=None, routing=None, preference=None,
+            timeout=None, search_type=None, query_cache=None,
+            terminate_after=None, scroll=None, **kwargs
+    ):
+        params = clean_params(
+            dict({
+                'index': index, 'doc_type': doc_type, 
+                'routing': routing, 'preference': preference,
+                'timeout': timeout, 'search_type': search_type,
+                'query_cache': query_cache, 'terminate_after': terminate_after,
+                'scroll': scroll,
+            }, **kwargs)
+        )
         raw_result = self._client.search(body=q.to_dict(), **params)
         return Result(raw_result, q._aggregations,
                       doc_cls=q._get_doc_cls(),
@@ -128,10 +136,7 @@ class Cluster(object):
             doc_type = q._get_doc_type()
             if doc_type:
                 query_header['type'] = doc_type
-            if q._routing:
-                query_header['routing'] = q._routing
-            if q._search_type:
-                query_header['search_type'] = q._search_type
+            query_header.update(q._search_params)
             body += [query_header, q.to_dict()]
 
         raw_results = self._client.msearch(body=body, **params)['responses']

@@ -54,10 +54,17 @@ class Index(object):
 
     mget = multi_get
 
-    def search(self, q, doc_type=None, routing=None, preference=None, search_type=None, scroll=None):
+    def search(
+            self, q, doc_type=None, routing=None, preference=None, timeout=None,
+            search_type=None, query_cache=None, terminate_after=None, scroll=None,
+            **kwargs
+    ):
         return self._cluster.search(
             q, index=self._name, doc_type=doc_type, 
-            routing=routing, preference=preference, search_type=search_type, scroll=scroll,
+            routing=routing, preference=preference, timeout=timeout,
+            search_type=search_type, query_cache=query_cache,
+            terminate_after=terminate_after, scroll=scroll,
+            **kwargs
         )
 
     def multi_search(self, queries, doc_type=None, routing=None, preference=None, search_type=None):
