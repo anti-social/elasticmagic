@@ -70,7 +70,7 @@ class Integer(Type):
         return int(value)
 
 
-class Long(Type): 
+class Long(Type):
     __visit_name__ = 'long'
 
     MIN_VALUE = -(1 << 63)
@@ -193,3 +193,22 @@ class List(Type):
         if not isinstance(value, list):
             value = [value]
         return [self.sub_type.from_python(v) for v in value]
+
+
+class GeoPoint(Type):
+    __visit_name__ = 'geo_point'
+
+    def __init__(self):
+        self.doc_cls = None
+        self.value_type = Float
+
+    def from_python(self, value):
+        if value is None:
+            return None
+        if isinstance(value, text_type):
+            value = value.split(',')
+        elif isinstance(value, dict):
+            value = [value.get('lat'), value.get('lon')]
+        if not isinstance(value, list):
+            return None
+        return [self.value_type.from_python(v) for v in value]
