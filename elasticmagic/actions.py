@@ -78,7 +78,7 @@ class Update(Action):
                  scripted_upsert=None, params=None,
                  **kwargs):
         super(Update, self).__init__(
-            doc, script=script, script_id=script_id,
+            doc or {},
             index=index, doc_type=doc_type,
             consistency=consistency, refresh=refresh,
             routing=routing, parent=parent,
@@ -93,5 +93,9 @@ class Update(Action):
             'doc_as_upsert': doc_as_upsert,
             'scripted_upsert': scripted_upsert,
             'params': params,
+            'script': script,
+            'script_id': script_id,
         })
-        self.source = dict({'doc': self.source}, **self.source_params)
+        if self.source:
+            self.source = {'doc': self.source}
+        self.source.update(self.source_params)
