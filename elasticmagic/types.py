@@ -2,7 +2,7 @@ import inspect
 
 import dateutil.parser
 
-from .compat import text_type
+from .compat import text_type, string_types
 
 
 def instantiate(typeobj, *args, **kwargs):
@@ -200,15 +200,14 @@ class GeoPoint(Type):
 
     def __init__(self):
         self.doc_cls = None
-        self.value_type = Float
 
     def from_python(self, value):
         if value is None:
             return None
-        if isinstance(value, text_type):
-            value = value.split(',')
+        if isinstance(value, string_types):
+            value = list(reversed(value.split(',')))
         elif isinstance(value, dict):
-            value = [value.get('lat'), value.get('lon')]
+            value = [value.get('lon'), value.get('lat')]
         if not isinstance(value, list):
             return None
-        return [self.value_type.from_python(v) for v in value]
+        return [float(v) for v in value]
