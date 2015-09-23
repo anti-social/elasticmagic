@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/anti-social/elasticmagic.svg)](https://travis-ci.org/anti-social/elasticmagic)
+
 elasticmagic
 ============
 
