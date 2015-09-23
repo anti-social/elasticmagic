@@ -401,6 +401,22 @@ class ClusterTest(BaseTestCase):
                     index=self.index,
                     doc_as_upsert=True,
                 ),
+                actions.Update(
+                    _id='5',
+                    doc_type='car',
+                    index=self.index,
+                    script="ctx._source.status += value",
+                    params={'value': 1},
+                ),
+                actions.Update(
+                    {
+                        '_id': '5',
+                        '_type': 'car',
+                    },
+                    index=self.index,
+                    script="ctx._source.status += value",
+                    params={'value': 1},
+                ),
             ],
             refresh=True,
         )
@@ -415,6 +431,10 @@ class ClusterTest(BaseTestCase):
                 {'doc': {'field4': 'value4'}},
                 {'update': {'_index': 'test', '_type': 'car', '_id': '5'}},
                 {'doc': {'status': 1}, 'doc_as_upsert': True},
+                {'update': {'_index': 'test', '_type': 'car', '_id': '5'}},
+                {'script': 'ctx._source.status += value', 'params': {'value': 1}},
+                {'update': {'_index': 'test', '_type': 'car', '_id': '5'}},
+                {'script': 'ctx._source.status += value', 'params': {'value': 1}},
             ],
             refresh=True,
         )
