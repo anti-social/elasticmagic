@@ -3,7 +3,7 @@ import datetime
 import dateutil
 
 from elasticmagic.util import collect_doc_classes
-from elasticmagic.types import Type, String, Integer, Float, Boolean, Date, Object, List
+from elasticmagic.types import Type, String, Integer, Float, Boolean, Date, Object, List, GeoPoint
 from elasticmagic.compat import string_types
 from elasticmagic.document import Document, DynamicDocument
 from elasticmagic.attribute import AttributedField, DynamicAttributedField
@@ -630,4 +630,31 @@ class DocumentTestCase(BaseTestCase):
                 }
             }
         )
-        
+
+    def test_geo_point_document(self):
+
+        class GeoPointDoc(Document):
+            __doc_type__ = 'geo_data'
+
+            pin = Field(GeoPoint)
+
+        self.assertEqual(
+            GeoPointDoc.to_mapping(),
+            {
+                "geo_data": {
+                    "properties": {
+                        "pin": {
+                            "type": "geo_point",
+                        },
+                    },
+                },
+            }
+        )
+
+        doc = GeoPointDoc(_id=1, pin='41.12,-71.34')
+        self.assertEqual(
+            doc.to_source(),
+            {
+                'pin': [-71.34, 41.12],
+            }
+        )

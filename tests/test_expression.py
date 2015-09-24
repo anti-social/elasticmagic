@@ -1,5 +1,5 @@
 from elasticmagic import DynamicDocument
-from elasticmagic.types import Type, String, Integer, List
+from elasticmagic.types import Type, String, Integer, List, GeoPoint
 from elasticmagic.expression import (
     Params, Term, Terms, Exists, Missing, Match, MatchAll, MultiMatch, Range,
     Bool, Query, BooleanExpression, And, Or, Not, Sort, Field,
@@ -764,6 +764,26 @@ class ExpressionTestCase(BaseTestCase):
             {
                 "tag": {
                     "type": "integer"
+                }
+            }
+        )
+
+        f = Field('pin', GeoPoint())
+        self.assertEqual(
+            f.to_mapping(),
+            {
+                "pin": {
+                    "type": "geo_point"
+                }
+            }
+        )
+        f = Field('pin', GeoPoint(), lat_lon=True)
+        self.assertEqual(
+            f.to_mapping(),
+            {
+                "pin": {
+                    "type": "geo_point",
+                    "lat_lon": True,
                 }
             }
         )
