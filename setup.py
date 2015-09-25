@@ -18,7 +18,7 @@ setup(
     url="https://github.com/anti-social/elasticmagic",
     packages=find_packages(exclude=["tests"]),
     install_requires=[
-        "elasticsearch>=1.2.0,<1.3.0",
+        "elasticsearch>=1.6.0,<1.7.0",
         "python-dateutil",
     ],
     tests_require=[
