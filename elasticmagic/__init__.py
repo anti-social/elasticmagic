@@ -8,4 +8,5 @@ from .expression import (
     And, Or, Not, Sort, Boosting, Common, ConstantScore, FunctionScore,
     Field, SpanFirst, SpanMulti, SpanNear, SpanNot, SpanOr, SpanTerm,
 )
+from .types import ValidationError
 from .version import __version__

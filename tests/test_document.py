@@ -4,6 +4,7 @@ import dateutil
 
 from elasticmagic.util import collect_doc_classes
 from elasticmagic.types import Type, String, Integer, Float, Boolean, Date, Object, List, GeoPoint
+from elasticmagic.types import ValidationError
 from elasticmagic.compat import string_types
 from elasticmagic.document import Document, DynamicDocument
 from elasticmagic.attribute import AttributedField, DynamicAttributedField
@@ -651,10 +652,38 @@ class DocumentTestCase(BaseTestCase):
             }
         )
 
-        doc = GeoPointDoc(_id=1, pin='41.12,-71.34')
+    def test_to_source_with_validation(self):
+        class TestDocument(Document):
+            name = Field(String, required=True)
+            status = Field(Integer)
+
+        doc = TestDocument(status=1)
+        self.assertRaises(ValidationError, lambda: doc.to_source(validate=True))
+
+        doc = TestDocument(name=None, status=1)
+        self.assertRaises(ValidationError, lambda: doc.to_source(validate=True))
+
+        doc = TestDocument(name=123, status='4')
         self.assertEqual(
-            doc.to_source(),
+            doc.to_source(validate=True),
             {
-                'pin': [-71.34, 41.12],
+                'name': '123',
+                'status': 4,
             }
         )
+
+        doc = TestDocument(name=123, status='4 test')
+        with self.assertRaises(ValidationError):
+            doc.to_source(validate=True)
+
+        doc = TestDocument(name=123, status=[1, 2])
+        with self.assertRaises(ValidationError):
+            doc.to_source(validate=True)
+
+        doc = TestDocument(name=123, status=datetime.datetime.now())
+        with self.assertRaises(ValidationError):
+            doc.to_source(validate=True)
+
+        doc = TestDocument(name=123, status=1 << 31)
+        with self.assertRaises(ValidationError):
+            doc.to_source(validate=True)

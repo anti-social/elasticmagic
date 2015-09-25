@@ -25,6 +25,11 @@ setup(
         "nose",
         "mock",
     ],
+    extras_require={
+        "geo": [
+            "python-geohash==0.8.5"
+        ],
+    },
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",

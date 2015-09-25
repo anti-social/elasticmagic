@@ -1,6 +1,6 @@
 import fnmatch
 
-from .types import Type, String, Integer, Float, Date
+from .types import Type, String, Integer, Float, Date, ValidationError
 from .compiler import MappingCompiled
 from .attribute import AttributedField, DynamicAttributedField, _attributed_field_factory
 from .expression import Field, MappingField
@@ -168,17 +168,28 @@ class Document(with_metaclass(DocumentMeta)):
                 doc_meta[field_name] = value
         return doc_meta
     
-    def to_source(self):
+    def to_source(self, validate=False):
         res = {}
         for key, value in self.__dict__.items():
             if key in self.__class__.mapping_fields:
                 continue
-            if value is None or value == '' or value == []:
-                continue
 
             attr_field = self.__class__.fields.get(key)
             if attr_field:
-                res[attr_field._field._name] = attr_field._from_python(value)
+                if value is None or value == '' or value == []:
+                    if validate and attr_field.get_field()._mapping_options.get('required'):
+                        raise ValidationError("'{}' is required".format(attr_field.get_attr_name()))
+                    continue
+                value = attr_field.get_type().from_python(value, validate=validate)
+                res[attr_field._field._name] = value
+
+        for attr_field in self._fields.values():
+            if (
+                    validate
+                    and attr_field.get_field()._mapping_options.get('required')
+                    and attr_field.get_field().get_name() not in res
+            ):
+                raise ValidationError("'{}' is required".format(attr_field.get_attr_name()))
 
         return res
 
