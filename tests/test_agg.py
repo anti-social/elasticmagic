@@ -434,7 +434,11 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(a.buckets[1].bg_count, 53182)
         self.assertIs(a.buckets[1], a.get_bucket('Mobile phone theft'))
 
-        a = agg.Range(f.price, ranges=[{'to': 200}, {'from': 200, 'to': 1000}, {'from': 1000}])
+        a = agg.Range(
+            f.price,
+            ranges=[{'to': 200}, {'from': 200, 'to': 1000}, {'from': 1000}],
+            type=Integer,
+        )
         self.assert_expression(
             a,
             {

@@ -13,6 +13,7 @@ from elasticmagic.types import (
 class TypesTestCase(unittest.TestCase):
     def test_type(self):
         t = Type()
+        self.assertIs(t.to_python(None), None)
         self.assertEqual(t.to_python('test'), 'test')
         self.assertEqual(t.to_python(123), 123)
         self.assertEqual(t.from_python('test'), 'test')
@@ -21,6 +22,7 @@ class TypesTestCase(unittest.TestCase):
 
     def test_string(self):
         t = String()
+        self.assertIs(t.to_python(None), None)
         self.assertEqual(t.to_python('test'), 'test')
         self.assertEqual(t.to_python(123), '123')
         self.assertEqual(t.from_python('test'), 'test')
@@ -29,6 +31,7 @@ class TypesTestCase(unittest.TestCase):
         
     def test_byte(self):
         t = Byte()
+        self.assertIs(t.to_python(None), None)
         self.assertRaises(ValueError, lambda: t.to_python('test'))
         self.assertEqual(t.to_python(123), 123)
         self.assertEqual(t.to_python('123'), 123)
@@ -38,6 +41,7 @@ class TypesTestCase(unittest.TestCase):
 
     def test_short(self):
         t = Short()
+        self.assertIs(t.to_python(None), None)
         self.assertRaises(ValueError, lambda: t.to_python('test'))
         self.assertEqual(t.to_python(123), 123)
         self.assertEqual(t.to_python('123'), 123)
@@ -47,6 +51,7 @@ class TypesTestCase(unittest.TestCase):
 
     def test_integer(self):
         t = Integer()
+        self.assertIs(t.to_python(None), None)
         self.assertRaises(ValueError, lambda: t.to_python('test'))
         self.assertEqual(t.to_python(123), 123)
         self.assertEqual(t.to_python('123'), 123)
@@ -56,6 +61,7 @@ class TypesTestCase(unittest.TestCase):
 
     def test_float(self):
         t = Float()
+        self.assertIs(t.to_python(None), None)
         self.assertRaises(ValueError, lambda: t.to_python('test'))
         self.assertEqual(t.to_python(123), 123)
         self.assertEqual(t.to_python('123'), 123)
@@ -66,6 +72,7 @@ class TypesTestCase(unittest.TestCase):
 
     def test_doubel(self):
         t = Double()
+        self.assertIs(t.to_python(None), None)
         self.assertRaises(ValueError, lambda: t.to_python('test'))
         self.assertEqual(t.to_python(123), 123)
         self.assertEqual(t.to_python('123'), 123)
@@ -76,6 +83,7 @@ class TypesTestCase(unittest.TestCase):
 
     def test_date(self):
         t = Date()
+        self.assertIs(t.to_python(None), None)
         self.assertEqual(
             t.to_python('2009-11-15T14:12:12'),
             datetime.datetime(2009, 11, 15, 14, 12, 12)
@@ -90,6 +98,7 @@ class TypesTestCase(unittest.TestCase):
         
     def test_boolean(self):
         t = Boolean()
+        self.assertIs(t.to_python(None), None)
         self.assertEqual(t.to_python(False), False)
         self.assertEqual(t.to_python(True), True)
         self.assertEqual(t.to_python(0), False)
@@ -108,6 +117,7 @@ class TypesTestCase(unittest.TestCase):
         
     def test_binary(self):
         t = Binary()
+        self.assertIs(t.to_python(None), None)
         self.assertEqual(t.to_python('dGVzdA=='), b'test')
         if PY2:
             self.assertRaises(TypeError, lambda: t.to_python('dGVzdA='))
@@ -119,6 +129,7 @@ class TypesTestCase(unittest.TestCase):
         
     def test_ip(self):
         t = Ip()
+        self.assertIs(t.to_python(None), None)
         self.assertEqual(t.to_python('8.8.8.8'), '8.8.8.8')
         self.assertEqual(t.from_python('8.8.8.8'), '8.8.8.8')
         self.assertEqual(t.from_python('8.8.8.'), '8.8.8.')
@@ -129,6 +140,7 @@ class TypesTestCase(unittest.TestCase):
         
     def test_object(self):
         t = Object(DynamicDocument)
+        self.assertIs(t.to_python(None), None)
         doc = t.to_python({'name': 'Test', 'status': 1})
         self.assertEqual(doc.name, 'Test')
         self.assertEqual(doc.status, 1)
@@ -149,6 +161,7 @@ class TypesTestCase(unittest.TestCase):
         
     def test_geo_poing(self):
         t = GeoPoint()
+        self.assertIs(t.to_python(None), None)
         self.assertEqual(t.to_python('41.12,-71.34'), {'lat': 41.12, 'lon': -71.34})
         p = t.to_python('drm3btev3e86')
         self.assertAlmostEqual(p['lat'], 41.12)

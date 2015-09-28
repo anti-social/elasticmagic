@@ -29,6 +29,8 @@ class Type(object):
         self.doc_cls = None
 
     def to_python(self, value):
+        if value is None:
+            return None
         return value
 
     def to_python_single(self, value):
@@ -42,6 +44,8 @@ class String(Type):
     __visit_name__ = 'string'
 
     def to_python(self, value):
+        if value is None:
+            return None
         return text_type(value)
 
     def from_python(self, value,  validate=False):
@@ -50,6 +54,8 @@ class String(Type):
 
 class _Int(Type):
     def to_python(self, value):
+        if value is None:
+            return None
         return int(value)
 
     def from_python(self, value, validate=False):
@@ -100,6 +106,8 @@ class Long(_Int):
 
 class _Float(Type):
     def to_python(self, value):
+        if value is None:
+            return None
         return float(value)
 
     def from_python(self, value, validate=False):
@@ -128,6 +136,8 @@ class Date(Type):
     #     self.format = format
 
     def to_python(self, value):
+        if value is None:
+            return None
         return dateutil.parser.parse(value)
 
     def from_python(self, value, validate=True):
@@ -141,6 +151,8 @@ class Boolean(Type):
     __visit_name__ = 'boolean'
 
     def to_python(self, value):
+        if value is None:
+            return None
         if value is False or value == 0 or value in ('', 'false', 'F'):
             return False
         return True
@@ -153,6 +165,8 @@ class Binary(Type):
     __visit_name__ = 'binary'
 
     def to_python(self, value):
+        if value is None:
+            return None
         return base64.b64decode(value)
 
     def from_python(self, value, validate=False):
@@ -192,6 +206,8 @@ class Object(Type):
         self.doc_cls = doc_cls
 
     def to_python(self, value):
+        if value is None:
+            return None
         if isinstance(value, self.doc_cls):
             return value
         return self.doc_cls(**value)
@@ -219,6 +235,8 @@ class List(Type):
         return self.sub_type.doc_cls
 
     def to_python(self, value):
+        if value is None:
+            return None
         if not isinstance(value, list):
             value = [value]
         return [self.sub_type.to_python(v) for v in value]
@@ -240,6 +258,8 @@ class GeoPoint(Type):
     LAT_LON_SEPARATOR = ','
 
     def to_python(self, value):
+        if value is None:
+            return None
         if isinstance(value, (list, tuple)):
             value = list(reversed(value))
         if isinstance(value, string_types):
