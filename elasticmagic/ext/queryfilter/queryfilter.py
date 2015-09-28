@@ -726,7 +726,7 @@ class PageFilter(BaseFilter):
 
         offset = (self.page - 1) * self.per_page
         limit = self.per_page
-        if offset + limit > self.max_items:
+        if self.max_items and offset + limit > self.max_items:
             limit = max(self.max_items - offset, 0)
 
         search_query = search_query.limit(limit)

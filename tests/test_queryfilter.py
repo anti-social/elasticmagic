@@ -1300,7 +1300,7 @@ class QueryFilterTest(BaseTestCase):
 
     def test_page(self):
         class CarQueryFilter(QueryFilter):
-            page = PageFilter(alias='p', per_page_values=[10, 25, 50, 96], max_items=1000)
+            page = PageFilter(alias='p', per_page_values=[10, 25, 50])
 
         sq = self.index.search_query()
 
@@ -1324,29 +1324,6 @@ class QueryFilterTest(BaseTestCase):
             qf.apply(sq, {'per_page': 25}),
             {
                 "size": 25
-            }
-        )
-
-        self.assert_expression(
-            qf.apply(sq, {'p': 20, 'per_page': 50}),
-            {
-                "size": 50,
-                "from": 950
-            }
-        )
-
-        self.assert_expression(
-            qf.apply(sq, {'p': 11, 'per_page': 96}),
-            {
-                "size": 40,
-                "from": 960
-            }
-        )
-
-        self.assert_expression(
-            qf.apply(sq, {'p': 30, 'per_page': 50}),
-            {
-                "size": 0
             }
         )
 
@@ -1384,6 +1361,28 @@ class QueryFilterTest(BaseTestCase):
         self.assertEqual(qf.page.has_next, True)
         self.assertEqual(qf.page.has_prev, True)
         self.assertEqual(len(qf.page.items), 10)
+
+    def test_page_with_max_items(self):
+        class CarQueryFilter(QueryFilter):
+            page = PageFilter(alias='p', per_page_values=[24, 48, 96], max_items=1000)
+
+        sq = self.index.search_query()
+        qf = CarQueryFilter()
+
+        self.assert_expression(
+            qf.apply(sq, {'p': 11, 'per_page': 96}),
+            {
+                "size": 40,
+                "from": 960
+            }
+        )
+
+        self.assert_expression(
+            qf.apply(sq, {'p': 500}),
+            {
+                "size": 0
+            }
+        )
 
     def test_query_filter_inheritance(self):
         class SuperBaseItemQueryFilter(QueryFilter):
@@ -1457,7 +1456,7 @@ class QueryFilterTest(BaseTestCase):
         qf.add_filter(PageFilter('page', per_page_values=[10, 20]))
         self.assertEqual(len(qf.filters), 2)
         self.assertEqual(qf.page.per_page_values, [10, 20])
-        
+
     # def test_nested(self):
     #     f = DynamicDocument.fields
 
