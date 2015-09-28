@@ -1356,6 +1356,8 @@ class QueryFilterTest(BaseTestCase):
             }
         )
         qf.process_results(sq.result)
+        self.assertEqual(qf.page.offset, 20)
+        self.assertEqual(qf.page.limit, 10)
         self.assertEqual(qf.page.total, 105)
         self.assertEqual(qf.page.pages, 11)
         self.assertEqual(qf.page.has_next, True)

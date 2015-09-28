@@ -700,6 +700,8 @@ class PageFilter(BaseFilter):
 
         self.per_page = None
         self.page = None
+        self.offset = None
+        self.limit = None
         self.total = None
         self.items = None
         self.pages = None
@@ -724,14 +726,14 @@ class PageFilter(BaseFilter):
         else:
             self.page = 1
 
-        offset = (self.page - 1) * self.per_page
-        limit = self.per_page
-        if self.max_items and offset + limit > self.max_items:
-            limit = max(self.max_items - offset, 0)
+        self.offset = (self.page - 1) * self.per_page
+        self.limit = self.per_page
+        if self.max_items and self.offset + self.limit > self.max_items:
+            self.limit = max(self.max_items - self.offset, 0)
 
-        search_query = search_query.limit(limit)
-        if offset > 0 and limit > 0:
-            search_query = search_query.offset(offset)
+        search_query = search_query.limit(self.limit)
+        if self.offset > 0 and self.limit > 0:
+            search_query = search_query.offset(self.offset)
 
         return search_query
 
