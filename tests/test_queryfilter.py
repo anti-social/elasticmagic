@@ -1300,7 +1300,7 @@ class QueryFilterTest(BaseTestCase):
 
     def test_page(self):
         class CarQueryFilter(QueryFilter):
-            page = PageFilter(alias='p', per_page_values=[10, 25, 50])
+            page = PageFilter(alias='p', per_page_values=[10, 25, 50, 96], max_items=1000)
 
         sq = self.index.search_query()
 
@@ -1324,6 +1324,29 @@ class QueryFilterTest(BaseTestCase):
             qf.apply(sq, {'per_page': 25}),
             {
                 "size": 25
+            }
+        )
+
+        self.assert_expression(
+            qf.apply(sq, {'p': 20, 'per_page': 50}),
+            {
+                "size": 50,
+                "from": 950
+            }
+        )
+
+        self.assert_expression(
+            qf.apply(sq, {'p': 11, 'per_page': 96}),
+            {
+                "size": 40,
+                "from": 960
+            }
+        )
+
+        self.assert_expression(
+            qf.apply(sq, {'p': 30, 'per_page': 50}),
+            {
+                "size": 0
             }
         )
 

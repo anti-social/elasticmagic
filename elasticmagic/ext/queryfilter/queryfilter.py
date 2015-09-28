@@ -692,10 +692,11 @@ class PageFilter(BaseFilter):
     DEFAULT_PER_PAGE_PARAM = 'per_page'
     DEFAULT_PER_PAGE = 10
 
-    def __init__(self, name, alias=None, per_page_param=None, per_page_values=None):
+    def __init__(self, name, alias=None, per_page_param=None, per_page_values=None, max_items=None):
         super(PageFilter, self).__init__(name, alias=alias)
         self.per_page_param = per_page_param or self.DEFAULT_PER_PAGE_PARAM
         self.per_page_values = per_page_values or [self.DEFAULT_PER_PAGE]
+        self.max_items = max_items
 
         self.per_page = None
         self.page = None
@@ -716,7 +717,6 @@ class PageFilter(BaseFilter):
             self.per_page = per_page[0][0]
         if self.per_page not in self.per_page_values:
             self.per_page = self.per_page_values[0]
-        search_query = search_query.limit(self.per_page)
 
         page_num = params.get(self.alias, {}).get('exact')
         if page_num:
@@ -724,8 +724,14 @@ class PageFilter(BaseFilter):
         else:
             self.page = 1
 
-        if self.page > 1:
-            search_query = search_query.offset((self.page - 1) * self.per_page)
+        offset = (self.page - 1) * self.per_page
+        limit = self.per_page
+        if offset + limit > self.max_items:
+            limit = max(self.max_items - offset, 0)
+
+        search_query = search_query.limit(limit)
+        if offset > 0 and limit > 0:
+            search_query = search_query.offset(offset)
 
         return search_query
 
