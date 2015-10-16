@@ -132,7 +132,7 @@ class IndexTest(BaseTestCase):
 
     def test_exists(self):
         self.index.exists(MatchAll(), 'car', refresh=True)
-        self.client.exists.assert_called_with(
+        self.client.search_exists.assert_called_with(
             index='test',
             doc_type='car',
             body={
@@ -144,7 +144,7 @@ class IndexTest(BaseTestCase):
         )
 
         self.index.exists(self.index.car.name.match('Subaru'), 'car')
-        self.client.exists.assert_called_with(
+        self.client.search_exists.assert_called_with(
             index='test',
             doc_type='car',
             body={

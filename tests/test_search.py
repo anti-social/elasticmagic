@@ -575,19 +575,19 @@ class SearchQueryTest(BaseTestCase):
         )
 
     def test_exists(self):
-        self.client.exists.return_value = {"exists" : True}
+        self.client.search_exists.return_value = {"exists" : True}
         self.assertEqual(
             SearchQuery(index=self.index, doc_cls=self.index.car).exists(refresh=True),
             True
         )
-        self.client.exists.assert_called_with(
+        self.client.search_exists.assert_called_with(
             index='test',
             doc_type='car',
             body=None,
             refresh=True
         )
 
-        self.client.exists.return_value = {"exists" : False}
+        self.client.search_exists.return_value = {"exists" : False}
         self.assertEqual(
             SearchQuery(index=self.index)
             .filter(self.index.car.status == 1)
@@ -595,7 +595,7 @@ class SearchQueryTest(BaseTestCase):
             .exists(),
             False
         )
-        self.client.exists.assert_called_with(
+        self.client.search_exists.assert_called_with(
             index='test',
             doc_type='car',
             body={

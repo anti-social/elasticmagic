@@ -112,7 +112,7 @@ class Cluster(object):
                                'doc_type': doc_type,
                                'refresh': refresh,
                                'routing': routing})
-        return self._client.exists(body=body, **params)['exists']
+        return self._client.search_exists(body=body, **params)['exists']
 
     def scroll(self, scroll_id, scroll, doc_cls=None, instance_mapper=None):
         return Result(
