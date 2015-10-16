@@ -72,8 +72,7 @@ class QueryFilter(with_metaclass(QueryFilterMeta)):
     def get_name(self):
         return self._name
 
-    @property
-    def _filter_types(self):
+    def get_types(self):
         types = {}
         for filt in self._filters:
             types.update(filt._types)
@@ -117,7 +116,7 @@ class QueryFilter(with_metaclass(QueryFilterMeta)):
             self._filters = self._filters[:ix] + self._filters[ix + 1:]
 
     def apply(self, search_query, params):
-        self._params = self._codec.decode(params, self._filter_types)
+        self._params = self._codec.decode(params, self.get_types())
 
         # First filter query with all filters
         for f in self._filters:
@@ -396,10 +395,6 @@ class RangeFilter(FieldFilter):
         self.max = None
 
     @property
-    def _types(self):
-        return {self.alias: self.type}
-
-    @property
     def _filter_agg_name(self):
         return '{}.{}.filter'.format(self.qf._name, self.name)
 
@@ -490,6 +485,10 @@ class SimpleQueryFilter(BaseFilter):
         self._values_map = {fv.value: fv for fv in self._values}
         self._conj_operator = kwargs.pop('conj_operator', QueryFilter.CONJ_OR)
         self.default = kwargs.pop('default', None)
+
+    @property
+    def _types(self):
+        return {self.alias: None}
 
     def get_value(self, value):
         return self._values_map.get(value)
@@ -743,4 +742,3 @@ class PageFilter(BaseFilter):
         self.pages = int(ceil(self.total / float(self.per_page)))
         self.has_prev = self.page > 1
         self.has_next = self.page < self.pages
-
