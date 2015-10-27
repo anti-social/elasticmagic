@@ -1,13 +1,21 @@
 import collections
 
+from elasticsearch import ElasticsearchException
+
 from .agg import BucketAgg
 from .document import DynamicDocument
 
 
 class Result(object):
+    def __init__(self, raw_result):
+        self.raw = raw_result
+
+
+class SearchResult(Result):
     def __init__(self, raw_result, aggregations=None,
                  doc_cls=None, instance_mapper=None):
-        self.raw = raw_result
+        super(SearchResult, self).__init__(raw_result)
+
         self._query_aggs = aggregations or {}
 
         if doc_cls is None:
@@ -51,11 +59,20 @@ class Result(object):
             doc.__dict__['instance'] = instances.get(doc._id)
 
 
-class ActionResult(object):
-    def __init__(self, raw):
-        self.raw = raw
-        self.name = next(iter(raw.keys()))
-        data = next(iter(raw.values()))
+class ErrorSearchResult(Result):
+    def __init__(self, raw_result):
+        super(ErrorSearchResult, self).__init__(raw_result)
+        self.error = raw_result['error']
+
+    def __getattr__(self, name):
+        raise ElasticsearchException(self.error)
+
+
+class ActionResult(Result):
+    def __init__(self, raw_result):
+        super(ActionResult, self).__init__(raw_result)
+        self.name = next(iter(raw_result.keys()))
+        data = next(iter(raw_result.values()))
         self.status = data['status']
         self.found = data.get('found')
         self.error = data.get('error')
@@ -65,12 +82,12 @@ class ActionResult(object):
         self._version = data.get('_version')
 
 
-class BulkResult(object):
-    def __init__(self, raw):
-        self.raw = raw
-        self.took = raw['took']
-        self.errors = raw['errors']
-        self.items = list(map(ActionResult, raw['items']))
+class BulkResult(Result):
+    def __init__(self, raw_result):
+        super(BulkResult, self).__init__(raw_result)
+        self.took = raw_result['took']
+        self.errors = raw_result['errors']
+        self.items = list(map(ActionResult, raw_result['items']))
 
     def __iter__(self):
         return iter(self.items)

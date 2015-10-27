@@ -1,7 +1,7 @@
 from .util import clean_params
 from .index import Index
 from .search import SearchQuery
-from .result import Result, BulkResult
+from .result import BulkResult, ErrorSearchResult, SearchResult
 from .document import Document, DynamicDocument
 from .expression import Params
 
@@ -94,7 +94,7 @@ class Cluster(object):
             }, **kwargs)
         )
         raw_result = self._client.search(body=q.to_dict(), **params)
-        return Result(raw_result, q._aggregations,
+        return SearchResult(raw_result, q._aggregations,
                       doc_cls=q._get_doc_cls(),
                       instance_mapper=q._instance_mapper)
 
@@ -115,7 +115,7 @@ class Cluster(object):
         return self._client.search_exists(body=body, **params)['exists']
 
     def scroll(self, scroll_id, scroll, doc_cls=None, instance_mapper=None):
-        return Result(
+        return SearchResult(
             self._client.scroll(scroll_id=scroll_id, scroll=scroll),
             doc_cls=doc_cls,
             instance_mapper=instance_mapper,
@@ -141,11 +141,15 @@ class Cluster(object):
 
         raw_results = self._client.msearch(body=body, **params)['responses']
         for raw, q in zip(raw_results, queries):
-            q.__dict__['result'] = Result(
-                raw, q._aggregations,
-                doc_cls=q._get_doc_cls(),
-                instance_mapper=q._instance_mapper
+            if 'error' in raw:
+                result = ErrorSearchResult(raw)
+            else:
+                result = SearchResult(
+                    raw, q._aggregations,
+                    doc_cls=q._get_doc_cls(),
+                    instance_mapper=q._instance_mapper
             )
+            q.__dict__['result'] = result
         return [q.result for q in queries]
 
     msearch = multi_search

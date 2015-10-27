@@ -1,6 +1,8 @@
 import warnings
 from mock import MagicMock
 
+from elasticsearch import ElasticsearchException
+
 from elasticmagic import agg, actions, Cluster, SearchQuery, DynamicDocument
 
 from .base import BaseTestCase
@@ -164,6 +166,46 @@ class ClusterTest(BaseTestCase):
         self.assertAlmostEqual(doc.price.local, 92.421)
         self.assertAlmostEqual(doc.price.unit, 5.67)
         self.assertEqual(doc.status, 0)
+
+    def test_multi_search_with_error(self):
+        self.client.msearch = MagicMock(
+            return_value={
+                u'responses': [
+                    {
+                        u'_shards': {
+                            u'failed': 0,
+                            u'successful': 64,
+                            u'total': 64
+                        },
+                        u'hits': {
+                            u'hits': [],
+                            u'max_score': 0.0,
+                            u'total': 27802974
+                        },
+                        u'timed_out': False,
+                        u'took': 59
+                    },
+                    {
+                        u'error': u'SearchPhaseExecutionException[Failed to execute phase [query], all shards failed;'
+                    }
+                ]
+            }
+        )
+        ProductDoc = self.index.product
+        sq1 = SearchQuery(doc_cls=ProductDoc, search_type='count', routing=123)
+        sq2 = (
+            SearchQuery(index=self.cluster['us'], doc_cls=ProductDoc)
+            .filter(ProductDoc.status == 0)
+            .limit(1)
+        )
+        results = self.cluster.multi_search([sq1, sq2])
+
+        self.assertIs(results[0], sq1.result)
+        self.assertIs(results[1], sq2.result)
+        self.assertEqual(results[0].total, 27802974)
+        self.assertEqual(len(results[0].hits), 0)
+        self.assertRaisesRegexp(ElasticsearchException, r'^SearchPhaseExecutionException', lambda: results[1].total)
+        self.assertRaisesRegexp(ElasticsearchException, r'^SearchPhaseExecutionException', lambda: results[1].hits)
 
     def test_scroll(self):
         self.client.scroll = MagicMock(
