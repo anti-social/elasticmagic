@@ -168,6 +168,10 @@ class TypesTestCase(unittest.TestCase):
         self.assertAlmostEqual(p['lon'], -71.3400001)
         self.assertEqual(t.to_python([-71.34, 41.12]), {'lat': 41.12, 'lon': -71.34})
         self.assertEqual(
+            t.to_python({'lat': 41.12, 'lon': -71.32}),
+            {'lat': 41.12, 'lon': -71.32}
+        )
+        self.assertEqual(
             t.from_python({'lon': -71.34, 'lat': 41.12}),
             {'lon': -71.34, 'lat': 41.12}
         )

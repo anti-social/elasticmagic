@@ -268,7 +268,7 @@ class GeoPoint(Type):
             elif GEOHASH_IMPORTED:
                 value = list(geohash.decode(value))
         elif isinstance(value, dict):
-            value = [value.get('lon'), value.get('lat')]
+            value = [value.get('lat'), value.get('lon')]
         return {'lat': float(value[0]), 'lon': float(value[1])}
     
     def from_python(self, value, validate=False):
