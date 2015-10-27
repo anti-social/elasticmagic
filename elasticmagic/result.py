@@ -34,8 +34,15 @@ class SearchResult(Result):
 
         self.error = raw_result.get('error')
 
+        if 'took' in raw_result:
+            self.took = raw_result['took']
+            
+        if 'timed_out' in raw_result:
+            self.timed_out = raw_result['timed_out']
+            
         if 'hits' in raw_result:
             self.total = raw_result['hits']['total']
+            self.max_score = raw_result['hits']['max_score']
             self.hits = []
             for hit in raw_result['hits']['hits']:
                 doc_cls = self._doc_cls_map.get(hit['_type'], DynamicDocument)
@@ -54,7 +61,7 @@ class SearchResult(Result):
         return iter(self.hits)
 
     def __getattr__(self, name):
-        if name in ('total', 'hits', 'aggregations'):
+        if self.error and name in ('took', 'timed_out', 'total', 'hits', 'max_score', 'aggregations'):
             raise ElasticsearchException(self.error)
         return super(SearchResult, self).__getattr__(name)
 
