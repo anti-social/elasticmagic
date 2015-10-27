@@ -1,7 +1,7 @@
 from .util import clean_params
 from .index import Index
 from .search import SearchQuery
-from .result import BulkResult, ErrorSearchResult, SearchResult
+from .result import BulkResult, SearchResult
 from .document import Document, DynamicDocument
 from .expression import Params
 
@@ -141,13 +141,10 @@ class Cluster(object):
 
         raw_results = self._client.msearch(body=body, **params)['responses']
         for raw, q in zip(raw_results, queries):
-            if 'error' in raw:
-                result = ErrorSearchResult(raw)
-            else:
-                result = SearchResult(
-                    raw, q._aggregations,
-                    doc_cls=q._get_doc_cls(),
-                    instance_mapper=q._instance_mapper
+            result = SearchResult(
+                raw, q._aggregations,
+                doc_cls=q._get_doc_cls(),
+                instance_mapper=q._instance_mapper
             )
             q.__dict__['result'] = result
         return [q.result for q in queries]

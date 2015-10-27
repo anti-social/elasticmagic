@@ -206,6 +206,7 @@ class ClusterTest(BaseTestCase):
         self.assertEqual(len(results[0].hits), 0)
         self.assertRaisesRegexp(ElasticsearchException, r'^SearchPhaseExecutionException', lambda: results[1].total)
         self.assertRaisesRegexp(ElasticsearchException, r'^SearchPhaseExecutionException', lambda: results[1].hits)
+        self.assertRaises(AttributeError, lambda: results[1].unknown_attr)
 
     def test_scroll(self):
         self.client.scroll = MagicMock(

@@ -26,28 +26,37 @@ class SearchResult(Result):
             doc_classes = doc_cls
         self._doc_cls_map = {doc_cls.__doc_type__: doc_cls for doc_cls in doc_classes}
 
+        self._mapper_registry = {}
         if isinstance(instance_mapper, dict):
             self._instance_mappers = instance_mapper
         else:
             self._instance_mappers = {doc_cls: instance_mapper for doc_cls in doc_classes}
 
-        self.total = raw_result['hits']['total']
-        self.hits = []
-        for hit in raw_result['hits']['hits']:
-            doc_cls = self._doc_cls_map.get(hit['_type'], DynamicDocument)
-            self.hits.append(doc_cls(_hit=hit, _result=self))
+        self.error = raw_result.get('error')
 
-        self.aggregations = {}
-        self._mapper_registry = {}
-        for agg_name, agg_expr in self._query_aggs.items():
-            raw_agg_data = raw_result['aggregations'][agg_name]
-            agg_result = agg_expr.build_agg_result(raw_agg_data, self._doc_cls_map, mapper_registry=self._mapper_registry)
-            self.aggregations[agg_name] = agg_result
+        if 'hits' in raw_result:
+            self.total = raw_result['hits']['total']
+            self.hits = []
+            for hit in raw_result['hits']['hits']:
+                doc_cls = self._doc_cls_map.get(hit['_type'], DynamicDocument)
+                self.hits.append(doc_cls(_hit=hit, _result=self))
+
+        if 'aggregations' in raw_result:
+            self.aggregations = {}
+            for agg_name, agg_expr in self._query_aggs.items():
+                raw_agg_data = raw_result['aggregations'][agg_name]
+                agg_result = agg_expr.build_agg_result(raw_agg_data, self._doc_cls_map, mapper_registry=self._mapper_registry)
+                self.aggregations[agg_name] = agg_result
 
         self.scroll_id = raw_result.get('_scroll_id')
             
     def __iter__(self):
         return iter(self.hits)
+
+    def __getattr__(self, name):
+        if name in ('total', 'hits', 'aggregations'):
+            raise ElasticsearchException(self.error)
+        return super(SearchResult, self).__getattr__(name)
 
     def get_aggregation(self, name):
         return self.aggregations.get(name)
@@ -57,15 +66,6 @@ class SearchResult(Result):
         instances = self._instance_mappers.get(doc_cls)([doc._id for doc in docs])
         for doc in docs:
             doc.__dict__['instance'] = instances.get(doc._id)
-
-
-class ErrorSearchResult(Result):
-    def __init__(self, raw_result):
-        super(ErrorSearchResult, self).__init__(raw_result)
-        self.error = raw_result['error']
-
-    def __getattr__(self, name):
-        raise ElasticsearchException(self.error)
 
 
 class ActionResult(Result):
