@@ -12,7 +12,7 @@ class Compiled(object):
     def __init__(self, expression):
         self.expression = expression
         self.params = self.visit(self.expression)
-        
+
     def visit(self, expr, **kwargs):
         visit_name = None
         if hasattr(expr, '__visit_name__'):
@@ -189,7 +189,7 @@ class QueryCompiled(Compiled):
 
     def visit_query_rescorer(self, rescorer):
         return {'query': self.visit(rescorer.params)}
-    
+
     def visit_rescore(self, rescore):
         params = self.visit(rescore.rescorer)
         if rescore.window_size is not None:
@@ -215,6 +215,8 @@ class QueryCompiled(Compiled):
             params['rescore'] = self.visit(query._rescores)
         if query._post_filters:
             params['post_filter'] = self.visit(query.get_post_filter())
+        if query._suggest:
+            params['suggest'] = self.visit(query._suggest)
         return params
 
 

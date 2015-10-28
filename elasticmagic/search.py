@@ -64,6 +64,7 @@ class SearchQuery(object):
     _limit = None
     _offset = None
     _rescores = ()
+    _suggest = Params()
 
     _cluster = None
     _index = None
@@ -198,6 +199,15 @@ class SearchQuery(object):
             return
         rescore = Rescore(rescorer, window_size=window_size)
         self._rescores = self._rescores + (rescore,)
+
+    @_with_clone
+    def suggest(self, text=None, **suggests):
+        if text is None and not suggests:
+            if'_suggest' in self.__dict__:
+                del self._suggest
+        else:
+            arg = ({'text': text},) if text else ()
+            self._suggest = merge_params(self._suggest, arg, suggests)
 
     @_with_clone
     def instances(self):

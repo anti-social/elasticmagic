@@ -932,3 +932,47 @@ class SearchQueryTest(BaseTestCase):
                 'unknown_param': 'none',
             }
         )
+
+    def test_suggest(self):
+        sq = SearchQuery()
+        sq = sq.suggest("Complete",
+                        in_title={'term': {'size': 3, 'field': 'title'}})
+
+        self.assert_expression(
+            sq.to_dict(),
+            {
+                'suggest': {
+                    'text': 'Complete',
+                    'in_title': {
+                        'term': {
+                            'size': 3,
+                            'field': 'title',
+                        }
+                    }
+                }
+            }
+        )
+
+        sq = sq.suggest(in_body={'completion': {'field': 'body'}})
+        self.assert_expression(
+            sq,
+            {
+                'suggest': {
+                    'text': 'Complete',
+                    'in_title': {
+                        'term': {
+                            'size': 3,
+                            'field': 'title',
+                        }
+                    },
+                    'in_body': {
+                        'completion': {
+                            'field': 'body',
+                        }
+                    },
+                }
+            }
+        )
+
+        sq = sq.suggest()
+        self.assert_expression(sq, {})
