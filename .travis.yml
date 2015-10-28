@@ -1,9 +1,24 @@
-language: python
-
 sudo: false
 
-install:
-- pip install tox
+language: python
 
-script:
-- tox
+python:
+- "2.7"
+- "3.3"
+- "3.4"
+- "3.5"
+- "pypy"
+
+cache:
+  directories:
+  - $HOME/.cache/pip
+before_cache:
+  - rm -f $HOME/.cache/pip/log/debug.log
+
+install:
+- pip install nose
+- pip install mock
+- pip install python-geohash==0.8.5
+- pip install -e .
+
+script: nosetests tests -v
