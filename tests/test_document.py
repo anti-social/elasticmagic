@@ -3,7 +3,10 @@ import datetime
 import dateutil
 
 from elasticmagic.util import collect_doc_classes
-from elasticmagic.types import Type, String, Integer, Float, Boolean, Date, Object, List, GeoPoint
+from elasticmagic.types import (
+    Type, String, Integer, Float, Boolean,
+    Date, Object, List, GeoPoint, Completion,
+)
 from elasticmagic.types import ValidationError
 from elasticmagic.compat import string_types
 from elasticmagic.document import Document, DynamicDocument
@@ -30,7 +33,7 @@ class TagDocument(Document):
 
 class TestDocument(Document):
     _all = Field(enable=False)
-    
+
     name = Field('test_name', String(), fields={'raw': Field(String)})
     status = Field(Integer)
     group = Field(Object(GroupDocument))
@@ -84,7 +87,7 @@ class DocumentTestCase(BaseTestCase):
                 Document._score,
             ]
         )
-    
+
     def test_document(self):
         self.assertSameElements(
             list(TestDocument.fields),
@@ -651,6 +654,52 @@ class DocumentTestCase(BaseTestCase):
                 },
             }
         )
+
+    def test_completion_document(self):
+
+        class CompletionDoc(Document):
+            __doc_type__ = 'suggest'
+
+            suggest = Field(Completion, payloads=True)
+
+        self.assertEqual(
+            CompletionDoc.to_mapping(),
+            {
+                'suggest': {
+                    'properties': {
+                        'suggest': {
+                            'type': 'completion',
+                            'payloads': True,
+                        }
+                    }
+                }
+            }
+        )
+
+        doc = CompletionDoc()
+        self.assertEqual(doc.to_source(validate=True), {})
+
+        doc = CompletionDoc(suggest='complete this')
+        self.assertEqual(doc.to_source(validate=True),
+                         {'suggest': 'complete this'})
+        doc = CompletionDoc(suggest={'input': ['complete', 'complete this'],
+                                     'output': 'complete'})
+        self.assertEqual(
+            doc.to_source(validate=True),
+            {
+                'suggest': {
+                    'input': [
+                        'complete',
+                        'complete this',
+                    ],
+                    'output': 'complete',
+                }
+            }
+        )
+
+        doc = CompletionDoc(suggest=['complete', 'this'])
+        self.assertRaises(
+            ValidationError, lambda: doc.to_source(validate=True))
 
     def test_to_source_with_validation(self):
         class TestDocument(Document):

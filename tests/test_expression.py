@@ -1,5 +1,7 @@
 from elasticmagic import DynamicDocument
-from elasticmagic.types import Type, String, Integer, List, GeoPoint
+from elasticmagic.types import (
+    Type, String, Integer, List, GeoPoint, Completion,
+)
 from elasticmagic.expression import (
     Params, Term, Terms, Exists, Missing, Match, MatchAll, MultiMatch, Range,
     Bool, Query, BooleanExpression, And, Or, Not, Sort, Field,
@@ -784,6 +786,26 @@ class ExpressionTestCase(BaseTestCase):
                 "pin": {
                     "type": "geo_point",
                     "lat_lon": True,
+                }
+            }
+        )
+
+        f = Field('suggest', Completion())
+        self.assertEqual(
+            f.to_mapping(),
+            {
+                'suggest': {
+                    'type': 'completion',
+                }
+            }
+        )
+        f = Field('suggest', Completion(), payloads=True)
+        self.assertEqual(
+            f.to_mapping(),
+            {
+                'suggest': {
+                    'type': 'completion',
+                    'payloads': True,
                 }
             }
         )

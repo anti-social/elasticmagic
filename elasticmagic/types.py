@@ -2,6 +2,7 @@ import base64
 import datetime
 import inspect
 import re
+import copy
 
 import dateutil.parser
 
@@ -193,7 +194,8 @@ class Ip(Type):
         if validate:
             try:
                 if not self.IPV4_REGEXP.match(value):
-                    raise ValidationError('Not valid IPv4 address: {}'.format(value))
+                    raise ValidationError(
+                        'Not valid IPv4 address: {}'.format(value))
             except (TypeError, ValueError) as e:
                 raise ValidationError(*e.args)
         return value
@@ -270,17 +272,67 @@ class GeoPoint(Type):
         elif isinstance(value, dict):
             value = [value.get('lat'), value.get('lon')]
         return {'lat': float(value[0]), 'lon': float(value[1])}
-    
+
     def from_python(self, value, validate=False):
         if validate:
             if not isinstance(value, dict):
-                raise ValidationError('Value must be dictionary: {!r}'.format(value))
+                raise ValidationError(
+                    'Value must be dictionary: {!r}'.format(value))
             if len(value) != 2 or 'lat' not in value or 'lon' not in value:
                 raise ValidationError(
                     "Only 'lat' and 'lon' keys must present in the dictionary"
                 )
             try:
-                value = {'lat': float(value['lat']), 'lon': float(value['lon'])}
+                value = {'lat': float(value['lat']),
+                         'lon': float(value['lon'])}
             except (ValueError, TypeError):
                 raise ValidationError('Lat/lon must be floats: {!r}', value)
+        return value
+
+
+class Completion(Type):
+    __visit_name__ = 'completion'
+
+    def to_python(self, value):
+        return value
+
+    def from_python(self, value, validate=False):
+        if validate:
+            if isinstance(value, str):
+                return value
+
+            if not isinstance(value, dict):
+                raise ValidationError(
+                    'Value must be dictionary: {!r}'.format(value))
+            if not ('input' in value and value['input']):
+                raise ValidationError(
+                    "'input' key must be present: {!r}".format(value))
+            if not isinstance(value['input'], (str, list, tuple)):
+                raise ValidationError(
+                    "'input' must be either str or list/tuple: {!r}"
+                    .format(value))
+            if 'output' in value and not isinstance(value['output'], str):
+                raise ValidationError(
+                    "'output' must be str: {!r}".format(value))
+            if 'payload' in value and not isinstance(value['payload'], dict):
+                raise ValidationError(
+                    "'payload' must be dict or absent: {!r}".format(value))
+            if 'weight' in value:
+                if isinstance(value['weight'], int):
+                    if value['weight'] < 0:
+                        raise ValidationError(
+                            "'weight' must be greater equal 0: {!r}"
+                            .format(value['weight']))
+                elif isinstance(value['weight'], str):
+                    if not value['weight'].isdigit():
+                        raise ValidationError(
+                            "'weight' must represent positive integer: {!r}"
+                            .format(value['weight']))
+                else:
+                    raise ValidationError(
+                        "'weight' must positive integer, or string"
+                        " representing positive integer or absent: {!r}"
+                        .format(value))
+            # we copy value to be sure it won't be chaged in future.
+            value = copy.deepcopy(value)
         return value

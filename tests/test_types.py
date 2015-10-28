@@ -6,11 +6,48 @@ from elasticmagic.compat import PY2
 from elasticmagic.document import DynamicDocument
 from elasticmagic.types import (
     Type, String, Byte, Short, Integer, Long, Float, Double, Date, Boolean,
-    Binary, Ip, Object, Nested, List, GeoPoint, ValidationError,
+    Binary, Ip, Object, Nested, List, GeoPoint, Completion, ValidationError,
 )
 
 
 class TypesTestCase(unittest.TestCase):
+
+    def test_to_python__is_none(self):
+        self.assertIsNone(String().to_python(None))
+        self.assertIsNone(Byte().to_python(None))
+        self.assertIsNone(Short().to_python(None))
+        self.assertIsNone(Integer().to_python(None))
+        self.assertIsNone(Long().to_python(None))
+        self.assertIsNone(Float().to_python(None))
+        self.assertIsNone(Double().to_python(None))
+        self.assertIsNone(Date().to_python(None))
+        self.assertIsNone(Boolean().to_python(None))
+        self.assertIsNone(Binary().to_python(None))
+        self.assertIsNone(Ip().to_python(None))
+        self.assertIsNone(Object(DynamicDocument).to_python(None))
+        # self.assertIsNone(Nested().to_python(None))
+        self.assertIsNone(List(String).to_python(None))
+        self.assertIsNone(GeoPoint().to_python(None))
+        self.assertIsNone(Completion().to_python(None))
+
+    def test_from_python__is_none(self):
+        # self.assertIsNone(String().from_python(None))
+        self.assertIsNone(Byte().from_python(None))
+        self.assertIsNone(Short().from_python(None))
+        self.assertIsNone(Integer().from_python(None))
+        self.assertIsNone(Long().from_python(None))
+        self.assertIsNone(Float().from_python(None))
+        self.assertIsNone(Double().from_python(None))
+        # self.assertIsNone(Date().from_python(None))
+        # self.assertIsNone(Boolean().from_python(None))
+        # self.assertIsNone(Binary().from_python(None))
+        self.assertIsNone(Ip().from_python(None))
+        self.assertIsNone(Object(DynamicDocument).from_python(None))
+        # self.assertIsNone(Nested().to_python(None))
+        # self.assertIsNone(List(String).from_python(None))
+        self.assertIsNone(GeoPoint().from_python(None))
+        self.assertIsNone(Completion().from_python(None))
+
     def test_type(self):
         t = Type()
         self.assertIs(t.to_python(None), None)
@@ -185,4 +222,72 @@ class TypesTestCase(unittest.TestCase):
         self.assertRaises(ValidationError, lambda: t.from_python('drm3btev3e86', validate=True))
         self.assertRaises(ValidationError, lambda: t.from_python([-71.34], validate=True))
         self.assertRaises(ValidationError, lambda: t.from_python(['1test', '2test'], validate=True))
+        self.assertRaises(ValidationError, lambda: t.from_python({'lat': 'lon', 'lon': 'lat'}, validate=True))
         
+    def test_completion(self):
+        t = Completion()
+        self.assertIsNone(t.to_python(None))
+        self.assertIsNone(t.from_python(None))
+        self.assertEqual(
+            t.from_python('complete this', validate=True),
+            'complete this')
+        self.assertEqual(
+            t.from_python({'input': 'Complete this'}, validate=True),
+            {'input': 'Complete this'})
+        self.assertEqual(
+            t.from_python({'input': ['Complete this']}, validate=True),
+            {'input': ['Complete this']})
+        self.assertEqual(
+            t.from_python({'input': 'Complete this', 'weight': 1},
+                          validate=True),
+            {'input': 'Complete this', 'weight': 1})
+        self.assertEqual(
+            t.from_python({'input': 'Complete this', 'output': 'complete'},
+                          validate=True),
+            {'input': 'Complete this', 'output': 'complete'})
+        self.assertEqual(
+            t.from_python({'input': ['Complete this', 'Complete'],
+                           'output': 'complete',
+                           'weight': 100500,
+                           'payload': {'hits': 123}},
+                          validate=True),
+            {'input': ['Complete this', 'Complete'],
+             'output': 'complete',
+             'weight': 100500,
+             'payload': {'hits': 123}})
+
+        self.assertRaises(
+            ValidationError, lambda: t.from_python([''], validate=True))
+        self.assertRaises(
+            ValidationError,
+            lambda: t.from_python({'input': ''}, validate=True))
+        self.assertRaises(
+            ValidationError,
+            lambda: t.from_python({'input': None}, validate=True))
+        self.assertRaises(
+            ValidationError,
+            lambda: t.from_python({'input': {'foo': 'bar'}}, validate=True))
+        self.assertRaises(
+            ValidationError,
+            lambda: t.from_python({'input': 'foo', 'weight': -1},
+                                  validate=True))
+        self.assertRaises(
+            ValidationError,
+            lambda: t.from_python({'input': 'foo', 'weight': None},
+                                  validate=True))
+        self.assertRaises(
+            ValidationError,
+            lambda: t.from_python({'input': 'foo', 'weight': ''},
+                                  validate=True))
+        self.assertRaises(
+            ValidationError,
+            lambda: t.from_python({'input': 'foo', 'weight': -1},
+                                  validate=True))
+        self.assertRaises(
+            ValidationError,
+            lambda: t.from_python({'input': 'foo', 'output': -1},
+                                  validate=True))
+        self.assertRaises(
+            ValidationError,
+            lambda: t.from_python({'input': 'foo', 'payload': ''},
+                                  validate=True))
