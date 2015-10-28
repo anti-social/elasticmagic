@@ -4,15 +4,7 @@ from .document import DynamicDocument
 from .expression import QueryExpression, Params
 from .compat import force_unicode
 from .types import instantiate, Type
-from .util import _with_clone, cached_property, maybe_float
-
-
-def merge_aggregations(aggregations, args, kwargs):
-    aggs = dict(args[0] if args else {})
-    for a in args:
-        aggs.update(a)
-    aggs.update(kwargs)
-    return Params(aggregations, **aggs)
+from .util import _with_clone, cached_property, maybe_float, merge_params
 
 
 class AggExpression(QueryExpression):
@@ -52,7 +44,7 @@ class BucketAgg(AggExpression):
         if len(args) == 1 and args[0] is None:
             self._aggregations = Params()
         else:
-            self._aggregations = merge_aggregations(self._aggregations, args, kwargs)
+            self._aggregations = merge_params(self._aggregations, args, kwargs)
 
     aggs = aggregations
 
