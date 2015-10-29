@@ -134,6 +134,3 @@ class Index(object):
         
     def flush(self):
         return self._cluster.flush(index=self._name)
-
-    def suggest(self, q):
-        return self._cluster.suggest(q, index=self._name)

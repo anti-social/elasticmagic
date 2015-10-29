@@ -219,8 +219,3 @@ class Cluster(object):
     def flush(self, index=None):
         params = clean_params({'index': index})
         return self._client.indices.flush(**params)
-
-    def suggest(self, q, index=None):
-        body = q.to_dict()['suggest']
-        params = clean_params({'index': index})
-        return self._client.suggest(body=body, **params)
