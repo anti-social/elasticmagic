@@ -820,7 +820,7 @@ class GroupedPageFilter(PageFilter):
             order_by = [{self._order_agg_name(0): 'desc'}]
 
         group_agg = agg.Terms(
-            self.group_by, 
+            self.group_by,
             size=self.per_page,
             order=order_by,
             aggs=dict(
