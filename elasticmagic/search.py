@@ -201,13 +201,12 @@ class SearchQuery(object):
         self._rescores = self._rescores + (rescore,)
 
     @_with_clone
-    def suggest(self, text=None, **suggests):
-        if text is None and not suggests:
+    def suggest(self, *args, **kwargs):
+        if args == (None,):
             if'_suggest' in self.__dict__:
                 del self._suggest
         else:
-            arg = ({'text': text},) if text else ()
-            self._suggest = merge_params(self._suggest, arg, suggests)
+            self._suggest = merge_params(self._suggest, args, kwargs)
 
     @_with_clone
     def instances(self):

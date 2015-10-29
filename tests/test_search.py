@@ -935,7 +935,7 @@ class SearchQueryTest(BaseTestCase):
 
     def test_suggest(self):
         sq = SearchQuery()
-        sq = sq.suggest("Complete",
+        sq = sq.suggest(text="Complete",
                         in_title={'term': {'size': 3, 'field': 'title'}})
 
         self.assert_expression(
@@ -974,5 +974,5 @@ class SearchQueryTest(BaseTestCase):
             }
         )
 
-        sq = sq.suggest()
+        sq = sq.suggest(None)
         self.assert_expression(sq, {})
