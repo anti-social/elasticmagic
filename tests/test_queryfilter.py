@@ -6,7 +6,7 @@ from elasticmagic.ext.queryfilter import QueryFilter, FacetFilter, RangeFilter, 
 from elasticmagic.ext.queryfilter import FacetQueryFilter, FacetQueryValue
 from elasticmagic.ext.queryfilter import SimpleQueryFilter, SimpleQueryValue
 from elasticmagic.ext.queryfilter import OrderingFilter, OrderingValue
-from elasticmagic.ext.queryfilter import PageFilter
+from elasticmagic.ext.queryfilter import GroupedPageFilter, PageFilter
 
 from .base import BaseTestCase
 
@@ -1385,6 +1385,461 @@ class QueryFilterTest(BaseTestCase):
                 "size": 0
             }
         )
+
+    def test_page_with_grouping(self):
+        class CarQueryFilter(QueryFilter):
+            page = GroupedPageFilter(
+                self.index.car.vendor, 
+                group_kwargs={'size': 2}, per_page_values=[4]
+            )
+
+        sq = self.index.search_query()
+
+        qf = CarQueryFilter()
+        self.assert_expression(
+            qf.apply(sq, {}),
+            {
+                "aggregations": {
+                    "qf.page.pagination": {
+                        "terms": {
+                            "field": "vendor",
+                            "size": 1000,
+                            "order": [
+                                {
+                                    "order_0": "desc"
+                                }
+                            ]
+                        },
+                        "aggregations": {
+                            "order_0": {
+                                "max": {
+                                    "script": "_score"
+                                }
+                            }
+                        }
+                        
+                    },
+                    "qf.page": {
+                        "terms": {
+                            "field": "vendor",
+                            "size": 4,
+                            "order": [
+                                {
+                                    "order_0": "desc"
+                                }
+                            ]
+                        },
+                        "aggregations": {
+                            "top_items": {
+                                "top_hits": {
+                                    "size": 2,
+                                }
+                            },
+                            "order_0": {
+                                "max": {
+                                    "script": "_score"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        )
+
+        self.client.search = MagicMock(
+            return_value={
+                "hits": {
+                    "hits": [],
+                    "max_score": 1.804551,
+                    "total": 10378992
+                },
+                "aggregations": {
+                    "qf.page.pagination": {
+                        "buckets": [
+                            {
+                                "key": "toyota",
+                                "doc_count": 1158096,
+                                "order_0": {
+                                    "value": 1.804551
+                                }
+                            },
+                            {
+                                "key": "ford",
+                                "doc_count": 1354892,
+                                "order_0": {
+                                    "value": 1.689384
+                                }
+                            },
+                            {
+                                "key": "subaru",
+                                "doc_count": 934756,
+                                "order_0": {
+                                    "value": 1.540802
+                                }
+                            },
+                            {
+                                "key": "bmw",
+                                "doc_count": 125871,
+                                "order_0": {
+                                    "value": 1.540802
+                                }
+                            },
+                            {
+                                "key": "volkswagen",
+                                "doc_count": 2573903,
+                                "order_0": {
+                                    "value": 1.351459
+                                }
+                            },
+                            {
+                                "key": "jeep",
+                                "doc_count": 10327,
+                                "order_0": {
+                                    "value": 1.045751
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        )
+        qf = CarQueryFilter()
+        sq = qf.apply(sq, {'page': 2, 'per_page': 3})
+        self.client.search.assert_called_with(
+            body={
+                "aggregations": {
+                    "qf.page.pagination": {
+                        "terms": {
+                            "field": "vendor",
+                            "size": 1000,
+                            "order": [
+                                {
+                                    "order_0": "desc"
+                                }
+                            ]
+                        },
+                        "aggregations": {
+                            "order_0": {
+                                "max": {
+                                    "script": "_score"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            doc_type='car',
+            index='test',
+            search_type='count',
+        )
+        self.assert_expression(
+            sq,
+            {
+                "aggregations": {
+                    "qf.page.filter": {
+                        "filter": {
+                            "terms": {
+                                "vendor": ["volkswagen", "jeep"]
+                            }
+                        },
+                        "aggregations": {
+                            "qf.page": {
+                                "terms": {
+                                    "field": "vendor",
+                                    "size": 4,
+                                    "order": [
+                                        {
+                                            "order_0": "desc"
+                                        }
+                                    ]
+                                },
+                                "aggregations": {
+                                    "top_items": {
+                                        "top_hits": {
+                                            "size": 2,
+                                        }
+                                    },
+                                    "order_0": {
+                                        "max": {
+                                            "script": "_score"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        )
+        self.assertEqual(qf.page.total, 6)
+        self.assertEqual(qf.page.page, 2)
+        self.assertEqual(qf.page.pages, 2)
+        self.assertEqual(qf.page.has_next, False)
+        self.assertEqual(qf.page.has_prev, True)
+        self.assertIs(qf.page.items, None)
+
+        sq = (
+            self.index.search_query()
+            .post_filter(self.index.car.engine_displacement >= 2)
+            .order_by(self.index.car.date_manufactured.desc(), self.index.car.rank)
+        )
+
+        qf = CarQueryFilter()
+        sq = qf.apply(sq, {})
+        self.assert_expression(
+            sq,
+            {
+                "aggregations": {
+                    "qf.page.filter": {
+                        "filter": {
+                            "range": {
+                                "engine_displacement": {"gte": 2}
+                            }
+                        },
+                        "aggregations": {
+                            "qf.page.pagination": {
+                                "terms": {
+                                    "field": "vendor",
+                                    "size": 1000,
+                                    "order": [
+                                        {
+                                            "order_0": "desc"
+                                        },
+                                        {
+                                            "order_1": "asc"
+                                        }
+                                    ]
+                                },
+                                "aggregations": {
+                                    "order_0": {
+                                        "max": {
+                                            "field": "date_manufactured"
+                                        }
+                                    },
+                                    "order_1": {
+                                        "min": {
+                                            "field": "rank"
+                                        }
+                                    }
+                                }
+                            },
+                            "qf.page": {
+                                "terms": {
+                                    "field": "vendor",
+                                    "size": 4,
+                                    "order": [
+                                        {
+                                            "order_0": "desc"
+                                        },
+                                        {
+                                            "order_1": "asc"
+                                        }
+                                    ]
+                                },
+                                "aggregations": {
+                                    "top_items": {
+                                        "top_hits": {
+                                            "size": 2,
+                                        }
+                                    },
+                                    "order_0": {
+                                        "max": {
+                                            "field": "date_manufactured"
+                                        }
+                                    },
+                                    "order_1": {
+                                        "min": {
+                                            "field": "rank"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "post_filter": {
+                    "range": {
+                        "engine_displacement": {"gte": 2}
+                    }
+                },
+                "sort": [
+                    {
+                        "date_manufactured": "desc",
+                    },
+                    "rank"
+                ]
+            }
+        )
+
+        self.client.search = MagicMock(
+            return_value={
+                "hits": {
+                    "hits": [],
+                    "max_score": 1.804551,
+                    "total": 8409177
+                },
+                "aggregations": {
+                    "qf.page.filter": {
+                        "doc_count": 1354892,
+                        "qf.page.pagination": {
+                            "buckets": [
+                                {
+                                    "key": "toyota",
+                                    "doc_count": 1158096,
+                                    "order_0": {
+                                        "value": 1.804551
+                                    },
+                                    "order_1": {
+                                        "value": 1.804551
+                                    }
+                                },
+                                {
+                                    "key": "ford",
+                                    "doc_count": 1354892,
+                                    "order_0": {
+                                        "value": 1.689384
+                                    },
+                                    "order_1": {
+                                        "value": 1.804551
+                                    }
+                                },
+                                {
+                                    "key": "subaru",
+                                    "doc_count": 934756,
+                                    "order_0": {
+                                        "value": 1.540802
+                                    },
+                                    "order_1": {
+                                        "value": 1.804551
+                                    }
+                                },
+                                {
+                                    "key": "bmw",
+                                    "doc_count": 125871,
+                                    "order_0": {
+                                        "value": 1.540802
+                                    },
+                                    "order_1": {
+                                        "value": 1.804551
+                                    }
+                                },
+                                {
+                                    "key": "volkswagen",
+                                    "doc_count": 2573903,
+                                    "order_0": {
+                                        "value": 1.351459
+                                    },
+                                    "order_1": {
+                                        "value": 1.804551
+                                    }
+                                },
+                                {
+                                    "key": "jeep",
+                                    "doc_count": 10327,
+                                    "order_0": {
+                                        "value": 1.045751
+                                    },
+                                    "order_1": {
+                                        "value": 1.804551
+                                    }
+                                }
+                            ]
+                        },
+                        "qf.page": {
+                            "buckets": [
+                                {
+                                    "key": "toyota",
+                                    "doc_count": 196874,
+                                    "top_items": {
+                                        "hits": {
+                                            "total": 196874,
+                                            "max_score": 1,
+                                            "hits": [
+                                                {"_id": "21", "_type": "car"},
+                                                {"_id": "22", "_type": "car"},
+                                            ]
+                                        }
+                                    },
+                                    "order_0": {
+                                        "value": 1.804551
+                                    },
+                                    "order_1": {
+                                        "value": 1.804551
+                                    }
+                                },
+                                {
+                                    "key": "ford",
+                                    "doc_count": 98351,
+                                    "top_items": {
+                                        "hits": {
+                                            "total": 98351,
+                                            "max_score": 1,
+                                            "hits": [
+                                                {"_id": "31", "_type": "car"},
+                                                {"_id": "32", "_type": "car"},
+                                            ]
+                                        }
+                                    },
+                                    "order_0": {
+                                        "value": 1.804551
+                                    },
+                                    "order_1": {
+                                        "value": 1.804551
+                                    }
+                                },
+                                {
+                                    "key": "subaru",
+                                    "doc_count": 196874,
+                                    "top_items": {
+                                        "hits": {
+                                            "total": 196874,
+                                            "max_score": 1,
+                                            "hits": [
+                                                {"_id": "21", "_type": "car"},
+                                                {"_id": "22", "_type": "car"},
+                                            ]
+                                        }
+                                    },
+                                    "order_0": {
+                                        "value": 1.804551
+                                    },
+                                    "order_1": {
+                                        "value": 1.804551
+                                    }
+                                },
+                                {
+                                    "key": "bmw",
+                                    "doc_count": 98351,
+                                    "top_items": {
+                                        "hits": {
+                                            "total": 98351,
+                                            "max_score": 1,
+                                            "hits": [
+                                                {"_id": "31", "_type": "car"},
+                                                {"_id": "32", "_type": "car"},
+                                            ]
+                                        }
+                                    },
+                                    "order_0": {
+                                        "value": 1.804551
+                                    },
+                                    "order_1": {
+                                        "value": 1.804551
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        )
+        qf.process_results(sq.result)
+        self.assertEqual(qf.page.total, 6)
+        self.assertEqual(qf.page.page, 1)
+        self.assertEqual(qf.page.pages, 2)
+        self.assertEqual(qf.page.has_next, True)
+        self.assertEqual(qf.page.has_prev, False)
+        self.assertEqual(len(qf.page.items), 4)
 
     def test_query_filter_inheritance(self):
         class SuperBaseItemQueryFilter(QueryFilter):

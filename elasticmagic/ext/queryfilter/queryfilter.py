@@ -287,7 +287,7 @@ class FacetFilter(SimpleFilter):
             aggs = {self._agg_name: terms_agg}
 
         return search_query.aggregations(**aggs)
-        
+
     def _process_result(self, result, params):
         values = self._get_values_from_params(params.get(self.alias, {}))
 
@@ -515,7 +515,7 @@ class SimpleQueryFilter(BaseFilter):
             return Bool.must(*expressions)
         else:
             return Bool.should(*expressions)
-    
+
     def _apply_filter(self, search_query, params):
         expr = self._get_expression(params)
         if expr is None:
@@ -691,12 +691,18 @@ class PageFilter(BaseFilter):
     DEFAULT_PER_PAGE_PARAM = 'per_page'
     DEFAULT_PER_PAGE = 10
 
-    def __init__(self, name, alias=None, per_page_param=None, per_page_values=None, max_items=None):
+    def __init__(
+            self, name, alias=None,
+            per_page_param=None, per_page_values=None, max_items=None,
+    ):
         super(PageFilter, self).__init__(name, alias=alias)
         self.per_page_param = per_page_param or self.DEFAULT_PER_PAGE_PARAM
         self.per_page_values = per_page_values or [self.DEFAULT_PER_PAGE]
         self.max_items = max_items
 
+        self._reset()
+
+    def _reset(self):
         self.per_page = None
         self.page = None
         self.offset = None
@@ -712,18 +718,27 @@ class PageFilter(BaseFilter):
             self.per_page_param: Integer,
         }
 
-    def _apply_filter(self, search_query, params):
-        per_page = params.get(self.per_page_param, {}).get('exact')
-        if per_page:
-            self.per_page = per_page[0][0]
-        if self.per_page not in self.per_page_values:
-            self.per_page = self.per_page_values[0]
+    def _get_per_page(self, params):
+        per_page_from_param = params.get(self.per_page_param, {}).get('exact')
+        if per_page_from_param:
+            per_page = per_page_from_param[0][0]
+        else:
+            per_page = self.per_page_values[0]
+        if per_page not in self.per_page_values:
+            per_page = self.per_page_values[0]
+        return per_page
 
+    def _get_page(self, params):
         page_num = params.get(self.alias, {}).get('exact')
         if page_num:
-            self.page = page_num[0][0]
-        else:
-            self.page = 1
+            return page_num[0][0]
+        return 1
+
+    def _apply_filter(self, search_query, params):
+        self.per_page = self._get_per_page(params)
+        self.page = self._get_page(params)
+
+        search_query = search_query.limit(self.per_page)
 
         self.offset = (self.page - 1) * self.per_page
         self.limit = self.per_page
@@ -742,3 +757,164 @@ class PageFilter(BaseFilter):
         self.pages = int(ceil(self.total / float(self.per_page)))
         self.has_prev = self.page > 1
         self.has_next = self.page < self.pages
+
+
+class GroupedPageFilter(PageFilter):
+    def __init__(
+            self, name, group_by, group_kwargs=None, alias=None,
+            per_page_param=None, per_page_values=None, max_items=1000, 
+    ):
+        super(GroupedPageFilter, self).__init__(
+            name, alias=alias, per_page_param=per_page_param, per_page_values=per_page_values,
+        )
+        self.max_items = max_items
+        self.group_by = group_by
+        self.group_kwargs = group_kwargs or {}
+
+    @property
+    def _agg_name(self):
+        return '{}.{}'.format(self.qf._name, self.name)
+
+    @property
+    def _filter_agg_name(self):
+        return '{}.filter'.format(self._agg_name)
+
+    @property
+    def _pagination_agg_name(self):
+        return '{}.pagination'.format(self._agg_name)
+
+    _top_hits_agg_name = 'top_items'
+
+    def _order_agg_name(self, ix):
+        return 'order_{}'.format(ix)
+
+    def _apply_filter(self, search_query, params):
+        self.per_page = self._get_per_page(params)
+        self.page = self._get_page(params)
+
+        return search_query
+
+    def _apply_agg(self, search_query):
+        if search_query._order_by:
+            order_aggs = {}
+            order_by = []
+            for i, o in enumerate(search_query._order_by):
+                order_name = self._order_agg_name(i)
+                from elasticmagic.expression import Sort
+                if isinstance(o, Sort):
+                    expr = o.expr
+                    desc = o.order == 'desc'
+                else:
+                    expr = o
+                    desc = False
+                if desc:
+                    order_aggs[order_name] = agg.Max(expr)
+                    order_by.append({order_name: 'desc'})
+                else:
+                    order_aggs[order_name] = agg.Min(expr)
+                    order_by.append({order_name: 'asc'})
+        else:
+            order_aggs = {
+                self._order_agg_name(0): agg.Max(script='_score')
+            }
+            order_by = [{self._order_agg_name(0): 'desc'}]
+
+        group_agg = agg.Terms(
+            self.group_by, 
+            size=self.per_page,
+            order=order_by,
+            aggs=dict(
+                {self._top_hits_agg_name: agg.TopHits(**self.group_kwargs)},
+                **order_aggs
+            )
+        )
+
+        pagination_agg = agg.Terms(
+            self.group_by,
+            size=self.max_items,
+            order=order_by,
+            aggs=order_aggs,
+        )
+
+        post_filters = list(search_query.iter_post_filters())
+
+        if self.page == 1:
+            page_aggs = {
+                self._agg_name: group_agg,
+                self._pagination_agg_name: pagination_agg,
+            }
+        else:
+            group_values = self._get_group_values(search_query, post_filters, pagination_agg)
+            post_filters.append(self.group_by.in_(group_values))
+            page_aggs={
+                self._agg_name: group_agg,
+            }
+
+        if post_filters:
+            aggs = {
+                self._filter_agg_name: agg.Filter(
+                    Bool.must(*post_filters),
+                    aggs=page_aggs
+                )
+            }
+        else:
+            aggs = page_aggs
+
+        search_query = search_query.aggs(aggs)
+
+        return search_query
+
+    def _get_group_values(self, search_query, post_filters, pagination_agg):
+        if post_filters:
+            aggs = {
+                self._filter_agg_name: agg.Filter(
+                    Bool.must(*post_filters),
+                    aggs={self._pagination_agg_name: pageination_agg}
+                )
+            }
+        else:
+            aggs = {self._pagination_agg_name: pagination_agg}
+
+        sq = (
+            search_query
+            .with_search_type('count')
+            .aggs(None)
+            .aggs(**aggs)
+        )
+
+        pagination_agg_res = self._get_pagination_agg_result(sq.result)
+        self._process_pagination_agg(pagination_agg_res)
+        values = [
+            group_bucket.key for group_bucket in pagination_agg_res.buckets
+        ]
+
+        offset = self._get_offset()
+        return values[offset:offset + self.per_page]
+
+    def _get_offset(self):
+        return (self.page - 1) * self.per_page
+
+    def _get_pagination_agg_result(self, result):
+        filter_agg = result.get_aggregation(self._filter_agg_name)
+        if filter_agg:
+            return filter_agg.get_aggregation(self._pagination_agg_name)
+        return result.get_aggregation(self._pagination_agg_name)
+
+    def _get_groups_agg_result(self, result):
+        filter_agg = result.get_aggregation(self._filter_agg_name)
+        if filter_agg:
+            return filter_agg.get_aggregation(self._agg_name)
+        return result.get_aggregation(self._agg_name)
+
+    def _process_pagination_agg(self, pagination_agg):
+        self.total = len(pagination_agg.buckets)
+        self.pages = int(ceil(self.total / float(self.per_page)))
+        self.has_prev = self.page > 1
+        self.has_next = self.page < self.pages
+
+    def _process_result(self, result, params):
+        pagination_agg = self._get_pagination_agg_result(result)
+        if pagination_agg:
+            self._process_pagination_agg(pagination_agg)
+        groups_agg = self._get_groups_agg_result(result)
+        self.items = groups_agg.buckets
