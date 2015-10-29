@@ -215,7 +215,7 @@ class Cluster(object):
     def refresh(self, index=None):
         params = clean_params({'index': index})
         return self._client.indices.refresh(**params)
-        
+
     def flush(self, index=None):
         params = clean_params({'index': index})
         return self._client.indices.flush(**params)

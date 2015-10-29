@@ -2,8 +2,7 @@ import warnings
 import collections
 from itertools import chain
 
-from .agg import merge_aggregations
-from .util import _with_clone, cached_property, clean_params, collect_doc_classes
+from .util import _with_clone, cached_property, clean_params, merge_params, collect_doc_classes
 from .result import Result
 from .compiler import QueryCompiled
 from .expression import Expression, QueryExpression, Params, Filtered, And, Bool, FunctionScore
@@ -65,6 +64,7 @@ class SearchQuery(object):
     _limit = None
     _offset = None
     _rescores = ()
+    _suggest = Params()
 
     _cluster = None
     _index = None
@@ -165,7 +165,7 @@ class SearchQuery(object):
             if '_aggregations' in self.__dict__:
                 del self._aggregations
         else:
-            self._aggregations = merge_aggregations(self._aggregations, args, kwargs)
+            self._aggregations = merge_params(self._aggregations, args, kwargs)
 
     aggs = aggregations
 
@@ -199,6 +199,14 @@ class SearchQuery(object):
             return
         rescore = Rescore(rescorer, window_size=window_size)
         self._rescores = self._rescores + (rescore,)
+
+    @_with_clone
+    def suggest(self, *args, **kwargs):
+        if args == (None,):
+            if'_suggest' in self.__dict__:
+                del self._suggest
+        else:
+            self._suggest = merge_params(self._suggest, args, kwargs)
 
     @_with_clone
     def instances(self):

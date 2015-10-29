@@ -1,3 +1,4 @@
+import collections
 from functools import wraps
 from itertools import chain
 
@@ -39,7 +40,8 @@ def collect_doc_classes(expr):
 
     if isinstance(expr, dict):
         return set().union(
-            *[collect_doc_classes(e) for e in chain(expr.keys(), expr.values())]
+            *[collect_doc_classes(e)
+              for e in chain(expr.keys(), expr.values())]
         )
 
     if isinstance(expr, (list, tuple)):
@@ -52,3 +54,13 @@ def maybe_float(value):
     if value is None:
         return None
     return float(value)
+
+
+def merge_params(params, args, kwargs):
+    assert isinstance(args, collections.Iterable), args
+    assert isinstance(kwargs, collections.Mapping), kwargs
+    new = dict()
+    for a in args:
+        new.update(a)
+    new.update(kwargs)
+    return type(params)(params, **new)
