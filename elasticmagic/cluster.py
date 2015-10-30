@@ -1,14 +1,21 @@
+from elasticsearch import ElasticsearchException
+
 from .util import clean_params
 from .index import Index
 from .search import SearchQuery
-from .result import Result, BulkResult
+from .result import BulkResult, SearchResult
 from .document import Document, DynamicDocument
 from .expression import Params
 
 
+class MultiSearchError(ElasticsearchException):
+    pass
+
+
 class Cluster(object):
-    def __init__(self, client):
+    def __init__(self, client, multi_search_raise_on_error=True):
         self._client = client
+        self._multi_search_raise_on_error = multi_search_raise_on_error
 
         self._index_cache = {}
 
@@ -94,7 +101,7 @@ class Cluster(object):
             }, **kwargs)
         )
         raw_result = self._client.search(body=q.to_dict(), **params)
-        return Result(raw_result, q._aggregations,
+        return SearchResult(raw_result, q._aggregations,
                       doc_cls=q._get_doc_cls(),
                       instance_mapper=q._instance_mapper)
 
@@ -115,19 +122,22 @@ class Cluster(object):
         return self._client.search_exists(body=body, **params)['exists']
 
     def scroll(self, scroll_id, scroll, doc_cls=None, instance_mapper=None):
-        return Result(
+        return SearchResult(
             self._client.scroll(scroll_id=scroll_id, scroll=scroll),
             doc_cls=doc_cls,
             instance_mapper=instance_mapper,
         )
     
     def multi_search(self, queries, index=None, doc_type=None, 
-                     routing=None, preference=None, search_type=None):
-        params = clean_params({'index': index,
-                               'doc_type': doc_type,
-                               'routing': routing,
-                               'preference': preference,
-                               'search_type': search_type})
+                     routing=None, preference=None, search_type=None,
+                     raise_on_error=None, **kwargs):
+        params = clean_params({
+            'index': index,
+            'doc_type': doc_type,
+            'routing': routing,
+            'preference': preference,
+            'search_type': search_type
+        }, **kwargs)
         body = []
         for q in queries:
             query_header = {}
@@ -140,12 +150,29 @@ class Cluster(object):
             body += [query_header, q.to_dict()]
 
         raw_results = self._client.msearch(body=body, **params)['responses']
+        errors = []
         for raw, q in zip(raw_results, queries):
-            q.__dict__['result'] = Result(
+            result = SearchResult(
                 raw, q._aggregations,
                 doc_cls=q._get_doc_cls(),
                 instance_mapper=q._instance_mapper
             )
+            q.__dict__['result'] = result
+            if result.error:
+                errors.append(result.error)
+
+        raise_on_error = (
+            raise_on_error
+            if raise_on_error is not None
+            else self._multi_search_raise_on_error
+        )
+        if raise_on_error and errors:
+            if len(errors) == 1:
+                error_msg = '1 query was failed'
+            else:
+                error_msg = '{} queries were failed'.format(len(errors))
+            raise MultiSearchError(error_msg, errors)
+
         return [q.result for q in queries]
 
     msearch = multi_search
