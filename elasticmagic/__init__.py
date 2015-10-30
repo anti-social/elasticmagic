@@ -1,6 +1,4 @@
-from .index import Index
-from .search import SearchQuery, QueryRescorer
-from .cluster import Cluster
+from .cluster import Cluster, MultiSearchError
 from .document import Document, DynamicDocument
 from .expression import (
     Params, Term, Terms, Exists, Missing, Match, MultiMatch, MatchAll, Range,
@@ -8,5 +6,8 @@ from .expression import (
     And, Or, Not, Sort, Boosting, Common, ConstantScore, FunctionScore,
     Field, SpanFirst, SpanMulti, SpanNear, SpanNot, SpanOr, SpanTerm,
 )
+from .index import Index
+from .result import DelayedElasticsearchException
+from .search import SearchQuery, QueryRescorer
 from .types import ValidationError
 from .version import __version__

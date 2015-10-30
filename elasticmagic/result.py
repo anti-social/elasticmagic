@@ -6,6 +6,10 @@ from .agg import BucketAgg
 from .document import DynamicDocument
 
 
+class DelayedElasticsearchException(ElasticsearchException):
+    pass
+
+
 class Result(object):
     def __init__(self, raw_result):
         self.raw = raw_result
@@ -34,13 +38,13 @@ class SearchResult(Result):
 
         self.error = raw_result.get('error')
 
-        if 'took' in raw_result:
-            self.took = raw_result['took']
+        if not self.error or 'took' in raw_result:
+            self.took = raw_result.get('took')
             
-        if 'timed_out' in raw_result:
-            self.timed_out = raw_result['timed_out']
+        if not self.error or 'timed_out' in raw_result:
+            self.timed_out = raw_result.get('timed_out')
             
-        if 'hits' in raw_result:
+        if not self.error or 'hits' in raw_result:
             self.total = raw_result['hits']['total']
             self.max_score = raw_result['hits']['max_score']
             self.hits = []
@@ -48,21 +52,22 @@ class SearchResult(Result):
                 doc_cls = self._doc_cls_map.get(hit['_type'], DynamicDocument)
                 self.hits.append(doc_cls(_hit=hit, _result=self))
 
-        if 'aggregations' in raw_result:
+        if not self.error or 'aggregations' in raw_result:
             self.aggregations = {}
             for agg_name, agg_expr in self._query_aggs.items():
                 raw_agg_data = raw_result['aggregations'][agg_name]
                 agg_result = agg_expr.build_agg_result(raw_agg_data, self._doc_cls_map, mapper_registry=self._mapper_registry)
                 self.aggregations[agg_name] = agg_result
 
-        self.scroll_id = raw_result.get('_scroll_id')
+        if not self.error or '_scroll_id' in raw_result:
+            self.scroll_id = raw_result.get('_scroll_id')
             
     def __iter__(self):
         return iter(self.hits)
 
     def __getattr__(self, name):
-        if self.error and name in ('took', 'timed_out', 'total', 'hits', 'max_score', 'aggregations'):
-            raise ElasticsearchException(self.error)
+        if self.error and name in ('took', 'timed_out', 'total', 'hits', 'max_score', 'aggregations', 'scroll_id'):
+            raise DelayedElasticsearchException(self.error)
         return super(SearchResult, self).__getattr__(name)
 
     def get_aggregation(self, name):

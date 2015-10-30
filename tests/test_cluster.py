@@ -1,9 +1,8 @@
 import warnings
 from mock import MagicMock
 
-from elasticsearch import ElasticsearchException
-
 from elasticmagic import agg, actions, Cluster, SearchQuery, DynamicDocument
+from elasticmagic import DelayedElasticsearchException, MultiSearchError
 
 from .base import BaseTestCase
 
@@ -198,7 +197,10 @@ class ClusterTest(BaseTestCase):
             .filter(ProductDoc.status == 0)
             .limit(1)
         )
-        results = self.cluster.multi_search([sq1, sq2])
+
+        self.assertRaises(MultiSearchError, lambda: self.cluster.multi_search([sq1, sq2]))
+
+        results = self.cluster.multi_search([sq1, sq2], raise_on_error=False)
 
         self.assertIs(results[0], sq1.result)
         self.assertIs(results[1], sq2.result)
@@ -207,8 +209,8 @@ class ClusterTest(BaseTestCase):
         self.assertEqual(results[0].timed_out, False)
         self.assertEqual(results[0].max_score, 0.0)
         self.assertEqual(len(results[0].hits), 0)
-        self.assertRaisesRegexp(ElasticsearchException, r'^SearchPhaseExecutionException', lambda: results[1].total)
-        self.assertRaisesRegexp(ElasticsearchException, r'^SearchPhaseExecutionException', lambda: results[1].hits)
+        self.assertRaisesRegexp(DelayedElasticsearchException, r'^SearchPhaseExecutionException', lambda: results[1].total)
+        self.assertRaisesRegexp(DelayedElasticsearchException, r'^SearchPhaseExecutionException', lambda: results[1].hits)
         self.assertRaises(AttributeError, lambda: results[1].unknown_attr)
 
     def test_scroll(self):

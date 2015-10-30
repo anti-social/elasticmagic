@@ -1,3 +1,5 @@
+from elasticsearch import ElasticsearchException
+
 from .util import clean_params
 from .index import Index
 from .search import SearchQuery
@@ -6,9 +8,14 @@ from .document import Document, DynamicDocument
 from .expression import Params
 
 
+class MultiSearchError(ElasticsearchException):
+    pass
+
+
 class Cluster(object):
-    def __init__(self, client):
+    def __init__(self, client, multi_search_raise_on_error=True):
         self._client = client
+        self._multi_search_raise_on_error = multi_search_raise_on_error
 
         self._index_cache = {}
 
@@ -122,12 +129,15 @@ class Cluster(object):
         )
     
     def multi_search(self, queries, index=None, doc_type=None, 
-                     routing=None, preference=None, search_type=None):
-        params = clean_params({'index': index,
-                               'doc_type': doc_type,
-                               'routing': routing,
-                               'preference': preference,
-                               'search_type': search_type})
+                     routing=None, preference=None, search_type=None,
+                     raise_on_error=None, **kwargs):
+        params = clean_params({
+            'index': index,
+            'doc_type': doc_type,
+            'routing': routing,
+            'preference': preference,
+            'search_type': search_type
+        }, **kwargs)
         body = []
         for q in queries:
             query_header = {}
@@ -140,6 +150,7 @@ class Cluster(object):
             body += [query_header, q.to_dict()]
 
         raw_results = self._client.msearch(body=body, **params)['responses']
+        errors = []
         for raw, q in zip(raw_results, queries):
             result = SearchResult(
                 raw, q._aggregations,
@@ -147,6 +158,21 @@ class Cluster(object):
                 instance_mapper=q._instance_mapper
             )
             q.__dict__['result'] = result
+            if result.error:
+                errors.append(result.error)
+
+        raise_on_error = (
+            raise_on_error
+            if raise_on_error is not None
+            else self._multi_search_raise_on_error
+        )
+        if raise_on_error and errors:
+            if len(errors) == 1:
+                error_msg = '1 query was failed'
+            else:
+                error_msg = '{} queries were failed'.format(len(errors))
+            raise MultiSearchError(error_msg, errors)
+
         return [q.result for q in queries]
 
     msearch = multi_search
