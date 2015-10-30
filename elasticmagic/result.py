@@ -80,6 +80,18 @@ class SearchResult(Result):
             doc.__dict__['instance'] = instances.get(doc._id)
 
 
+class CountResult(Result):
+    def __init__(self, raw_result):
+        super(CountResult, self).__init__(raw_result)
+        self.count = raw_result['count']
+
+
+class ExistsResult(Result):
+    def __init__(self, raw_result):
+        super(ExistsResult, self).__init__(raw_result)
+        self.exists = raw_result['exists']
+
+
 class ActionResult(Result):
     def __init__(self, raw_result):
         super(ActionResult, self).__init__(raw_result)
@@ -103,3 +115,25 @@ class BulkResult(Result):
 
     def __iter__(self):
         return iter(self.items)
+
+
+class DeleteResult(Result):
+    def __init__(self, raw_result):
+        super(DeleteResult, self).__init__(raw_result)
+        self.found = raw_result['found']
+        self._index = raw_result['_index']
+        self._type = raw_result['_type']
+        self._id = raw_result['_id']
+        self._version = raw_result['_version']
+
+
+class DeleteByQueryResult(Result):
+    pass
+
+
+class RefreshResult(Result):
+    pass
+
+
+class FlushResult(Result):
+    pass

@@ -117,7 +117,7 @@ class IndexTest(BaseTestCase):
             routing=123
         )
 
-        self.index.count(self.index.car.name.match('Subaru'), 'car')
+        result = self.index.count(self.index.car.name.match('Subaru'), 'car')
         self.client.count.assert_called_with(
             index='test',
             doc_type='car',
@@ -143,7 +143,7 @@ class IndexTest(BaseTestCase):
             refresh=True
         )
 
-        self.index.exists(self.index.car.name.match('Subaru'), 'car')
+        result = self.index.exists(self.index.car.name.match('Subaru'), 'car')
         self.client.search_exists.assert_called_with(
             index='test',
             doc_type='car',

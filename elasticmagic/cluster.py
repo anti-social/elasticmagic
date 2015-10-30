@@ -3,7 +3,10 @@ from elasticsearch import ElasticsearchException
 from .util import clean_params
 from .index import Index
 from .search import SearchQuery
-from .result import BulkResult, SearchResult
+from .result import (
+    BulkResult, CountResult, DeleteByQueryResult, DeleteResult, ExistsResult,
+    FlushResult, RefreshResult, SearchResult,
+)
 from .document import Document, DynamicDocument
 from .expression import Params
 
@@ -38,7 +41,7 @@ class Cluster(object):
 
     def get(self, index, id, doc_cls=None, doc_type=None, source=None,
             realtime=None, routing=None, parent=None, preference=None,
-            refresh=None, version=None, version_type=None):
+            refresh=None, version=None, version_type=None, **kwargs):
         doc_cls = doc_cls or DynamicDocument
         doc_type = doc_type or getattr(doc_cls, '__doc_type__', None)
         params = clean_params({
@@ -51,14 +54,15 @@ class Cluster(object):
             'refresh': refresh,
             'version': version,
             'version_type': version_type,
-        })
+        }, **kwargs)
         raw_doc = self._client.get(index=index, id=id, **params)
         return doc_cls(_hit=raw_doc)
 
     # TODO: support ids
     # need way to know document class for id
     def multi_get(self, docs, index=None, doc_type=None, source=None,
-                  parent=None, routing=None, preference=None, realtime=None, refresh=None):
+                  parent=None, routing=None, preference=None, realtime=None,
+                  refresh=None, **kwargs):
         params = clean_params({
             'index': index,
             'doc_type': doc_type,
@@ -68,7 +72,7 @@ class Cluster(object):
             'preference': preference,
             'realtime': realtime,
             'refresh': refresh,
-        })
+        }, **kwargs)
         body = {}
         body['docs'] = []
         doc_classes = []
@@ -101,29 +105,38 @@ class Cluster(object):
             }, **kwargs)
         )
         raw_result = self._client.search(body=q.to_dict(), **params)
-        return SearchResult(raw_result, q._aggregations,
-                      doc_cls=q._get_doc_cls(),
-                      instance_mapper=q._instance_mapper)
-
-    def count(self, q, index=None, doc_type=None, routing=None, preference=None):
-        body = {'query': q.to_dict()} if q else None
-        params = clean_params({'index': index,
-                               'doc_type': doc_type,
-                               'routing': routing, 
-                               'preference': preference})
-        return self._client.count(body=body, **params)['count']
-
-    def exists(self, q, index=None, doc_type=None, refresh=None, routing=None):
-        body = {'query': q.to_dict()} if q else None
-        params = clean_params({'index': index, 
-                               'doc_type': doc_type,
-                               'refresh': refresh,
-                               'routing': routing})
-        return self._client.search_exists(body=body, **params)['exists']
-
-    def scroll(self, scroll_id, scroll, doc_cls=None, instance_mapper=None):
         return SearchResult(
-            self._client.scroll(scroll_id=scroll_id, scroll=scroll),
+            raw_result, q._aggregations,
+            doc_cls=q._get_doc_cls(), instance_mapper=q._instance_mapper,
+        )
+
+    def count(self, q, index=None, doc_type=None, routing=None, preference=None, **kwargs):
+        body = {'query': q.to_dict()} if q else None
+        params = clean_params({
+            'index': index,
+            'doc_type': doc_type,
+            'routing': routing, 
+            'preference': preference,
+        }, **kwargs)
+        return CountResult(
+            self._client.count(body=body, **params)
+        )
+
+    def exists(self, q, index=None, doc_type=None, refresh=None, routing=None, **kwargs):
+        body = {'query': q.to_dict()} if q else None
+        params = clean_params({
+            'index': index, 
+            'doc_type': doc_type,
+            'refresh': refresh,
+            'routing': routing,
+        }, **kwargs)
+        return ExistsResult(
+            self._client.search_exists(body=body, **params)
+        )
+
+    def scroll(self, scroll_id, scroll, doc_cls=None, instance_mapper=None, **kwargs):
+        return SearchResult(
+            self._client.scroll(scroll_id=scroll_id, scroll=scroll, **clean_params(kwargs)),
             doc_cls=doc_cls,
             instance_mapper=instance_mapper,
         )
@@ -179,7 +192,7 @@ class Cluster(object):
 
     def put_mapping(self, doc_cls_or_mapping, index, doc_type=None, allow_no_indices=None,
                     expand_wildcards=None, ignore_conflicts=None, ignore_unavailable=None,
-                    master_timeout=None, timeout=None):
+                    master_timeout=None, timeout=None, **kwargs):
         if issubclass(doc_cls_or_mapping, Document):
             mapping = doc_cls_or_mapping.to_mapping()
         else:
@@ -192,45 +205,55 @@ class Cluster(object):
             'ignore_unavailable': ignore_unavailable,
             'master_timeout': master_timeout,
             'timeout': timeout,
-        })
+        }, **kwargs)
         return self._client.indices.put_mapping(
             doc_type=doc_type, index=index, body=mapping, **params
         )
 
     def delete(self, doc, index, doc_type=None,
                timeout=None, consistency=None, replication=None,
-               parent=None, routing=None, refresh=None, version=None, version_type=None):
+               parent=None, routing=None, refresh=None, version=None,
+               version_type=None, **kwargs):
         doc_type = doc_type or doc.__doc_type__
-        params = clean_params({'timeout': timeout,
-                               'consistency': consistency,
-                               'replication': replication,
-                               'parent': parent,
-                               'routing': routing,
-                               'refresh': refresh,
-                               'version': version,
-                               'version_type': version_type})
-        return self._client.delete(id=doc._id, index=index, doc_type=doc_type, **params)
+        params = clean_params({
+            'timeout': timeout,
+            'consistency': consistency,
+            'replication': replication,
+            'parent': parent,
+            'routing': routing,
+            'refresh': refresh,
+            'version': version,
+            'version_type': version_type,
+        }, **kwargs)
+        return DeleteResult(
+            self._client.delete(id=doc._id, index=index, doc_type=doc_type, **params)
+        )
 
     def delete_by_query(self, q, index=None, doc_type=None,
-                        timeout=None, consistency=None, replication=None, routing=None):
-        params = clean_params({'index': index,
-                               'doc_type': doc_type,
-                               'timeout': timeout,
-                               'consistency': consistency,
-                               'replication': replication,
-                               'routing': routing})
-        return self._client.delete_by_query(
-            body=Params(query=q).to_dict(), **params
+                        timeout=None, consistency=None, replication=None,
+                        routing=None, **kwargs):
+        params = clean_params({
+            'index': index,
+            'doc_type': doc_type,
+            'timeout': timeout,
+            'consistency': consistency,
+            'replication': replication,
+            'routing': routing,
+        }, **kwargs)
+        return DeleteByQueryResult(
+            self._client.delete_by_query(body=Params(query=q).to_dict(), **params)
         )
 
     def bulk(self, actions, index=None, doc_type=None, refresh=None, 
-             timeout=None, consistency=None, replication=None):
-        params = clean_params({'index': index, 
-                               'doc_type': doc_type,
-                               'refresh': refresh,
-                               'timeout': timeout,
-                               'consistency': consistency,
-                               'replication': replication})
+             timeout=None, consistency=None, replication=None, **kwargs):
+        params = clean_params({
+            'index': index,
+            'doc_type': doc_type,
+            'refresh': refresh,
+            'timeout': timeout,
+            'consistency': consistency,
+            'replication': replication,
+        }, **kwargs)
         body = []
         for act in actions:
             body.append({act.__action_name__: act.get_meta()})
@@ -239,10 +262,10 @@ class Cluster(object):
                 body.append(source)
         return BulkResult(self._client.bulk(body=body, **params))
 
-    def refresh(self, index=None):
-        params = clean_params({'index': index})
-        return self._client.indices.refresh(**params)
+    def refresh(self, index=None, **kwargs):
+        params = clean_params({'index': index}, **kwargs)
+        return RefreshResult(self._client.indices.refresh(**params))
 
-    def flush(self, index=None):
-        params = clean_params({'index': index})
-        return self._client.indices.flush(**params)
+    def flush(self, index=None, **kwargs):
+        params = clean_params({'index': index}, **kwargs)
+        return FlushResult(self._client.indices.flush(**params))

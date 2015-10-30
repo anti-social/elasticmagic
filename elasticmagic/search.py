@@ -351,19 +351,21 @@ class SearchQuery(object):
         return self.result
 
     def count(self):
-        return self._index.count(
+        res = self._index.count(
             self.get_filtered_query(wrap_function_score=False),
             doc_type=self._get_doc_type(),
             routing=self._search_params.get('routing'),
         )
+        return res.count
 
     def exists(self, refresh=None):
-        return self._index.exists(
+        res = self._index.exists(
             self.get_filtered_query(wrap_function_score=False),
             self._get_doc_type(),
             refresh=refresh,
             routing=self._search_params.get('routing'),
         )
+        return res.exists
 
     def delete(self, timeout=None, consistency=None, replication=None):
         return self._index.delete_by_query(
