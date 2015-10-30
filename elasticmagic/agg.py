@@ -49,7 +49,7 @@ class BucketAgg(AggExpression):
     aggs = aggregations
 
     def build_agg_result(self, raw_data, doc_cls_map=None, mapper_registry=None):
-        return self.result_cls(self, raw_data, mapper_registry=mapper_registry)
+        return self.result_cls(self, raw_data, doc_cls_map=doc_cls_map, mapper_registry=mapper_registry)
 
 
 class SingleValueMetricsAggResult(AggResult):
@@ -446,14 +446,14 @@ class Filters(MultiBucketAgg):
 
 
 class SingleBucketAggResult(AggResult):
-    def __init__(self, agg_expr, raw_data, mapper_registry):
+    def __init__(self, agg_expr, raw_data, doc_cls_map, mapper_registry):
         super(SingleBucketAggResult, self).__init__(agg_expr)
 
         self.doc_count = raw_data.get('doc_count')
         self.aggregations = {}
         for agg_name, agg_expr in agg_expr._aggregations.items():
             agg_result = agg_expr.build_agg_result(
-                raw_data.get(agg_name, {}), mapper_registry=mapper_registry
+                raw_data.get(agg_name, {}), doc_cls_map=doc_cls_map, mapper_registry=mapper_registry
             )
             self.aggregations[agg_name] = agg_result
 
