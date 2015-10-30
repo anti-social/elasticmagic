@@ -869,7 +869,7 @@ class GroupedPageFilter(PageFilter):
             aggs = {
                 self._filter_agg_name: agg.Filter(
                     Bool.must(*post_filters),
-                    aggs={self._pagination_agg_name: pageination_agg}
+                    aggs={self._pagination_agg_name: pagination_agg}
                 )
             }
         else:

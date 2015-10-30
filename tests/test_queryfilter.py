@@ -1386,7 +1386,7 @@ class QueryFilterTest(BaseTestCase):
             }
         )
 
-    def test_page_with_grouping(self):
+    def test_grouped_page_filter(self):
         class CarQueryFilter(QueryFilter):
             page = GroupedPageFilter(
                 self.index.car.vendor, 
@@ -1578,6 +1578,13 @@ class QueryFilterTest(BaseTestCase):
         self.assertEqual(qf.page.has_prev, True)
         self.assertIs(qf.page.items, None)
 
+    def test_grouped_page_filter_with_post_filters(self):
+        class CarQueryFilter(QueryFilter):
+            page = GroupedPageFilter(
+                self.index.car.vendor, 
+                group_kwargs={'size': 2}, per_page_values=[2]
+            )
+
         sq = (
             self.index.search_query()
             .post_filter(self.index.car.engine_displacement >= 2)
@@ -1585,102 +1592,18 @@ class QueryFilterTest(BaseTestCase):
         )
 
         qf = CarQueryFilter()
-        sq = qf.apply(sq, {})
-        self.assert_expression(
-            sq,
-            {
-                "aggregations": {
-                    "qf.page.filter": {
-                        "filter": {
-                            "range": {
-                                "engine_displacement": {"gte": 2}
-                            }
-                        },
-                        "aggregations": {
-                            "qf.page.pagination": {
-                                "terms": {
-                                    "field": "vendor",
-                                    "size": 1000,
-                                    "order": [
-                                        {
-                                            "order_0": "desc"
-                                        },
-                                        {
-                                            "order_1": "asc"
-                                        }
-                                    ]
-                                },
-                                "aggregations": {
-                                    "order_0": {
-                                        "max": {
-                                            "field": "date_manufactured"
-                                        }
-                                    },
-                                    "order_1": {
-                                        "min": {
-                                            "field": "rank"
-                                        }
-                                    }
-                                }
-                            },
-                            "qf.page": {
-                                "terms": {
-                                    "field": "vendor",
-                                    "size": 4,
-                                    "order": [
-                                        {
-                                            "order_0": "desc"
-                                        },
-                                        {
-                                            "order_1": "asc"
-                                        }
-                                    ]
-                                },
-                                "aggregations": {
-                                    "top_items": {
-                                        "top_hits": {
-                                            "size": 2,
-                                        }
-                                    },
-                                    "order_0": {
-                                        "max": {
-                                            "field": "date_manufactured"
-                                        }
-                                    },
-                                    "order_1": {
-                                        "min": {
-                                            "field": "rank"
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
-                "post_filter": {
-                    "range": {
-                        "engine_displacement": {"gte": 2}
-                    }
-                },
-                "sort": [
-                    {
-                        "date_manufactured": "desc",
-                    },
-                    "rank"
-                ]
-            }
-        )
 
+        
         self.client.search = MagicMock(
             return_value={
                 "hits": {
                     "hits": [],
                     "max_score": 1.804551,
-                    "total": 8409177
+                    "total": 10378992
                 },
                 "aggregations": {
                     "qf.page.filter": {
-                        "doc_count": 1354892,
+                        "doc_count": 21987654,
                         "qf.page.pagination": {
                             "buckets": [
                                 {
@@ -1744,49 +1667,96 @@ class QueryFilterTest(BaseTestCase):
                                     }
                                 }
                             ]
+                        }
+                    }
+                }
+            }
+        )
+
+        sq = qf.apply(sq, {'page': 2})
+
+        self.assert_expression(
+            sq,
+            {
+                "aggregations": {
+                    "qf.page.filter": {
+                        "filter": {
+                            "bool": {
+                                "must": [
+                                    {
+                                        "range": {
+                                            "engine_displacement": {"gte": 2}
+                                        }
+                                    },
+                                    {
+                                        "terms": {
+                                            "vendor": ["subaru", "bmw"]
+                                        }
+                                    }
+                                ]
+                            }
                         },
+                        "aggregations": {
+                            "qf.page": {
+                                "terms": {
+                                    "field": "vendor",
+                                    "size": 2,
+                                    "order": [
+                                        {
+                                            "order_0": "desc"
+                                        },
+                                        {
+                                            "order_1": "asc"
+                                        }
+                                    ]
+                                },
+                                "aggregations": {
+                                    "top_items": {
+                                        "top_hits": {
+                                            "size": 2,
+                                        }
+                                    },
+                                    "order_0": {
+                                        "max": {
+                                            "field": "date_manufactured"
+                                        }
+                                    },
+                                    "order_1": {
+                                        "min": {
+                                            "field": "rank"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "post_filter": {
+                    "range": {
+                        "engine_displacement": {"gte": 2}
+                    }
+                },
+                "sort": [
+                    {
+                        "date_manufactured": "desc",
+                    },
+                    "rank"
+                ]
+            }
+        )
+
+        self.client.search = MagicMock(
+            return_value={
+                "hits": {
+                    "hits": [],
+                    "max_score": 1.804551,
+                    "total": 8409177
+                },
+                "aggregations": {
+                    "qf.page.filter": {
+                        "doc_count": 1354892,
                         "qf.page": {
                             "buckets": [
-                                {
-                                    "key": "toyota",
-                                    "doc_count": 196874,
-                                    "top_items": {
-                                        "hits": {
-                                            "total": 196874,
-                                            "max_score": 1,
-                                            "hits": [
-                                                {"_id": "21", "_type": "car"},
-                                                {"_id": "22", "_type": "car"},
-                                            ]
-                                        }
-                                    },
-                                    "order_0": {
-                                        "value": 1.804551
-                                    },
-                                    "order_1": {
-                                        "value": 1.804551
-                                    }
-                                },
-                                {
-                                    "key": "ford",
-                                    "doc_count": 98351,
-                                    "top_items": {
-                                        "hits": {
-                                            "total": 98351,
-                                            "max_score": 1,
-                                            "hits": [
-                                                {"_id": "31", "_type": "car"},
-                                                {"_id": "32", "_type": "car"},
-                                            ]
-                                        }
-                                    },
-                                    "order_0": {
-                                        "value": 1.804551
-                                    },
-                                    "order_1": {
-                                        "value": 1.804551
-                                    }
-                                },
                                 {
                                     "key": "subaru",
                                     "doc_count": 196874,
@@ -1835,11 +1805,17 @@ class QueryFilterTest(BaseTestCase):
         )
         qf.process_results(sq.result)
         self.assertEqual(qf.page.total, 6)
-        self.assertEqual(qf.page.page, 1)
-        self.assertEqual(qf.page.pages, 2)
+        self.assertEqual(qf.page.page, 2)
+        self.assertEqual(qf.page.pages, 3)
         self.assertEqual(qf.page.has_next, True)
-        self.assertEqual(qf.page.has_prev, False)
-        self.assertEqual(len(qf.page.items), 4)
+        self.assertEqual(qf.page.has_prev, True)
+        self.assertEqual(len(qf.page.items), 2)
+        self.assertEqual(qf.page.items[0].key, 'subaru')
+        self.assertEqual(qf.page.items[0].get_aggregation('top_items').hits[0]._id, '21')
+        self.assertEqual(qf.page.items[0].get_aggregation('top_items').hits[1]._id, '22')
+        self.assertEqual(qf.page.items[1].key, 'bmw')
+        self.assertEqual(qf.page.items[1].get_aggregation('top_items').hits[0]._id, '31')
+        self.assertEqual(qf.page.items[1].get_aggregation('top_items').hits[1]._id, '32')
 
     def test_query_filter_inheritance(self):
         class SuperBaseItemQueryFilter(QueryFilter):
