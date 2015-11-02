@@ -13,7 +13,7 @@ setup(
     author="Alexander Koval",
     author_email="kovalidis@gmail.com",
     description=("Python orm for elasticsearch."),
-    license="BSD",
+    license="Apache License 2.0",
     keywords="solr solar pysolr",
     url="https://github.com/anti-social/elasticmagic",
     packages=find_packages(exclude=["tests"]),
