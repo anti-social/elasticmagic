@@ -173,12 +173,12 @@ class Bool(QueryExpression):
     __query_name__ = 'bool'
 
     def __init__(
-            self, must=None, must_not=None, should=None,
+            self, must=None, filter=None, must_not=None, should=None,
             minimum_should_match=None, boost=None, disable_coord=None,
             **kwargs
     ):
         super(Bool, self).__init__(
-            must=must, must_not=must_not, should=should,
+            must=must, filter=filter, must_not=must_not, should=should,
             minimum_should_match=minimum_should_match,
             boost=boost, disable_coord=disable_coord, **kwargs)
 

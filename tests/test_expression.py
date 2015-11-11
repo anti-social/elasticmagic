@@ -107,6 +107,7 @@ class ExpressionTestCase(BaseTestCase):
         self.assert_expression(
             Bool(
                 must=Term(f.user, 'kimchy'),
+                filter=Term(f.tag, 'tech'),
                 must_not=Range(f.age, from_=10, to=20),
                 should=[Term(f.tag, 'wow'), Term(f.tag, 'elasticsearch', boost=2.1)],
                 minimum_should_match=1,
@@ -116,6 +117,9 @@ class ExpressionTestCase(BaseTestCase):
                 "bool": {
                     "must": {
                         "term": {"user": "kimchy"}
+                    },
+                    "filter": {
+                        "term": {"tag": "tech"}
                     },
                     "must_not": {
                         "range": {
