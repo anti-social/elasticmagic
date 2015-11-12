@@ -377,6 +377,13 @@ class Missing(QueryExpression):
         super(Missing, self).__init__(field=field, **kwargs)
 
 
+class Limit(QueryExpression):
+    __query_name__ = 'limit'
+
+    def __init__(self, value, **kwargs):
+        super(Limit, self).__init__(value=value, **kwargs)
+
+
 class Sort(QueryExpression):
     __visit_name__ = 'sort'
 

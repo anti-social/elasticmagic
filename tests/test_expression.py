@@ -4,7 +4,7 @@ from elasticmagic.types import (
 )
 from elasticmagic.expression import (
     Params, Term, Terms, Exists, Missing, Match, MatchAll, MultiMatch, Range,
-    Bool, Query, BooleanExpression, And, Or, Not, Sort, Field,
+    Bool, Query, BooleanExpression, And, Or, Not, Sort, Field, Limit,
     Boosting, Common, ConstantScore, FunctionScore, DisMax, Filtered, Ids, Prefix,
     SpanFirst, SpanMulti, SpanNear, SpanNot, SpanOr, SpanTerm,
 )
@@ -565,6 +565,15 @@ class ExpressionTestCase(BaseTestCase):
                         {"span_term": {"field": "value2"}},
                         {"span_term": {"field": "value3"}}
                     ]
+                }
+            }
+        )
+
+        self.assert_expression(
+            Limit(1000),
+            {
+                "limit": {
+                    "value": 1000
                 }
             }
         )
