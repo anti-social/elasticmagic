@@ -559,6 +559,27 @@ class AggregationTest(BaseTestCase):
             }
         )
         self.assertEqual(a.get_aggregation('min_price').value, 350)
+
+        a = agg.Sampler(shard_size=1000, aggs={'avg_price': agg.Avg(f.price)})
+        self.assert_expression(
+            a,
+            {
+                "sampler": {"shard_size": 1000},
+                "aggregations": {
+                    "avg_price": {"avg": {"field": "price"}}
+                }
+            }
+        )
+        a = a.build_agg_result(
+            {
+                "doc_count": 1000,
+                "avg_price": {
+                    "value" : 750
+                }
+            }
+        )
+        self.assertEqual(a.doc_count, 1000)
+        self.assertEqual(a.get_aggregation('avg_price').value, 750)
         
         # complex aggregation with sub aggregations
         a = agg.Global()

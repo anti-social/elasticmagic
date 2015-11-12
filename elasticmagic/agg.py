@@ -490,3 +490,13 @@ class Nested(SingleBucketAgg):
 
     def __init__(self, path, **kwargs):
         super(Nested, self).__init__(path=path, **kwargs)
+
+
+class Sampler(SingleBucketAgg):
+    __agg_name__ = 'sampler'
+
+    def __init__(self, shard_size=None, field=None, script=None, execution_hint=None, **kwargs):
+        super(Sampler, self).__init__(
+            shard_size=shard_size, field=field, script=script, execution_hint=execution_hint,
+            **kwargs
+        )
