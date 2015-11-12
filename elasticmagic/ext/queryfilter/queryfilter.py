@@ -273,7 +273,7 @@ class FacetFilter(SimpleFilter):
         if self._conj_operator == QueryFilter.CONJ_OR:
             exclude_tags.add(self.name)
         filters = self._get_agg_filters(
-            search_query.iter_post_filters_with_meta(), exclude_tags
+            search_query.get_context().iter_post_filters_with_meta(), exclude_tags
         )
 
         terms_agg = agg.Terms(self.field, instance_mapper=self._instance_mapper, **self._agg_kwargs)
@@ -432,7 +432,7 @@ class RangeFilter(FieldFilter):
 
     def _apply_agg(self, search_query):
         filters = self._get_agg_filters(
-            search_query.iter_post_filters_with_meta(), {self.qf._name, self.name}
+            search_query.get_context().iter_post_filters_with_meta(), {self.qf._name, self.name}
         )
 
         aggs = {}
@@ -608,7 +608,7 @@ class FacetQueryFilter(SimpleQueryFilter):
         if self._conj_operator == QueryFilter.CONJ_OR:
             exclude_tags.add(self.name)
         filters = self._get_agg_filters(
-            search_query.iter_post_filters_with_meta(), exclude_tags
+            search_query.get_context().iter_post_filters_with_meta(), exclude_tags
         )
 
         filter_aggs = {}
@@ -836,7 +836,7 @@ class GroupedPageFilter(PageFilter):
             aggs=order_aggs,
         )
 
-        post_filters = list(search_query.iter_post_filters())
+        post_filters = list(search_query.get_context().iter_post_filters())
 
         if self.page == 1:
             page_aggs = {

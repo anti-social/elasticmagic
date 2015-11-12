@@ -16,8 +16,10 @@ else:
     int_types = (int, long)
 
 if PY2:
+    from itertools import izip as zip
     from itertools import izip_longest as zip_longest
 else:
+    zip = zip
     from itertools import zip_longest
 
 

@@ -1,10 +1,10 @@
 import warnings
 import collections
-from itertools import chain
 
+from .compat import zip
 from .util import _with_clone, cached_property, clean_params, merge_params, collect_doc_classes
 from .result import Result
-from .compiler import QueryCompiled
+from .compiler import DefaultCompiler
 from .expression import Expression, QueryExpression, Params, Filtered, And, Bool, FunctionScore
 
 
@@ -56,7 +56,9 @@ class SearchQuery(object):
     _q = None
     _source = None
     _filters = ()
+    _filters_meta = ()
     _post_filters = ()
+    _post_filters_meta = ()
     _order_by = ()
     _aggregations = Params()
     _function_score = ()
@@ -81,8 +83,10 @@ class SearchQuery(object):
             cluster=None, index=None, doc_cls=None, doc_type=None,
             routing=None, preference=None, timeout=None, search_type=None,
             query_cache=None, terminate_after=None, scroll=None,
-            **kwargs
+            _compiler=None, **kwargs
     ):
+        self._compiler = _compiler or DefaultCompiler().get_query_compiler()
+
         if q is not None:
             self._q = q
         if cluster:
@@ -115,7 +119,7 @@ class SearchQuery(object):
         return q
 
     def to_dict(self):
-        return QueryCompiled(self).params
+        return self._compiler(self).params
 
     @_with_clone
     def source(self, *args, **kwargs):
@@ -144,12 +148,14 @@ class SearchQuery(object):
     @_with_clone
     def filter(self, *filters, **kwargs):
         meta = kwargs.pop('meta', None)
-        self._filters = self._filters + ((filters, meta),)
+        self._filters = self._filters + filters
+        self._filters_meta = self._filters_meta + (meta,) * len(filters)
 
     @_with_clone
     def post_filter(self, *filters, **kwargs):
         meta = kwargs.pop('meta', None)
-        self._post_filters = self._post_filters + ((filters, meta),)
+        self._post_filters = self._post_filters + filters
+        self._post_filters_meta = self._post_filters_meta + (meta,) * len(filters)
 
     @_with_clone
     def order_by(self, *orders):
@@ -272,9 +278,9 @@ class SearchQuery(object):
                 [
                     self._q,
                     self._source,
-                    list(chain(*[f for f, m in self._filters])),
-                    list(chain(*[f for f, m in self._post_filters])),
-                    list(self._aggregations.values()),
+                    self._filters,
+                    self._post_filters,
+                    tuple(self._aggregations.values()),
                     self._order_by,
                     self._rescores,
                 ]
@@ -302,39 +308,8 @@ class SearchQuery(object):
         elif doc_cls:
             return doc_cls.__doc_type__
 
-    def get_query(self, wrap_function_score=True):
-        if wrap_function_score and self._function_score:
-            return FunctionScore(
-                query=self._q,
-                functions=self._function_score,
-                **self._function_score_params
-            )
-        return self._q
-
-    def get_filtered_query(self, wrap_function_score=True):
-        q = self.get_query(wrap_function_score=wrap_function_score)
-        if self._filters:
-            return Filtered(query=q, filter=Bool.must(*self.iter_filters()))
-        return q
-
-    def get_post_filter(self):
-        return Bool.must(*self.iter_post_filters())
-
-    def iter_filters_with_meta(self):
-        for filters, meta in self._filters:
-            for f in filters:
-                yield f, meta
-
-    def iter_filters(self):
-        return (f for f, m in self.iter_filters_with_meta())
-
-    def iter_post_filters_with_meta(self):
-        for filters, meta in self._post_filters:
-            for f in filters:
-                yield f, meta
-
-    def iter_post_filters(self):
-        return (f for f, m in self.iter_post_filters_with_meta())
+    def get_context(self, compiler=None):
+        return SearchQueryContext(self, compiler or self._compiler)
 
     @cached_property
     def result(self):
@@ -352,7 +327,7 @@ class SearchQuery(object):
 
     def count(self):
         res = self._index.count(
-            self.get_filtered_query(wrap_function_score=False),
+            self.get_context().get_filtered_query(wrap_function_score=False),
             doc_type=self._get_doc_type(),
             routing=self._search_params.get('routing'),
         )
@@ -360,7 +335,7 @@ class SearchQuery(object):
 
     def exists(self, refresh=None):
         res = self._index.exists(
-            self.get_filtered_query(wrap_function_score=False),
+            self.get_context().get_filtered_query(wrap_function_score=False),
             self._get_doc_type(),
             refresh=refresh,
             routing=self._search_params.get('routing'),
@@ -369,7 +344,7 @@ class SearchQuery(object):
 
     def delete(self, timeout=None, consistency=None, replication=None):
         return self._index.delete_by_query(
-            self.get_filtered_query(wrap_function_score=False),
+            self.get_context().get_filtered_query(wrap_function_score=False),
             self._get_doc_type(),
             timeout=timeout,
             consistency=consistency,
@@ -404,3 +379,51 @@ class SearchQuery(object):
         if self._iter_instances:
             return [doc.instance for doc in docs if doc.instance]
         return docs
+
+
+class SearchQueryContext(object):
+    def __init__(self, search_query, compiler):
+        self.compiler = compiler
+        
+        self.q = search_query._q
+        self.source = search_query._source
+        self.filters = search_query._filters
+        self.filters_meta = search_query._filters_meta
+        self.post_filters = search_query._post_filters
+        self.post_filters_meta = search_query._post_filters_meta
+        self.order_by = search_query._order_by
+        self.aggregations = search_query._aggregations
+        self.function_score = search_query._function_score
+        self.function_score_params = search_query._function_score_params
+        self.limit = search_query._limit
+        self.offset = search_query._offset
+        self.rescores = search_query._rescores
+        self.suggest = search_query._suggest
+        
+        self.cluster = search_query._cluster
+        self.index = search_query._index
+        self.doc_cls = search_query._doc_cls
+        self.doc_type = search_query._doc_type
+
+        self.search_params = search_query._search_params
+
+        self.instance_mapper = search_query._instance_mapper
+        self.iter_instances = search_query._iter_instances
+
+    def get_query(self, wrap_function_score=True):
+        return self.compiler.get_query(self, wrap_function_score=wrap_function_score)
+
+    def get_filtered_query(self, wrap_function_score=True):
+        return self.compiler.get_filtered_query(self, wrap_function_score=wrap_function_score)
+
+    def iter_filters_with_meta(self):
+        return zip(self.filters, self.filters_meta)
+
+    def iter_filters(self):
+        return iter(self.filters)
+
+    def iter_post_filters_with_meta(self):
+        return zip(self.post_filters, self.post_filters_meta)
+
+    def iter_post_filters(self):
+        return iter(self.post_filters)

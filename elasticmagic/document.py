@@ -1,7 +1,7 @@
 import fnmatch
 
 from .types import Type, String, Integer, Float, Date, ValidationError
-from .compiler import MappingCompiled
+from .compiler import DefaultCompiler
 from .attribute import AttributedField, DynamicAttributedField, _attributed_field_factory
 from .expression import Field, MappingField
 from .datastructures import OrderedAttributes
@@ -194,8 +194,9 @@ class Document(with_metaclass(DocumentMeta)):
         return res
 
     @classmethod
-    def to_mapping(cls, ordered=False):
-        return MappingCompiled(cls, ordered=ordered).params
+    def to_mapping(cls, ordered=False, compiler=None):
+        mapping_compiler = (compiler or DefaultCompiler()).get_mapping_compiler()
+        return mapping_compiler(cls, ordered=ordered).params
 
     @cached_property
     def instance(self):

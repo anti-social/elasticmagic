@@ -1,5 +1,6 @@
 from elasticsearch import ElasticsearchException
 
+from .compiler import DefaultCompiler
 from .util import clean_params
 from .index import Index
 from .search import SearchQuery
@@ -16,9 +17,10 @@ class MultiSearchError(ElasticsearchException):
 
 
 class Cluster(object):
-    def __init__(self, client, multi_search_raise_on_error=True):
+    def __init__(self, client, multi_search_raise_on_error=True, compiler=None):
         self._client = client
         self._multi_search_raise_on_error = multi_search_raise_on_error
+        self._compiler = compiler or DefaultCompiler()
 
         self._index_cache = {}
 
@@ -35,6 +37,7 @@ class Cluster(object):
 
     def search_query(self, *args, **kwargs):
         kwargs['cluster'] = self
+        kwargs.setdefault('_compiler', self._compiler.get_query_compiler())
         return SearchQuery(*args, **kwargs)
 
     query = search_query

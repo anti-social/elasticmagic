@@ -1,7 +1,6 @@
 from __future__ import absolute_import
 from collections import defaultdict
 
-from . import actions
 from .util import to_camel_case
 from .search import SearchQuery
 from .result import Result
@@ -30,6 +29,7 @@ class Index(object):
 
     def search_query(self, *args, **kwargs):
         kwargs['index'] = self
+        kwargs.setdefault('_compiler', self._cluster._compiler.get_query_compiler())
         return SearchQuery(*args, **kwargs)
 
     query = search_query
@@ -108,6 +108,8 @@ class Index(object):
         )
 
     def add(self, docs, doc_type=None, timeout=None, consistency=None, replication=None, **kwargs):
+        from . import actions
+
         acts = []
         for doc in docs:
             acts.append(actions.Index(doc))

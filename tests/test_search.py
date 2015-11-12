@@ -7,6 +7,7 @@ from elasticmagic import (
     SearchQuery, Params, Term, Bool, MultiMatch,
     FunctionScore, Sort, QueryRescorer, agg
 )
+from elasticmagic.compiler import QueryCompiled20
 from elasticmagic.util import collect_doc_classes
 from elasticmagic.types import String, Integer, Float, Object
 from elasticmagic.expression import Field
@@ -42,6 +43,26 @@ class SearchQueryTest(BaseTestCase):
                 "query": {
                     "filtered": {
                         "query": {
+                            "term": {"user": "kimchy"}
+                        },
+                        "filter": {
+                            "range": {
+                                "age": {"gte": 16}
+                            }
+                        }
+                    }
+                }
+            }
+        )
+        self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
+
+        sq = SearchQuery(Term(f.user, 'kimchy'), _compiler=QueryCompiled20).filter(f.age >= 16)
+        self.assert_expression(
+            sq,
+            {
+                "query": {
+                    "bool": {
+                        "must": {
                             "term": {"user": "kimchy"}
                         },
                         "filter": {
@@ -939,7 +960,7 @@ class SearchQueryTest(BaseTestCase):
                         in_title={'term': {'size': 3, 'field': 'title'}})
 
         self.assert_expression(
-            sq.to_dict(),
+            sq,
             {
                 'suggest': {
                     'text': 'Complete',

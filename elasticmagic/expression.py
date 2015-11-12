@@ -7,18 +7,19 @@ from itertools import chain, count
 from .util import clean_params, collect_doc_classes
 from .types import instantiate, Type
 from .compat import string_types
-from .compiler import QueryCompiled, MappingCompiled
+from .compiler import DefaultCompiler
 
 
 class Expression(object):
     def _collect_doc_classes(self):
         return []
 
-    def compile(self):
-        return QueryCompiled(self)
+    def compile(self, compiler=None):
+        expression_compiler = (compiler or DefaultCompiler()).get_expression_compiler()
+        return expression_compiler(self)
 
-    def to_dict(self):
-        return self.compile().params
+    def to_dict(self, compiler=None):
+        return self.compile(compiler=compiler).params
 
 
 class Literal(object):
@@ -519,8 +520,9 @@ class Field(Expression, FieldOperators):
     def _from_python(self, value):
         return self._type.from_python(value)
 
-    def to_mapping(self):
-        return MappingCompiled(self).params
+    def to_mapping(self, compiler=None):
+        mapping_compiler = (compiler or DefaultCompiler()).get_mapping_compiler()
+        return mapping_compiler(self).params
 
 
 class MappingField(Field):

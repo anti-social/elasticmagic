@@ -1,6 +1,7 @@
 from mock import MagicMock
 
-from elasticmagic import Index, Document, DynamicDocument, MatchAll, Field
+from elasticmagic import Cluster, Index, Document, DynamicDocument, MatchAll, Field
+from elasticmagic.compiler import Compiler20
 from elasticmagic.types import String, Date
 
 from .base import BaseTestCase
@@ -13,6 +14,26 @@ class IndexTest(BaseTestCase):
         self.assertEqual(doc_cls.__bases__, (DynamicDocument,))
 
         self.assertIs(doc_cls, self.index.product)
+
+    def test_index_compiler(self):
+        cluster = Cluster(self.client, compiler=Compiler20())
+        index = Index(cluster, 'test')
+
+        self.assert_expression(
+            index.search_query(index.user.name == 'kimchy').filter(index.user.status == 0),
+            {
+                "query": {
+                    "bool": {
+                        "must": {
+                            "term": {"name": "kimchy"}
+                        },
+                        "filter": {
+                            "term": {"status": 0}
+                        }
+                    }
+                }
+            }
+        )
 
     def test_get(self):
         self.client.get = MagicMock(

@@ -43,7 +43,7 @@ class Compiled(object):
         return [self.visit(v) for v in lst]
 
 
-class QueryCompiled(Compiled):
+class ExpressionCompiled(Compiled):
     def visit_literal(self, expr):
         return expr.obj
 
@@ -196,28 +196,76 @@ class QueryCompiled(Compiled):
             params['window_size'] = rescore.window_size
         return params
 
+
+class QueryCompiled(ExpressionCompiled):
+    @classmethod
+    def get_query(cls, query_context, wrap_function_score=True):
+        from .expression import FunctionScore
+
+        if wrap_function_score and query_context.function_score:
+            return FunctionScore(
+                query=query_context.q,
+                functions=query_context.function_score,
+                **query_context.function_score_params
+            )
+        return query_context.q
+
+    @classmethod
+    def get_filtered_query(cls, query_context, wrap_function_score=True):
+        from .expression import Filtered
+        from .expression import Bool
+
+        q = cls.get_query(query_context, wrap_function_score=wrap_function_score)
+        if query_context.filters:
+            return Filtered(query=q, filter=Bool.must(*query_context.iter_filters()))
+        return q
+
+    @classmethod
+    def get_post_filter(self, query_context):
+        from .expression import Bool
+
+        post_filters = list(query_context.iter_post_filters())
+        if post_filters:
+            return Bool.must(*post_filters)
+
     def visit_search_query(self, query):
         params = {}
-        q = query.get_filtered_query()
+        query_context = query.get_context()
+
+        q = self.get_filtered_query(query_context)
         if q is not None:
             params['query'] = self.visit(q)
-        if query._order_by:
-            params['sort'] = self.visit(query._order_by)
-        if query._source:
-            params['_source'] = self.visit(query._source)
-        if query._aggregations:
-            params['aggregations'] = self.visit(query._aggregations)
-        if query._limit is not None:
-            params['size'] = query._limit
-        if query._offset is not None:
-            params['from'] = query._offset
-        if query._rescores:
-            params['rescore'] = self.visit(query._rescores)
-        if query._post_filters:
-            params['post_filter'] = self.visit(query.get_post_filter())
-        if query._suggest:
-            params['suggest'] = self.visit(query._suggest)
+
+        post_filter = self.get_post_filter(query_context)
+        if post_filter:
+            params['post_filter'] = self.visit(post_filter)
+
+        if query_context.order_by:
+            params['sort'] = self.visit(query_context.order_by)
+        if query_context.source:
+            params['_source'] = self.visit(query_context.source)
+        if query_context.aggregations:
+            params['aggregations'] = self.visit(query_context.aggregations)
+        if query_context.limit is not None:
+            params['size'] = query_context.limit
+        if query_context.offset is not None:
+            params['from'] = query_context.offset
+        if query_context.rescores:
+            params['rescore'] = self.visit(query_context.rescores)
+        if query_context.suggest:
+            params['suggest'] = self.visit(query_context.suggest)
         return params
+
+
+class QueryCompiled20(QueryCompiled):
+    @classmethod
+    def get_filtered_query(cls, query_context, wrap_function_score=True):
+        from .expression import Bool
+
+        q = cls.get_query(query_context, wrap_function_score=wrap_function_score)
+        if query_context.filters:
+            return Bool(must=q, filter=Bool.must(*query_context.iter_filters()))
+        return q
 
 
 class MappingCompiled(Compiled):
@@ -290,3 +338,30 @@ class MappingCompiled(Compiled):
         return {
             doc_cls.__doc_type__: mapping
         }
+
+
+class Compiler(object):
+    def get_expression_compiler(self):
+        raise NotImplementedError()
+
+    def get_query_compiler(self):
+        raise NotImplementedError()
+
+    def get_mapping_compiler(self):
+        raise NotImplementedError()
+
+
+class DefaultCompiler(Compiler):
+    def get_expression_compiler(self):
+        return ExpressionCompiled
+
+    def get_query_compiler(self):
+        return QueryCompiled
+
+    def get_mapping_compiler(self):
+        return MappingCompiled
+
+
+class Compiler20(DefaultCompiler):
+    def get_query_compiler(self):
+        return QueryCompiled20
