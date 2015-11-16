@@ -139,6 +139,7 @@ class Document(with_metaclass(DocumentMeta)):
 
     def __init__(self, _hit=None, _result=None, **kwargs):
         self._index = self._type = self._id = self._score = None
+        self._highlight = None
         if _hit:
             self._score = _hit.get('_score')
             for attr_field in self._mapping_fields:
@@ -146,6 +147,8 @@ class Document(with_metaclass(DocumentMeta)):
             if _hit.get('_source'):
                 for hit_key, hit_value in _hit['_source'].items():
                     setattr(self, *self._process_hit_key_value(hit_key, hit_value))
+            if _hit.get('highlight'):
+                self._highlight = _hit['highlight']
 
         for fkey, fvalue in kwargs.items():
             setattr(self, fkey, fvalue)
@@ -192,6 +195,9 @@ class Document(with_metaclass(DocumentMeta)):
                 raise ValidationError("'{}' is required".format(attr_field.get_attr_name()))
 
         return res
+
+    def get_highlight(self):
+        return self._highlight or {}
 
     @classmethod
     def to_mapping(cls, ordered=False, compiler=None):

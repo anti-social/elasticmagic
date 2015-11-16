@@ -7,7 +7,6 @@ from itertools import chain, count
 from .util import clean_params, collect_doc_classes
 from .types import instantiate, Type
 from .compat import string_types
-from .compiler import DefaultCompiler
 
 
 class Expression(object):
@@ -15,6 +14,8 @@ class Expression(object):
         return []
 
     def compile(self, compiler=None):
+        from .compiler import DefaultCompiler
+
         expression_compiler = (compiler or DefaultCompiler()).get_expression_compiler()
         return expression_compiler(self)
 
@@ -477,6 +478,23 @@ class FieldOperators(object):
     def boost(self, weight):
         return BoostExpression(self, weight)
 
+    def highlight(
+            self, type=None, pre_tags=None, post_tags=None,
+            fragment_size=None, number_of_fragments=None, order=None,
+            encoder=None, require_field_match=None, boundary_max_scan=None,
+            highlight_query=None, matched_fields=None, fragment_offset=None,
+            no_match_size=None, phrase_limit=None,
+            **kwargs
+    ):
+        return HighlightedField(
+            self, type=type, pre_tags=pre_tags, post_tags=post_tags,
+            fragment_size=fragment_size, number_of_fragments=number_of_fragments, order=order,
+            encoder=encoder, require_field_match=require_field_match, boundary_max_scan=boundary_max_scan,
+            highlight_query=highlight_query, matched_fields=matched_fields, fragment_offset=fragment_offset,
+            no_match_size=no_match_size, phrase_limit=phrase_limit,
+            **kwargs
+        )
+
 
 class Field(Expression, FieldOperators):
     __visit_name__ = 'field'
@@ -528,12 +546,28 @@ class Field(Expression, FieldOperators):
         return self._type.from_python(value)
 
     def to_mapping(self, compiler=None):
+        from .compiler import DefaultCompiler
+
         mapping_compiler = (compiler or DefaultCompiler()).get_mapping_compiler()
         return mapping_compiler(self).params
 
 
 class MappingField(Field):
     __visit_name__ = 'mapping_field'
+
+
+class HighlightedField(Expression):
+    __visit_name__ = 'highlighted_field'
+
+    def __init__(self, field, **kwargs):
+        self.field = field
+        self.params = Params(kwargs)
+
+    def _collect_doc_classes(self):
+        return set().union(
+            collect_doc_classes(self.field),
+            collect_doc_classes(self.params),
+        )
 
 
 class BoostExpression(Expression):

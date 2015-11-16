@@ -997,3 +997,66 @@ class SearchQueryTest(BaseTestCase):
 
         sq = sq.suggest(None)
         self.assert_expression(sq, {})
+
+    def test_highlight(self):
+        sq = SearchQuery()
+        sq = sq.highlight(fields={'content': {}})
+        self.assertEqual(collect_doc_classes(sq), set())
+        self.assert_expression(
+            sq,
+            {
+                "highlight": {
+                    "fields": {
+                        "content": {}
+                    }
+                }
+            }
+        )
+
+        sq = SearchQuery()
+        sq = sq.highlight(
+            fields=[self.index.test.content],
+            pre_tags=['[em]'],
+            post_tags=['[/em]']
+        )
+        self.assertEqual(collect_doc_classes(sq), {self.index.test})
+        self.assert_expression(
+            sq,
+            {
+                "highlight": {
+                    "fields": [
+                        {
+                            "content": {}
+                        }
+                    ],
+                    "pre_tags": ["[em]"],
+                    "post_tags": ["[/em]"]
+                }
+            }
+        )
+
+        sq = SearchQuery()
+        sq = sq.highlight(
+            fields=[
+                self.index.test.content.highlight(
+                    matched_fields=[self.index.test.content, self.index.test.content.plain],
+                    type='fvh',
+                )
+            ]
+        )
+        self.assertEqual(collect_doc_classes(sq), {self.index.test})
+        self.assert_expression(
+            sq,
+            {
+                "highlight": {
+                    "fields": [
+                        {
+                            "content": {
+                                "matched_fields": ["content", "content.plain"],
+                                "type": "fvh"
+                            }
+                        }
+                    ]
+                }
+            }
+        )

@@ -346,6 +346,9 @@ class DocumentTestCase(BaseTestCase):
                     'tags': [{'id': 1, 'name': 'Test tag'},
                              {'id': 2, 'name': 'Just tag'}],
                     'date_created': '2014-08-14T14:05:28.789Z',
+                },
+                'highlight': {
+                    'test_name': '<em>Test</em> name'
                 }
             }
         )
@@ -365,6 +368,7 @@ class DocumentTestCase(BaseTestCase):
         self.assertEqual(hit_doc.date_created,
                          datetime.datetime(2014, 8, 14, 14, 5, 28, 789000, dateutil.tz.tzutc()))
         self.assertIs(hit_doc.unused, None)
+        self.assertEqual(hit_doc.get_highlight(), {'test_name': '<em>Test</em> name'})
 
         hit_doc = TestDocument(
             _hit={
@@ -373,6 +377,7 @@ class DocumentTestCase(BaseTestCase):
         )
         self.assertEqual(hit_doc._id, '123')
         self.assertIs(hit_doc.name, None)
+        self.assertEqual(hit_doc.get_highlight(), {})
 
         doc = TestDocument(_id=123, name='Test name', status=0,
                            group=GroupDocument(name='Test group'),

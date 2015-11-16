@@ -50,6 +50,20 @@ class Rescore(Expression):
         return collect_doc_classes(self.rescorer)
 
 
+class Highlight(Expression):
+    __visit_name__ = 'highlight'
+
+    def __init__(self, fields=None, **kwargs):
+        self.fields = fields
+        self.params = Params(kwargs)
+
+    def _collect_doc_classes(self):
+        return set().union(
+            collect_doc_classes(self.fields),
+            collect_doc_classes(self.params),
+        )
+
+
 class SearchQuery(object):
     __visit_name__ = 'search_query'
 
@@ -67,6 +81,7 @@ class SearchQuery(object):
     _offset = None
     _rescores = ()
     _suggest = Params()
+    _highlight = Params()
 
     _cluster = None
     _index = None
@@ -215,6 +230,24 @@ class SearchQuery(object):
             self._suggest = merge_params(self._suggest, args, kwargs)
 
     @_with_clone
+    def highlight(
+            self, fields=None, type=None, pre_tags=None, post_tags=None,
+            fragment_size=None, number_of_fragments=None, order=None,
+            encoder=None, require_field_match=None, boundary_max_scan=None,
+            highlight_query=None, matched_fields=None, fragment_offset=None,
+            no_match_size=None, phrase_limit=None,
+            **kwargs
+    ):
+        self._highlight = Highlight(
+            fields=fields, type=type, pre_tags=pre_tags, post_tags=post_tags,
+            fragment_size=fragment_size, number_of_fragments=number_of_fragments, order=order,
+            encoder=encoder, require_field_match=require_field_match, boundary_max_scan=boundary_max_scan,
+            highlight_query=highlight_query, matched_fields=matched_fields, fragment_offset=fragment_offset,
+            no_match_size=no_match_size, phrase_limit=phrase_limit,
+            **kwargs
+        )
+
+    @_with_clone
     def instances(self):
         self._iter_instances = True
 
@@ -283,6 +316,7 @@ class SearchQuery(object):
                     tuple(self._aggregations.values()),
                     self._order_by,
                     self._rescores,
+                    self._highlight,
                 ]
             )
         )
@@ -399,7 +433,8 @@ class SearchQueryContext(object):
         self.offset = search_query._offset
         self.rescores = search_query._rescores
         self.suggest = search_query._suggest
-        
+        self.highlight = search_query._highlight
+
         self.cluster = search_query._cluster
         self.index = search_query._index
         self.doc_cls = search_query._doc_cls

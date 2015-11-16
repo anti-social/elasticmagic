@@ -1,6 +1,11 @@
 import operator
 import collections
 
+from .expression import Bool
+from .expression import Filtered
+from .expression import FunctionScore
+from .expression import HighlightedField
+
 
 OPERATORS = {
     operator.and_: 'and',
@@ -196,12 +201,33 @@ class ExpressionCompiled(Compiled):
             params['window_size'] = rescore.window_size
         return params
 
+    def visit_highlighted_field(self, hf):
+        return {
+            self.visit(hf.field): self.visit(hf.params)
+        }
+
+    def visit_highlight(self, highlight):
+        params = self.visit(highlight.params)
+        if highlight.fields:
+            if isinstance(highlight.fields, collections.Mapping):
+                compiled_fields = {}
+                for f, options in highlight.fields.items():
+                    compiled_fields[self.visit(f)] = self.visit(options)
+                params['fields'] = compiled_fields
+            elif isinstance(highlight.fields, collections.Iterable):
+                compiled_fields = []
+                for f in highlight.fields:
+                    if isinstance(f, (HighlightedField, collections.Mapping)):
+                        compiled_fields.append(self.visit(f))
+                    else:
+                        compiled_fields.append({self.visit(f): {}})
+                params['fields'] = compiled_fields
+        return params
+
 
 class QueryCompiled(ExpressionCompiled):
     @classmethod
     def get_query(cls, query_context, wrap_function_score=True):
-        from .expression import FunctionScore
-
         if wrap_function_score and query_context.function_score:
             return FunctionScore(
                 query=query_context.q,
@@ -212,9 +238,6 @@ class QueryCompiled(ExpressionCompiled):
 
     @classmethod
     def get_filtered_query(cls, query_context, wrap_function_score=True):
-        from .expression import Filtered
-        from .expression import Bool
-
         q = cls.get_query(query_context, wrap_function_score=wrap_function_score)
         if query_context.filters:
             return Filtered(query=q, filter=Bool.must(*query_context.iter_filters()))
@@ -222,8 +245,6 @@ class QueryCompiled(ExpressionCompiled):
 
     @classmethod
     def get_post_filter(self, query_context):
-        from .expression import Bool
-
         post_filters = list(query_context.iter_post_filters())
         if post_filters:
             return Bool.must(*post_filters)
@@ -254,14 +275,14 @@ class QueryCompiled(ExpressionCompiled):
             params['rescore'] = self.visit(query_context.rescores)
         if query_context.suggest:
             params['suggest'] = self.visit(query_context.suggest)
+        if query_context.highlight:
+            params['highlight'] = self.visit(query_context.highlight)
         return params
 
 
 class QueryCompiled20(QueryCompiled):
     @classmethod
     def get_filtered_query(cls, query_context, wrap_function_score=True):
-        from .expression import Bool
-
         q = cls.get_query(query_context, wrap_function_score=wrap_function_score)
         if query_context.filters:
             return Bool(must=q, filter=Bool.must(*query_context.iter_filters()))
