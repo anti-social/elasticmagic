@@ -1,6 +1,7 @@
 from mock import MagicMock
 
 from elasticmagic import Cluster, Index, Document, DynamicDocument, MatchAll, Field
+from elasticmagic import actions
 from elasticmagic.compiler import Compiler20
 from elasticmagic.types import String, Date
 
@@ -222,6 +223,53 @@ class IndexTest(BaseTestCase):
                 {'vendor': 'Nissan', 'model': 'X-Trail'}
             ],
         )
+
+    def test_bulk_errors(self):
+        self.client.bulk = MagicMock(
+            return_value={
+                "took": 85,
+                "errors": True,
+                "items": [
+                    {
+                        "delete": {
+                            "_index": "test",
+                            "_type": "car",
+                            "_id": "1",
+                            "status": 429,
+                            "error": {
+                                "type": "es_rejected_execution_exception",
+                                "reason": (
+                                    "rejected execution of "
+                                    "org.elasticsearch.action.support.replication.TransportReplicationAction$PrimaryPhase$1@3757e902"
+                                    "on EsThreadPoolExecutor["
+                                    "bulk, queue capacity = 50, "
+                                    "org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor@2a3fa7e2["
+                                    "Running, pool size = 4, active threads = 4, queued tasks = 50, completed tasks = 225]]"
+                                )
+                            }
+                        }
+                    }
+                ]
+            }
+        )
+        res = self.index.bulk([actions.Delete(self.index.car(_id=1))])
+        self.client.bulk.assert_called_with(
+            body=[
+                {'delete': {'_type': 'car', '_id': 1}},
+            ],
+            index='test',
+        )
+        self.assertEqual(res.errors, True)
+        self.assertEqual(res.took, 85)
+        item = res.items[0]
+        self.assertEqual(item._index, 'test')
+        self.assertEqual(item._type, 'car')
+        self.assertEqual(item._id, '1')
+        self.assertEqual(item.status, 429)
+        self.assertEqual(item.found, None)
+        self.assertEqual(item.error.type, 'es_rejected_execution_exception')
+        self.assertTrue('TransportReplicationAction' in item.error.reason)
+        
 
     def test_delete(self):
         self.index.delete(self.index.car(_id='test_id'), refresh=True)

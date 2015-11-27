@@ -3,6 +3,7 @@ import collections
 from elasticsearch import ElasticsearchException
 
 from .agg import BucketAgg
+from .compat import string_types
 from .document import DynamicDocument
 
 
@@ -99,11 +100,24 @@ class ActionResult(Result):
         data = next(iter(raw_result.values()))
         self.status = data['status']
         self.found = data.get('found')
-        self.error = data.get('error')
+        raw_error = data.get('error')
+        if raw_error:
+            if isinstance(raw_error, string_types):
+                self.error = raw_error
+            else:
+                self.error = ErrorReason(raw_error)
+        else:
+            self.error = None
         self._index = data['_index']
         self._type = data['_type']
         self._id = data['_id']
         self._version = data.get('_version')
+
+
+class ErrorReason(object):
+    def __init__(self, raw_error):
+        self.type = raw_error['type']
+        self.reason = raw_error['reason']
 
 
 class BulkResult(Result):
