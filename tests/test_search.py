@@ -239,6 +239,49 @@ class SearchQueryTest(BaseTestCase):
         )
         self.assertEqual(collect_doc_classes(sq), set())
 
+        sq = SearchQuery().fields(f.name, f.company)
+        self.assert_expression(
+            sq,
+            {
+                "fields": ["name", "company"]
+            }
+        )
+        self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
+
+        sq = (
+            SearchQuery()
+            .fields(True)
+        )
+        self.assert_expression(
+            sq,
+            {
+                "fields": '*'
+            }
+        )
+        self.assertEqual(collect_doc_classes(sq), set())
+
+        sq = (
+            SearchQuery()
+            .fields(None)
+            .fields(f.name, f.company)
+            .fields(None)
+        )
+        self.assert_expression(sq, {})
+        self.assertEqual(collect_doc_classes(sq), set())
+
+        sq = (
+            SearchQuery()
+            .fields(f.name, f.company)
+            .fields(False)
+        )
+        self.assert_expression(
+            sq,
+            {
+                "fields": []
+            }
+        )
+        self.assertEqual(collect_doc_classes(sq), set())
+
         self.assert_expression(
             SearchQuery()
             .function_score({'random_score': {"seed": 1234}}),

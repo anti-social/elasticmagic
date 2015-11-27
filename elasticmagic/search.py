@@ -69,6 +69,7 @@ class SearchQuery(object):
 
     _q = None
     _source = None
+    _fields = None
     _filters = ()
     _filters_meta = ()
     _post_filters = ()
@@ -146,11 +147,15 @@ class SearchQuery(object):
         else:
             self._source = Source(args, **kwargs)
 
-    fields = source
-
     @_with_clone
-    def add_fields(self, *fields):
-        self._source = self._source + fields
+    def fields(self, *args):
+        if len(args) == 1 and args[0] is None:
+            if '_fields' in self.__dict__:
+                del self._fields
+        elif len(args) == 1 and isinstance(args[0], bool):
+            self._fields = args[0]
+        else:
+            self._fields = args
 
     @_with_clone
     def query(self, q):
@@ -311,6 +316,7 @@ class SearchQuery(object):
                 [
                     self._q,
                     self._source,
+                    self._fields,
                     self._filters,
                     self._post_filters,
                     tuple(self._aggregations.values()),
@@ -421,6 +427,7 @@ class SearchQueryContext(object):
         
         self.q = search_query._q
         self.source = search_query._source
+        self.fields = search_query._fields
         self.filters = search_query._filters
         self.filters_meta = search_query._filters_meta
         self.post_filters = search_query._post_filters

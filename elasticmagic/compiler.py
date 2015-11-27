@@ -265,6 +265,13 @@ class QueryCompiled(ExpressionCompiled):
             params['sort'] = self.visit(query_context.order_by)
         if query_context.source:
             params['_source'] = self.visit(query_context.source)
+        if query_context.fields is not None:
+            if query_context.fields is True:
+                params['fields'] = '*'
+            elif query_context.fields is False:
+                params['fields'] = []
+            else:  
+                params['fields'] = self.visit(query_context.fields)
         if query_context.aggregations:
             params['aggregations'] = self.visit(query_context.aggregations)
         if query_context.limit is not None:
