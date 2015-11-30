@@ -212,7 +212,7 @@ class Object(Type):
             return None
         if isinstance(value, self.doc_cls):
             return value
-        return self.doc_cls(**value)
+        return self.doc_cls(_hit={'_source': value})
 
     def from_python(self, value, validate=False):
         if isinstance(value, self.doc_cls):

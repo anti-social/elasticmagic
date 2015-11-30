@@ -341,7 +341,7 @@ class DocumentTestCase(BaseTestCase):
                 '_source': {
                     'test_name': 'Test name',
                     'status': 0,
-                    'group': {'name': 'Test group'},
+                    'group': {'test_name': 'Test group'},
                     'price': 101.5,
                     'tags': [{'id': 1, 'name': 'Test tag'},
                              {'id': 2, 'name': 'Just tag'}],
