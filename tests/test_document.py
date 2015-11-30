@@ -372,6 +372,38 @@ class DocumentTestCase(BaseTestCase):
 
         hit_doc = TestDocument(
             _hit={
+                '_id':'123',
+                '_score': 1.23,
+                'fields': {
+                    'test_name': ['Test name'],
+                    'status': [0],
+                    'group.test_name': ['Test group'],
+                    'price': [101.5],
+                    'tags.id': [1, 2],
+                    'tags.name': ['Test tag', 'Just tag'],
+                    'date_created': ['2014-08-14T14:05:28.789Z'],
+                    'not_mapped': ['Test'],
+                }
+            }
+        )
+        self.assertEqual(hit_doc._id, '123')
+        self.assertAlmostEqual(hit_doc._score, 1.23)
+        self.assertEqual(
+            hit_doc.get_hit_fields(),
+            {
+                'test_name': ['Test name'],
+                'status': [0],
+                'group.test_name': ['Test group'],
+                'price': [101.5],
+                'tags.id': [1, 2],
+                'tags.name': ['Test tag', 'Just tag'],
+                'date_created': [datetime.datetime(2014, 8, 14, 14, 5, 28, 789000, dateutil.tz.tzutc())],
+                'not_mapped': ['Test'],
+            }
+        )
+
+        hit_doc = TestDocument(
+            _hit={
                 '_id':'123'
             }
         )

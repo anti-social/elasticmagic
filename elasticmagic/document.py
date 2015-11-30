@@ -139,6 +139,7 @@ class Document(with_metaclass(DocumentMeta)):
 
     def __init__(self, _hit=None, _result=None, **kwargs):
         self._index = self._type = self._id = self._score = None
+        self._hit_fields = None
         self._highlight = None
         if _hit:
             self._score = _hit.get('_score')
@@ -146,7 +147,12 @@ class Document(with_metaclass(DocumentMeta)):
                 setattr(self, attr_field._attr_name, _hit.get(attr_field._field._name))
             if _hit.get('_source'):
                 for hit_key, hit_value in _hit['_source'].items():
-                    setattr(self, *self._process_hit_key_value(hit_key, hit_value))
+                    setattr(self, *self._process_source_key_value(hit_key, hit_value))
+            if _hit.get('fields'):
+                # we cannot construct document from fields
+                # in next example we cannot decide which tag has name and which has not:
+                # {"tags.id": [1, 2], "tags.name": ["Test"]}
+                self._hit_fields = self._process_fields(_hit['fields'])
             if _hit.get('highlight'):
                 self._highlight = _hit['highlight']
 
@@ -155,11 +161,30 @@ class Document(with_metaclass(DocumentMeta)):
 
         self._result = _result
 
-    def _process_hit_key_value(self, key, value):
+    def _process_source_key_value(self, key, value):
         if key in self._field_name_map:
             attr_field = self._field_name_map[key]
             return attr_field._attr_name, attr_field._to_python(value)
         return key, value
+
+    def _process_fields(self, hit_fields):
+        processed_fields = {}
+        for field_name, field_values in hit_fields.items():
+            field_path = field_name.split('.')
+            doc_cls = self.__class__
+            field_type = None
+            for fname in field_path:
+                attr_field = doc_cls._field_name_map.get(fname)
+                if not attr_field:
+                    break
+                field_type = attr_field.get_field().get_type()
+                doc_cls = field_type.doc_cls
+            if field_type:
+                processed_values = list(map(field_type.to_python, field_values))
+            else:
+                processed_values = field_values
+            processed_fields[field_name] = processed_values
+        return processed_fields
 
     def to_meta(self):
         doc_meta = {}
@@ -199,6 +224,9 @@ class Document(with_metaclass(DocumentMeta)):
     def get_highlight(self):
         return self._highlight or {}
 
+    def get_hit_fields(self):
+        return self._hit_fields or {}
+
     @classmethod
     def to_mapping(cls, ordered=False, compiler=None):
         mapping_compiler = (compiler or DefaultCompiler()).get_mapping_compiler()
@@ -223,8 +251,8 @@ class DynamicDocumentMeta(DocumentMeta):
 
 
 class DynamicDocument(with_metaclass(DynamicDocumentMeta, Document)):
-    def _process_hit_key_value(self, key, value):
-        key, value = super(DynamicDocument, self)._process_hit_key_value(key, value)
+    def _process_source_key_value(self, key, value):
+        key, value = super(DynamicDocument, self)._process_source_key_value(key, value)
         if isinstance(value, dict):
             return key, DynamicDocument(**value)
         return key, value
