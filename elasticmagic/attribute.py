@@ -78,6 +78,9 @@ class AttributedField(Expression, FieldOperators):
     def get_field(self):
         return self._field
     
+    def get_field_name(self):
+        return self._field._name
+
     def get_type(self):
         return self._field.get_type()
     

@@ -1588,7 +1588,7 @@ class QueryFilterTest(BaseTestCase):
         sq = (
             self.index.search_query()
             .post_filter(self.index.car.engine_displacement >= 2)
-            .order_by(self.index.car.date_manufactured.desc(), self.index.car.rank)
+            .order_by(self.index.car._score, self.index.car.rank)
         )
 
         qf = CarQueryFilter()
@@ -1718,7 +1718,7 @@ class QueryFilterTest(BaseTestCase):
                                     },
                                     "order_0": {
                                         "max": {
-                                            "field": "date_manufactured"
+                                            "script": "_score"
                                         }
                                     },
                                     "order_1": {
@@ -1737,9 +1737,7 @@ class QueryFilterTest(BaseTestCase):
                     }
                 },
                 "sort": [
-                    {
-                        "date_manufactured": "desc",
-                    },
+                    "_score",
                     "rank"
                 ]
             }

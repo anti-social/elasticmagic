@@ -3,9 +3,10 @@ import functools
 from math import ceil
 from itertools import chain
 
-from elasticmagic import Params, Term, Terms, MatchAll, Query, Bool, agg
+from elasticmagic import agg, Params, Term, Terms, MatchAll, Query, Bool, Field, Sort
 from elasticmagic.types import String, Integer, instantiate
 from elasticmagic.compat import text_type, string_types, with_metaclass
+from elasticmagic.attribute import AttributedField
 
 from .codec import SimpleCodec
 
@@ -794,30 +795,54 @@ class GroupedPageFilter(PageFilter):
 
         return search_query
 
-    def _apply_agg(self, search_query):
+    def _extract_orders(self, search_query):
+        order_aggs = {}
+        order_by = []
         if search_query._order_by:
-            order_aggs = {}
-            order_by = []
             for i, o in enumerate(search_query._order_by):
                 order_name = self._order_agg_name(i)
-                from elasticmagic.expression import Sort
                 if isinstance(o, Sort):
                     expr = o.expr
-                    desc = o.order == 'desc'
+                    order = o.order
                 else:
                     expr = o
-                    desc = False
+                    order = None
+
+                if isinstance(expr, Field):
+                    field_name = expr.get_name()
+                elif isinstance(expr, AttributedField):
+                    field_name = expr.get_field_name()
+                else:
+                    field_name = expr
+
+                if field_name == '_score':
+                    # default ordering for _score is desc
+                    desc = order is None or order == 'desc'
+                else:
+                    desc = order == 'desc'
+
                 if desc:
-                    order_aggs[order_name] = agg.Max(expr)
+                    if field_name == '_score':
+                        order_aggs[order_name] = agg.Max(script='_score')
+                    else:
+                        order_aggs[order_name] = agg.Max(expr)
                     order_by.append({order_name: 'desc'})
                 else:
-                    order_aggs[order_name] = agg.Min(expr)
+                    if field_name == '_score':
+                        order_aggs[order_name] = agg.Min(script='_score')
+                    else:
+                        order_aggs[order_name] = agg.Min(expr)
                     order_by.append({order_name: 'asc'})
         else:
             order_aggs = {
                 self._order_agg_name(0): agg.Max(script='_score')
             }
             order_by = [{self._order_agg_name(0): 'desc'}]
+
+        return order_aggs, order_by
+
+    def _apply_agg(self, search_query):
+        order_aggs, order_by = self._extract_orders(search_query)
 
         group_agg = agg.Terms(
             self.group_by,
