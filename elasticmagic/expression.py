@@ -619,7 +619,7 @@ class SpanOr(QueryExpression):
     __query_name__ = 'span_or'
 
     def __init__(self, clauses, boost=None, **kwargs):
-        super(SpanOr, self).__init__(clauses=clauses, boost=None, **kwargs )
+        super(SpanOr, self).__init__(clauses=clauses, boost=boost, **kwargs )
 
 
 class SpanTerm(Term):

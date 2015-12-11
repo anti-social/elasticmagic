@@ -554,9 +554,12 @@ class ExpressionTestCase(BaseTestCase):
 
         self.assert_expression(
             SpanOr(
-                [SpanTerm(f.field, 'value1'),
-                 SpanTerm(f.field, 'value2'),
-                 SpanTerm(f.field, 'value3')]
+                [
+                    SpanTerm(f.field, 'value1'),
+                    SpanTerm(f.field, 'value2'),
+                    SpanTerm(f.field, 'value3')
+                ],
+                boost=2,
             ),
             {
                 "span_or": {
@@ -564,7 +567,8 @@ class ExpressionTestCase(BaseTestCase):
                         {"span_term": {"field": "value1"}},
                         {"span_term": {"field": "value2"}},
                         {"span_term": {"field": "value3"}}
-                    ]
+                    ],
+                    "boost": 2
                 }
             }
         )
