@@ -626,6 +626,13 @@ class SpanTerm(Term):
     __query_name__ = 'span_term'
 
 
+class Nested(QueryExpression):
+    __query_name__ = 'nested'
+
+    def __init__(self, path, query, boost_mode=None, **kwargs):
+        super(Nested, self).__init__(path=path, query=query, boost_mode=boost_mode, **kwargs)
+
+
 def _wrap_literal(obj):
     if not isinstance(obj, Expression):
         return Literal(obj)

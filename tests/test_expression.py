@@ -6,7 +6,7 @@ from elasticmagic.expression import (
     Params, Term, Terms, Exists, Missing, Match, MatchAll, MultiMatch, Range,
     Bool, Query, BooleanExpression, And, Or, Not, Sort, Field, Limit,
     Boosting, Common, ConstantScore, FunctionScore, DisMax, Filtered, Ids, Prefix,
-    SpanFirst, SpanMulti, SpanNear, SpanNot, SpanOr, SpanTerm,
+    SpanFirst, SpanMulti, SpanNear, SpanNot, SpanOr, SpanTerm, Nested,
 )
 
 from .base import BaseTestCase
@@ -578,6 +578,29 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
 
+        e = Nested(
+            self.index.movie.stars,
+            Match(self.index.movie.stars.full_name, 'Will Smith'),
+            boost_mode='max',
+        )
+        self.assert_expression(
+            e,
+            {
+                "nested": {
+                    "path": "stars",
+                    "query": {
+                        "match": {
+                            "stars.full_name": "Will Smith"
+                        }
+                    },
+                    "boost_mode": "max"
+                }
+            }
+        )
+        self.assertEqual(
+            e._collect_doc_classes(),
+            {self.index.movie}
+        )
 
     def test_field(self):
         self.assertEqual(Field().get_type().__class__, Type)
