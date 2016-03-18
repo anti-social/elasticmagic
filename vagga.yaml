@@ -1,0 +1,29 @@
+containers:
+  py2-test:
+    setup:
+      - !UbuntuRelease { version: 15.10 }
+      - !PipConfig
+        dependencies: true
+      - !Py2Requirements requirements.txt      
+      - !Py2Requirements requirements_geo.txt      
+      - !Py2Requirements requirements_test.txt
+
+  py3-test:
+    setup:
+      - !UbuntuRelease { version: 15.10 }
+      - !PipConfig
+        dependencies: true
+      - !Py3Requirements requirements.txt      
+      - !Py3Requirements requirements_geo.txt      
+      - !Py3Requirements requirements_test.txt
+
+commands:
+  py2-test: !Command
+    description: Run tests with Python2
+    container: py2-test
+    run: py.test
+
+  py3-test: !Command
+    description: Run tests with Python3
+    container: py3-test
+    run: py.test
