@@ -1,0 +1,2 @@
+elasticsearch>=1.6.0,<1.7.0
+python-dateutil>=2.5.0,<2.6.0

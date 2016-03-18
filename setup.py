@@ -6,6 +6,9 @@ def get_version():
     with open(os.path.join('elasticmagic', 'version.py'), 'rt') as version_file:
         return version_file.readline().split('=')[1].strip().strip("'\"")
 
+def parse_requirements(req_file_path):
+    with open(req_file_path) as req_file:
+        return req_file.read().splitlines()
 
 setup(
     name="elasticmagic",
@@ -17,18 +20,10 @@ setup(
     keywords="elasticsearch dsl",
     url="https://github.com/anti-social/elasticmagic",
     packages=find_packages(exclude=["tests"]),
-    install_requires=[
-        "elasticsearch>=1.6.0,<1.7.0",
-        "python-dateutil",
-    ],
-    tests_require=[
-        "nose",
-        "mock",
-    ],
+    install_requires=parse_requirements("requirements.txt"),
+    tests_require=parse_requirements("requirements_test.txt"),
     extras_require={
-        "geo": [
-            "python-geohash==0.8.5"
-        ],
+        "geo": parse_requirements("requirements_geo.txt"),
     },
     classifiers=[
         "Development Status :: 3 - Alpha",
