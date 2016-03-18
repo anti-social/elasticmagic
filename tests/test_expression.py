@@ -1,12 +1,14 @@
 from elasticmagic import DynamicDocument
+from elasticmagic import (
+    Params, Term, Terms, Exists, Missing, Match, MatchAll, MultiMatch, Range,
+    Bool, Query, And, Or, Not, Sort, Field, Limit,
+    Boosting, Common, ConstantScore, FunctionScore, DisMax, Filtered, Ids, Prefix,
+    SpanFirst, SpanMulti, SpanNear, SpanNot, SpanOr, SpanTerm, 
+    Nested, HasParent, HasChild,
+)
+from elasticmagic.expression import BooleanExpression
 from elasticmagic.types import (
     Type, String, Integer, List, GeoPoint, Completion,
-)
-from elasticmagic.expression import (
-    Params, Term, Terms, Exists, Missing, Match, MatchAll, MultiMatch, Range,
-    Bool, Query, BooleanExpression, And, Or, Not, Sort, Field, Limit,
-    Boosting, Common, ConstantScore, FunctionScore, DisMax, Filtered, Ids, Prefix,
-    SpanFirst, SpanMulti, SpanNear, SpanNot, SpanOr, SpanTerm, Nested,
 )
 
 from .base import BaseTestCase
@@ -604,6 +606,54 @@ class ExpressionTestCase(BaseTestCase):
         self.assertEqual(
             e._collect_doc_classes(),
             {self.index.movie}
+        )
+
+        e = HasParent(
+            self.index.blog,
+            self.index.blog.tag == 'something',
+            score_mode='score',
+        )
+        self.assert_expression(
+            e,
+            {
+                "has_parent": {
+                    "parent_type": "blog",
+                    "query": {
+                        "term": {
+                            "tag": "something"
+                        }
+                    },
+                    "score_mode": "score"
+                }
+            }
+        )
+        self.assertEqual(
+            e._collect_doc_classes(),
+            set()
+        )
+
+        e = HasChild(
+            self.index.blog_tag,
+            self.index.blog_tag.tag == 'something',
+            score_mode='sum',
+        )
+        self.assert_expression(
+            e,
+            {
+                "has_child": {
+                    "type": "blog_tag",
+                    "query": {
+                        "term": {
+                            "tag": "something"
+                        }
+                    },
+                    "score_mode": "sum"
+                }
+            }
+        )
+        self.assertEqual(
+            e._collect_doc_classes(),
+            set()
         )
 
     def test_field(self):

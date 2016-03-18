@@ -224,6 +224,22 @@ class ExpressionCompiled(Compiled):
                 params['fields'] = compiled_fields
         return params
 
+    def visit_has_parent(self, expr):
+        params = self.visit(expr.params)
+        parent_type = expr.parent_type
+        if hasattr(parent_type, '__doc_type__'):
+            parent_type = parent_type.__doc_type__
+        params['parent_type'] = parent_type
+        return {'has_parent': params}
+
+    def visit_has_child(self, expr):
+        params = self.visit(expr.params)
+        child_type = expr.type
+        if hasattr(child_type, '__doc_type__'):
+            child_type = child_type.__doc_type__
+        params['type'] = child_type
+        return {'has_child': params}
+
 
 class QueryCompiled(ExpressionCompiled):
     @classmethod

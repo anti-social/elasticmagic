@@ -633,6 +633,32 @@ class Nested(QueryExpression):
         super(Nested, self).__init__(path=path, query=query, boost_mode=boost_mode, **kwargs)
 
 
+class HasParent(QueryExpression):
+    __visit_name__ = 'has_parent'
+
+    def __init__(self, parent_type, query, score_mode=None, **kwargs):
+        super(HasParent, self).__init__(
+            query=query, score_mode=score_mode, **kwargs
+        )
+        self.parent_type = parent_type
+
+    def _collect_doc_classes(self):
+        return set()
+
+
+class HasChild(QueryExpression):
+    __visit_name__ = 'has_child'
+
+    def __init__(self, type, query, score_mode=None, **kwargs):
+        super(HasChild, self).__init__(
+            query=query, score_mode=score_mode, **kwargs
+        )
+        self.type = type
+
+    def _collect_doc_classes(self):
+        return set()
+
+
 def _wrap_literal(obj):
     if not isinstance(obj, Expression):
         return Literal(obj)
