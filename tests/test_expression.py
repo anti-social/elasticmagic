@@ -587,7 +587,7 @@ class ExpressionTestCase(BaseTestCase):
         e = Nested(
             self.index.movie.stars,
             Match(self.index.movie.stars.full_name, 'Will Smith'),
-            boost_mode='max',
+            score_mode='max',
         )
         self.assert_expression(
             e,
@@ -599,7 +599,7 @@ class ExpressionTestCase(BaseTestCase):
                             "stars.full_name": "Will Smith"
                         }
                     },
-                    "boost_mode": "max"
+                    "score_mode": "max"
                 }
             }
         )

@@ -629,8 +629,10 @@ class SpanTerm(Term):
 class Nested(QueryExpression):
     __query_name__ = 'nested'
 
-    def __init__(self, path, query, boost_mode=None, **kwargs):
-        super(Nested, self).__init__(path=path, query=query, boost_mode=boost_mode, **kwargs)
+    def __init__(self, path, query, score_mode=None, **kwargs):
+        super(Nested, self).__init__(
+            path=path, query=query, score_mode=score_mode, **kwargs
+        )
 
 
 class HasParent(QueryExpression):
