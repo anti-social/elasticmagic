@@ -71,19 +71,19 @@ class AttributedField(Expression, FieldOperators):
 
     def get_parent(self):
         return self._parent
-    
+
     def get_attr_name(self):
         return self._attr_name
-    
+
     def get_field(self):
         return self._field
-    
+
     def get_field_name(self):
         return self._field._name
 
     def get_type(self):
         return self._field.get_type()
-    
+
     def __get__(self, obj, type=None):
         if obj is None:
             return self
