@@ -1328,6 +1328,13 @@ class QueryFilterTest(BaseTestCase):
         )
 
         self.assert_expression(
+            qf.apply(sq, {'p': 201, 'per_page': 50}),
+            {
+                "size": 0
+            }
+        )
+
+        self.assert_expression(
             qf.apply(sq, {'p': 3, 'per_page': 100}),
             {
                 "size": 10,

@@ -4,9 +4,10 @@ from math import ceil
 from itertools import chain
 
 from elasticmagic import agg, Params, Term, Terms, MatchAll, Query, Bool, Field, Sort
-from elasticmagic.types import String, Integer, instantiate
-from elasticmagic.compat import text_type, string_types, with_metaclass
 from elasticmagic.attribute import AttributedField
+from elasticmagic.cluster import MAX_RESULT_WINDOW
+from elasticmagic.compat import text_type, string_types, with_metaclass
+from elasticmagic.types import String, Integer, instantiate
 
 from .codec import SimpleCodec
 
@@ -691,6 +692,7 @@ class OrderingFilter(BaseFilter):
 class PageFilter(BaseFilter):
     DEFAULT_PER_PAGE_PARAM = 'per_page'
     DEFAULT_PER_PAGE = 10
+    DEFAULT_MAX_ITEMS = MAX_RESULT_WINDOW
 
     def __init__(
             self, name, alias=None,
@@ -699,7 +701,7 @@ class PageFilter(BaseFilter):
         super(PageFilter, self).__init__(name, alias=alias)
         self.per_page_param = per_page_param or self.DEFAULT_PER_PAGE_PARAM
         self.per_page_values = per_page_values or [self.DEFAULT_PER_PAGE]
-        self.max_items = max_items
+        self.max_items = max_items or self.DEFAULT_MAX_ITEMS
 
         self._reset()
 
@@ -761,14 +763,18 @@ class PageFilter(BaseFilter):
 
 
 class GroupedPageFilter(PageFilter):
+    DEFAULT_MAX_ITEMS = 1000
+
     def __init__(
             self, name, group_by, group_kwargs=None, alias=None,
-            per_page_param=None, per_page_values=None, max_items=1000, 
+            per_page_param=None, per_page_values=None, max_items=None,
     ):
         super(GroupedPageFilter, self).__init__(
-            name, alias=alias, per_page_param=per_page_param, per_page_values=per_page_values,
+            name, alias=alias,
+            per_page_param=per_page_param,
+            per_page_values=per_page_values,
+            max_items=max_items,
         )
-        self.max_items = max_items
         self.group_by = group_by
         self.group_kwargs = group_kwargs or {}
 

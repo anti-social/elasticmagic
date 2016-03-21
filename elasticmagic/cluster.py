@@ -12,6 +12,9 @@ from .document import Document, DynamicDocument
 from .expression import Params
 
 
+MAX_RESULT_WINDOW = 10000
+
+
 class MultiSearchError(ElasticsearchException):
     pass
 
