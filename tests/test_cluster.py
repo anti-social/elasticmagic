@@ -1,7 +1,10 @@
+import re
 import warnings
 from mock import MagicMock
 
-from elasticmagic import agg, actions, Cluster, SearchQuery, DynamicDocument
+from elasticmagic import (
+    actions, agg, Cluster, DynamicDocument, Index, SearchQuery
+)
 from elasticmagic import DelayedElasticsearchException, MultiSearchError
 
 from .base import BaseTestCase
@@ -527,3 +530,23 @@ class ClusterTest(BaseTestCase):
         self.assertEqual(result.items[4]._version, 2)
         self.assertEqual(result.items[4].status, 200)
         self.assertEqual(bool(result.items[4].error), False)
+
+    def test_custom_index_class(self):
+        class NoSourceIndex(Index):
+            def search_query(self, *args, **kwargs):
+                return (
+                    super(NoSourceIndex, self).search_query(*args, **kwargs)
+                    .source(False)
+                )
+
+        cluster = Cluster(self.client, index_cls=NoSourceIndex)
+        self.assert_expression(
+            cluster['test'].search_query(),
+            {
+                "_source": False
+            }
+        )
+        self.assert_expression(
+            cluster['test'].search_query().source(None),
+            {}
+        )

@@ -1,3 +1,5 @@
+import collections
+
 from elasticsearch import ElasticsearchException
 
 from .compiler import DefaultCompiler
@@ -20,10 +22,15 @@ class MultiSearchError(ElasticsearchException):
 
 
 class Cluster(object):
-    def __init__(self, client, multi_search_raise_on_error=True, compiler=None):
+    def __init__(
+            self, client,
+            multi_search_raise_on_error=True, compiler=None,
+            index_cls=None
+    ):
         self._client = client
         self._multi_search_raise_on_error = multi_search_raise_on_error
         self._compiler = compiler or DefaultCompiler()
+        self._index_cls = index_cls or Index
 
         self._index_cache = {}
 
@@ -35,7 +42,7 @@ class Cluster(object):
             name = ','.join(name)
 
         if name not in self._index_cache:
-            self._index_cache[name] = Index(self, name)
+            self._index_cache[name] = self._index_cls(self, name)
         return self._index_cache[name]
 
     def search_query(self, *args, **kwargs):
