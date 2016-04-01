@@ -609,7 +609,30 @@ class ExpressionTestCase(BaseTestCase):
         )
 
         e = HasParent(
-            self.index.blog,
+            self.index.blog.tag == 'something',
+            parent_type=self.index.blog,
+            score_mode='score',
+        )
+        self.assert_expression(
+            e,
+            {
+                "has_parent": {
+                    "parent_type": "blog",
+                    "query": {
+                        "term": {
+                            "tag": "something"
+                        }
+                    },
+                    "score_mode": "score"
+                }
+            }
+        )
+        self.assertEqual(
+            e._collect_doc_classes(),
+            set()
+        )
+
+        e = HasParent(
             self.index.blog.tag == 'something',
             score_mode='score',
         )
@@ -633,7 +656,30 @@ class ExpressionTestCase(BaseTestCase):
         )
 
         e = HasChild(
-            self.index.blog_tag,
+            self.index.blog_tag.tag == 'something',
+            type=self.index.blog_tag,
+            score_mode='sum',
+        )
+        self.assert_expression(
+            e,
+            {
+                "has_child": {
+                    "type": "blog_tag",
+                    "query": {
+                        "term": {
+                            "tag": "something"
+                        }
+                    },
+                    "score_mode": "sum"
+                }
+            }
+        )
+        self.assertEqual(
+            e._collect_doc_classes(),
+            set()
+        )
+
+        e = HasChild(
             self.index.blog_tag.tag == 'something',
             score_mode='sum',
         )

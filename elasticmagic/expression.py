@@ -638,7 +638,7 @@ class Nested(QueryExpression):
 class HasParent(QueryExpression):
     __visit_name__ = 'has_parent'
 
-    def __init__(self, parent_type, query, score_mode=None, **kwargs):
+    def __init__(self, query, parent_type=None, score_mode=None, **kwargs):
         super(HasParent, self).__init__(
             query=query, score_mode=score_mode, **kwargs
         )
@@ -651,7 +651,7 @@ class HasParent(QueryExpression):
 class HasChild(QueryExpression):
     __visit_name__ = 'has_child'
 
-    def __init__(self, type, query, score_mode=None, **kwargs):
+    def __init__(self, query, type=None, score_mode=None, **kwargs):
         super(HasChild, self).__init__(
             query=query, score_mode=score_mode, **kwargs
         )

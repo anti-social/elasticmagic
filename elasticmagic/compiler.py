@@ -13,6 +13,10 @@ OPERATORS = {
 }
 
 
+class CompilationError(Exception):
+    pass
+
+
 class Compiled(object):
     def __init__(self, expression):
         self.expression = expression
@@ -229,6 +233,20 @@ class ExpressionCompiled(Compiled):
         parent_type = expr.parent_type
         if hasattr(parent_type, '__doc_type__'):
             parent_type = parent_type.__doc_type__
+        if not parent_type:
+            parent_doc_classes = expr.params._collect_doc_classes()
+            if len(parent_doc_classes) == 1:
+                parent_type = next(iter(parent_doc_classes)).__doc_type__
+            elif len(parent_doc_classes) > 1:
+                raise CompilationError(
+                    'Too many candidates for parent type, '
+                    'should be only one'
+                )
+            else:
+                raise CompilationError(
+                    'Cannot detect parent type, '
+                    'specify \'parent_type\' argument'
+                )
         params['parent_type'] = parent_type
         return {'has_parent': params}
 
@@ -237,6 +255,20 @@ class ExpressionCompiled(Compiled):
         child_type = expr.type
         if hasattr(child_type, '__doc_type__'):
             child_type = child_type.__doc_type__
+        if not child_type:
+            child_doc_classes = expr.params._collect_doc_classes()
+            if len(child_doc_classes) == 1:
+                child_type = next(iter(child_doc_classes)).__doc_type__
+            elif len(child_doc_classes) > 1:
+                raise CompilationError(
+                    'Too many candidates for child type, '
+                    'should be only one'
+                )
+            else:
+                raise CompilationError(
+                    'Cannot detect child type, '
+                    'specify \'type\' argument'
+                )
         params['type'] = child_type
         return {'has_child': params}
 
