@@ -752,6 +752,29 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
         self.assert_expression(
+            ~(Field('status') == 0),
+            {
+                "bool": {
+                    "must_not": [
+                        {
+                            "term": {"status": 0}
+                        }
+                    ]
+                }
+            }
+        )
+        self.assert_expression(
+            Field('name').span_first("iphone", 2),
+            {
+                "span_first": {
+                    "match": {
+                        "span_term": {"name": "iphone"}
+                    },
+                    "end": 2
+                }
+            }
+        )
+        self.assert_expression(
             Field('status').in_([0, 2, 3]),
             {
                 "terms": {"status": [0, 2, 3]}

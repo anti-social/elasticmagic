@@ -5,7 +5,7 @@ from .compat import zip
 from .util import _with_clone, cached_property, clean_params, merge_params, collect_doc_classes
 from .result import Result
 from .compiler import DefaultCompiler
-from .expression import Expression, QueryExpression, Params, Filtered, And, Bool, FunctionScore
+from .expression import Expression, ParamsExpression, Params, Filtered, And, Bool, FunctionScore
 
 
 __all__ = ['SearchQuery']
@@ -27,7 +27,7 @@ class Source(Expression):
         )
 
 
-class QueryRescorer(QueryExpression):
+class QueryRescorer(ParamsExpression):
     __visit_name__ = 'query_rescorer'
 
     def __init__(self, rescore_query, query_weight=None, rescore_query_weight=None, score_mode=None, **kwargs):

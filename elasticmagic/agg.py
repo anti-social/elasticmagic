@@ -1,13 +1,13 @@
 from itertools import chain
 
 from .document import DynamicDocument
-from .expression import QueryExpression, Params
+from .expression import ParamsExpression, Params
 from .compat import force_unicode
 from .types import instantiate, Type
 from .util import _with_clone, cached_property, maybe_float, merge_params
 
 
-class AggExpression(QueryExpression):
+class AggExpression(ParamsExpression):
     __visit_name__ = 'agg'
 
     result_cls = None

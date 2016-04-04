@@ -11,7 +11,7 @@ from .compat import string_types
 
 class Expression(object):
     def _collect_doc_classes(self):
-        return []
+        return set()
 
     def compile(self, compiler=None):
         from .compiler import DefaultCompiler
@@ -28,17 +28,6 @@ class Literal(object):
 
     def __init__(self, obj):
         self.obj = obj
-
-
-class QueryExpression(Expression):
-    __visit_name__ = 'query_expression'
-
-    def __init__(self, **kwargs):
-        super(QueryExpression, self).__init__()
-        self.params = Params(kwargs)
-
-    def _collect_doc_classes(self):
-        return collect_doc_classes(self.params)
 
 
 class Params(Expression, collections.Mapping):
@@ -70,6 +59,22 @@ class Params(Expression, collections.Mapping):
     def __contains__(self, key):
         return key in self._params
 
+
+
+class ParamsExpression(Expression):
+    def __init__(self, **kwargs):
+        super(ParamsExpression, self).__init__()
+        self.params = Params(kwargs)
+
+    def _collect_doc_classes(self):
+        return collect_doc_classes(self.params)
+
+
+class QueryExpression(ParamsExpression):
+    __visit_name__ = 'query_expression'
+
+    def __invert__(self):
+        return Bool.must_not(self)
 
 
 class FieldExpression(QueryExpression):
