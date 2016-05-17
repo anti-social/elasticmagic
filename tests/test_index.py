@@ -36,6 +36,12 @@ class IndexTest(BaseTestCase):
             }
         )
 
+    def test_get_name(self):
+        self.assertEqual(self.index.get_name(), 'test')
+
+    def test_get_cluster(self):
+        self.assertIs(self.index.get_cluster(), self.cluster)
+
     def test_get(self):
         self.client.get = MagicMock(
             return_value={

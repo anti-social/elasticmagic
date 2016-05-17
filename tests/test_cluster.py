@@ -11,6 +11,9 @@ from .base import BaseTestCase
 
 
 class ClusterTest(BaseTestCase):
+    def test_get_client(self):
+        self.assertIs(self.cluster.get_client(), self.client)
+
     def test_search_query(self):
         self.client.search = MagicMock(
             return_value={

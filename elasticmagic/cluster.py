@@ -45,6 +45,9 @@ class Cluster(object):
             self._index_cache[name] = self._index_cls(self, name)
         return self._index_cache[name]
 
+    def get_client(self):
+        return self._client
+
     def search_query(self, *args, **kwargs):
         kwargs['cluster'] = self
         kwargs.setdefault('_compiler', self._compiler.get_query_compiler())

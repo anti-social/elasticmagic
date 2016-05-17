@@ -27,6 +27,12 @@ class Index(object):
             )
         return self._doc_cls_cache[name]
 
+    def get_name(self):
+        return self._name
+
+    def get_cluster(self):
+        return self._cluster
+
     def search_query(self, *args, **kwargs):
         kwargs['index'] = self
         kwargs.setdefault('_compiler', self._cluster._compiler.get_query_compiler())
