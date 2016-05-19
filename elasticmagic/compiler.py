@@ -2,6 +2,7 @@ import operator
 import collections
 
 from .expression import Bool
+from .expression import Params
 from .expression import Filtered
 from .expression import FunctionScore
 from .expression import HighlightedField
@@ -276,13 +277,28 @@ class ExpressionCompiled(Compiled):
 class QueryCompiled(ExpressionCompiled):
     @classmethod
     def get_query(cls, query_context, wrap_function_score=True):
-        if wrap_function_score and query_context.function_score:
-            return FunctionScore(
-                query=query_context.q,
-                functions=query_context.function_score,
-                **query_context.function_score_params
-            )
-        return query_context.q
+        q = query_context.q
+        if wrap_function_score:
+            if query_context.function_score:
+                q = FunctionScore(
+                    query=q,
+                    functions=query_context.function_score,
+                    **query_context.function_score_params
+                )
+            if query_context.boost_score:
+                boost_score_params = Params(
+                    dict(
+                        score_mode='sum',
+                        boost_mode='sum',
+                    ),
+                    **query_context.boost_score_params
+                )
+                q = FunctionScore(
+                    query=q,
+                    functions=query_context.boost_score,
+                    **boost_score_params
+                )
+        return q
 
     @classmethod
     def get_filtered_query(cls, query_context, wrap_function_score=True):

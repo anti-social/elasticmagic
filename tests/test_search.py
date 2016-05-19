@@ -353,6 +353,109 @@ class SearchQueryTest(BaseTestCase):
 
         sq = (
             SearchQuery()
+            .filter(f.status == 0)
+            .boost_score(
+                {'filter': f.discount_percent >= 10, 'weight': 1000},
+                {'filter': f.discount_percent >= 50, 'weight': 2000},
+                {'filter': f.presence == 'available', 'weight': 10000},
+            )
+        )
+        self.assert_expression(
+            sq,
+            {
+                "query": {
+                    "filtered": {
+                        "query": {
+                            "function_score": {
+                                "functions": [
+                                    {
+                                        "filter": {"range": {"discount_percent": {"gte": 10}}},
+                                        "weight": 1000
+                                    },
+                                    {
+                                        "filter": {"range": {"discount_percent": {"gte": 50}}},
+                                        "weight": 2000
+                                    },
+                                    {
+                                        "filter": {"term": {"presence": "available"}},
+                                        "weight": 10000
+                                    },
+                                ],
+                                "score_mode": "sum",
+                                "boost_mode": "sum"
+                            }
+                        },
+                        "filter": {
+                            "term": {"status": 0}
+                        }
+                    }
+                }
+            }
+        )
+
+        sq = (
+            SearchQuery(f.name.match('test'))
+            .filter(f.status == 0)
+            .function_score(
+                {'field_value_factor': {'field': f.popularity}},
+            )
+            .boost_score(
+                {'filter': f.discount_percent >= 10, 'weight': 100},
+            )
+            .boost_score(None)
+            .boost_score(
+                {'filter': f.discount_percent >= 10, 'weight': 1000},
+                {'filter': f.discount_percent >= 50, 'weight': 2000},
+                score_mode='max',
+            )
+        )
+        self.assert_expression(
+            sq,
+            {
+                "query": {
+                    "filtered": {
+                        "query": {
+                            "function_score": {
+                                "query": {
+                                    "function_score": {
+                                        "query": {
+                                            "match": {
+                                                "name": "test"
+                                            }
+                                        },
+                                        "functions": [
+                                            {
+                                                "field_value_factor": {
+                                                    "field": "popularity"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                "functions": [
+                                    {
+                                        "filter": {"range": {"discount_percent": {"gte": 10}}},
+                                        "weight": 1000
+                                    },
+                                    {
+                                        "filter": {"range": {"discount_percent": {"gte": 50}}},
+                                        "weight": 2000
+                                    },
+                                ],
+                                "score_mode": "max",
+                                "boost_mode": "sum"
+                            }
+                        },
+                        "filter": {
+                            "term": {"status": 0}
+                        }
+                    }
+                }
+            }
+        )
+
+        sq = (
+            SearchQuery()
             .rescore(
                 QueryRescorer(
                     self.index.t.field1.match('the quick brown', type='phrase', slop=2)

@@ -78,6 +78,8 @@ class SearchQuery(object):
     _aggregations = Params()
     _function_score = ()
     _function_score_params = Params()
+    _boost_score = ()
+    _boost_score_params = Params()
     _limit = None
     _offset = None
     _rescores = ()
@@ -204,6 +206,16 @@ class SearchQuery(object):
         else:
             self._function_score = self._function_score + args
             self._function_score_params = Params(dict(self._function_score_params), **kwargs)
+
+    @_with_clone
+    def boost_score(self, *args, **kwargs):
+        if args == (None,):
+            if '_boost_score' in self.__dict__:
+                del self._boost_score
+                del self._boost_score_params
+        else:
+            self._boost_score = self._boost_score + args
+            self._boost_score_params = Params(dict(self._boost_score_params), **kwargs)
 
     @_with_clone
     def limit(self, limit):
@@ -436,6 +448,8 @@ class SearchQueryContext(object):
         self.aggregations = search_query._aggregations
         self.function_score = search_query._function_score
         self.function_score_params = search_query._function_score_params
+        self.boost_score = search_query._boost_score
+        self.boost_score_params = search_query._boost_score_params
         self.limit = search_query._limit
         self.offset = search_query._offset
         self.rescores = search_query._rescores
