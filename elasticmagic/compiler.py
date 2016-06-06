@@ -193,8 +193,8 @@ class ExpressionCompiled(Compiled):
             if expr.exclude:
                 params['exclude'] = self.visit(expr.exclude)
             return params
-        if expr.fields is False:
-            return False
+        if isinstance(expr.fields, bool):
+            return expr.fields
         return [self.visit(f) for f in expr.fields]
 
     def visit_query_rescorer(self, rescorer):

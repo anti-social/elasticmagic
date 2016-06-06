@@ -144,7 +144,7 @@ class SearchQuery(object):
         if len(args) == 1 and args[0] is None:
             if '_source' in self.__dict__:
                 del self._source
-        elif len(args) == 1 and args[0] is False:
+        elif len(args) == 1 and isinstance(args[0], bool):
             self._source = Source(args[0], **kwargs)
         else:
             self._source = Source(args, **kwargs)

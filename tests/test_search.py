@@ -239,6 +239,18 @@ class SearchQueryTest(BaseTestCase):
         )
         self.assertEqual(collect_doc_classes(sq), set())
 
+        sq = (
+            SearchQuery()
+            .source(True)
+        )
+        self.assert_expression(
+            sq,
+            {
+                "_source": True
+            }
+        )
+        self.assertEqual(collect_doc_classes(sq), set())
+
         sq = SearchQuery().fields(f.name, f.company)
         self.assert_expression(
             sq,
