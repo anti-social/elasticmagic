@@ -124,11 +124,15 @@ class Index(object):
             timeout=timeout, consistency=consistency, replication=replication
         )
 
-    def delete(self, doc, doc_type=None, timeout=None, consistency=None, replication=None,
-               parent=None, routing=None, refresh=None, version=None, version_type=None,
-               **kwargs):
+    def delete(
+            self, doc_or_id, doc_cls=None, doc_type=None,
+            timeout=None, consistency=None, replication=None,
+            parent=None, routing=None, refresh=None, version=None,
+            version_type=None,
+            **kwargs
+    ):
         return self._cluster.delete(
-            doc, index=self._name, doc_type=doc_type, 
+            doc_or_id, index=self._name, doc_cls=doc_cls, doc_type=doc_type, 
             timeout=timeout, consistency=consistency, replication=replication,
             parent=parent, routing=routing, refresh=refresh,
             version=version, version_type=version_type,

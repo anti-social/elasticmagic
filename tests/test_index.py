@@ -276,7 +276,6 @@ class IndexTest(BaseTestCase):
         self.assertEqual(item.found, None)
         self.assertEqual(item.error.type, 'es_rejected_execution_exception')
         self.assertTrue('TransportReplicationAction' in item.error.reason)
-        
 
     def test_delete(self):
         self.index.delete(self.index.car(_id='test_id'), refresh=True)
@@ -287,6 +286,14 @@ class IndexTest(BaseTestCase):
             refresh=True
         )
 
+        # delete also accept document id
+        res = self.index.delete('test_id', doc_cls=self.index.car)
+        self.client.delete.assert_called_with(
+            index='test',
+            doc_type='car',
+            id='test_id',
+        )
+        
     def test_delete_by_query(self):
         self.index.delete_by_query(self.index.car.vendor == 'Ford', doc_type='car', routing='Ford')
         self.client.delete_by_query.assert_called_with(

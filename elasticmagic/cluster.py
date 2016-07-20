@@ -226,11 +226,21 @@ class Cluster(object):
             doc_type=doc_type, index=index, body=mapping, **params
         )
 
-    def delete(self, doc, index, doc_type=None,
-               timeout=None, consistency=None, replication=None,
-               parent=None, routing=None, refresh=None, version=None,
-               version_type=None, **kwargs):
-        doc_type = doc_type or doc.__doc_type__
+    def delete(
+            self, doc_or_id, index, doc_cls=None, doc_type=None,
+            timeout=None, consistency=None, replication=None,
+            parent=None, routing=None, refresh=None, version=None,
+            version_type=None,
+            **kwargs
+    ):
+        if isinstance(doc_or_id, Document):
+            doc_id = doc_or_id._id
+            doc_cls = doc_cls or doc_or_id.__class__
+            doc_type = doc_type or doc_cls.__doc_type__
+        else:
+            doc_id = doc_or_id
+            doc_type = doc_type or doc_cls.__doc_type__
+        assert doc_type, 'Cannot evaluate doc_type'
         params = clean_params({
             'timeout': timeout,
             'consistency': consistency,
@@ -242,7 +252,7 @@ class Cluster(object):
             'version_type': version_type,
         }, **kwargs)
         return DeleteResult(
-            self._client.delete(id=doc._id, index=index, doc_type=doc_type, **params)
+            self._client.delete(id=doc_id, index=index, doc_type=doc_type, **params)
         )
 
     def delete_by_query(self, q, index=None, doc_type=None,
