@@ -30,8 +30,11 @@ def to_camel_case(s):
     return u''.join(map(lambda w: w.capitalize(), s.split('_')))
 
 
-def clean_params(params):
-    return {p: v for p, v in params.items() if v is not None}
+def clean_params(params, **kwargs):
+    return {
+        p: v for p, v in chain(params.items(), kwargs.items())
+        if v is not None
+    }
 
 
 def collect_doc_classes(expr):

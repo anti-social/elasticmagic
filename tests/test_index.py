@@ -57,11 +57,12 @@ class IndexTest(BaseTestCase):
                 }
             }
         )
-        doc = self.index.get(111, doc_type='tweet')
+        doc = self.index.get(111, doc_type='tweet', ignore=[404])
         self.client.get.assert_called_with(
             index='test',
             doc_type='tweet',
-            id=111
+            id=111,
+            ignore=[404],
         )
         self.assertIsInstance(doc, DynamicDocument)
         self.assertEqual(doc._id, '111')
