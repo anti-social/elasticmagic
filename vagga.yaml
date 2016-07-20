@@ -1,7 +1,7 @@
 containers:
   py2-test:
     setup:
-      - !UbuntuRelease { version: 15.10 }
+      - !Ubuntu xenial
       - !PipConfig
         dependencies: true
       - !Py2Requirements requirements.txt      
@@ -10,7 +10,7 @@ containers:
 
   py3-test:
     setup:
-      - !UbuntuRelease { version: 15.10 }
+      - !Ubuntu xenial
       - !PipConfig
         dependencies: true
       - !Py3Requirements requirements.txt      
