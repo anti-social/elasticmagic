@@ -662,8 +662,6 @@ class OrderingFilter(BaseFilter):
     def __init__(self, name, *values, **kwargs):
         super(OrderingFilter, self).__init__(name, alias=kwargs.pop('alias', None))
         self.values = [fv.bind(self) for fv in values]
-        for ordering_value in self.values:
-            ordering_value.filter = self
         self.default_value = self.get_value(kwargs.get('default')) or self.values[0]
         self.selected_value = None
 
