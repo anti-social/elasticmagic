@@ -293,6 +293,11 @@ class IndexTest(BaseTestCase):
             doc_type='car',
             id='test_id',
         )
+
+        self.assertRaises(
+            AssertionError,
+            lambda: self.index.delete('test_id')
+        )
         
     def test_delete_by_query(self):
         self.index.delete_by_query(self.index.car.vendor == 'Ford', doc_type='car', routing='Ford')

@@ -236,11 +236,11 @@ class Cluster(object):
         if isinstance(doc_or_id, Document):
             doc_id = doc_or_id._id
             doc_cls = doc_cls or doc_or_id.__class__
-            doc_type = doc_type or doc_cls.__doc_type__
         else:
             doc_id = doc_or_id
-            doc_type = doc_type or doc_cls.__doc_type__
-        assert doc_type, 'Cannot evaluate doc_type'
+        assert doc_type or (doc_cls and doc_cls.__doc_type__), \
+            'Cannot evaluate doc_type: you must specify doc_type or doc_cls'
+        doc_type = doc_type or doc_cls.__doc_type__
         params = clean_params({
             'timeout': timeout,
             'consistency': consistency,
