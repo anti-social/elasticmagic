@@ -454,6 +454,9 @@ class FieldOperators(object):
     def in_(self, terms, **kwargs):
         return Terms(self, terms, **kwargs)
 
+    def not_in_(self, terms, **kwargs):
+        return Bool.must_not(Terms(self, terms, **kwargs))
+
     def match(self, query, **kwargs):
         return Match(self, query, **kwargs)
 

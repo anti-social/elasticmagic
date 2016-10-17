@@ -6,6 +6,9 @@
 \#*#
 .ropeproject/
 
+#PyCharm
+.idea/
+
 # Distribution / packaging
 build/
 dist/

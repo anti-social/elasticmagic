@@ -66,6 +66,9 @@ class SearchResult(Result):
     def __iter__(self):
         return iter(self.hits)
 
+    def __len__(self):
+        return len(self.hits)
+
     def __getattr__(self, name):
         if self.error and name in ('took', 'timed_out', 'total', 'hits', 'max_score', 'aggregations', 'scroll_id'):
             raise DelayedElasticsearchException(self.error)
