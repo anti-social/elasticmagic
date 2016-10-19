@@ -787,6 +787,27 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
         self.assert_expression(
+            Field('status').not_in_([0, 5, 10]),
+            {
+                "bool": {
+                    "must_not": [{
+                        "terms": {"status": [0, 5, 10]}
+                    }]
+                }
+            }
+        )
+        self.assert_expression(
+            Field('status').not_in_(iter([0, 5, 10])),
+            {
+                "bool": {
+                    "must_not": [{
+                        "terms": {"status": [0, 5, 10]}
+                    }]
+                }
+            }
+        )
+
+        self.assert_expression(
             Field('price') > 99.9,
             {
                 "range": {

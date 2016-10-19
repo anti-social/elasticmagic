@@ -347,3 +347,13 @@ class IndexTest(BaseTestCase):
                 }
             }
         )
+
+    def test_settings(self):
+        self.client.indices.get_settings.return_value = {
+            "version": "latest"
+        }
+        settings = self.index.get_settings()
+        self.assertDictEqual(settings, {
+            "version": "latest"
+        })
+
