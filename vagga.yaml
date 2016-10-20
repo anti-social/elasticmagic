@@ -21,9 +21,18 @@ commands:
   py2-test: !Command
     description: Run tests with Python2
     container: py2-test
-    run: py.test
+    run: [py.test]
 
   py3-test: !Command
     description: Run tests with Python3
     container: py3-test
-    run: py.test
+    run: [py.test]
+
+  _py2-cov: !Command
+    container: py2-test
+    run: [py.test, --cov]
+
+  cover: !Command
+    prerequisites: [_py2-cov]
+    container: py3-test
+    run: [py.test, --cov, --cov-append]
