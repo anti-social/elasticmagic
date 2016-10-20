@@ -308,33 +308,33 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(list(iter(a)), a.buckets)
         self.assertEqual(a.buckets[0].key, 0)
         self.assertEqual(a.buckets[0].doc_count, 7353499)
-        self.assertEqual(str(a.buckets[0]), '<Bucket key=0 doc_count=7353499>')
+        self.assertEqual(repr(a.buckets[0]), '<Bucket key=0 doc_count=7353499>')
 
         self.assertIs(a.buckets[0], a.get_bucket(0))
         self.assertEqual(a.buckets[1].key, 1)
         self.assertEqual(a.buckets[1].doc_count, 2267139)
         self.assertIs(a.buckets[1], a.get_bucket(1))
-        self.assertEqual(str(a.buckets[1]), '<Bucket key=1 doc_count=2267139>')
+        self.assertEqual(repr(a.buckets[1]), '<Bucket key=1 doc_count=2267139>')
 
         self.assertEqual(a.buckets[2].key, 4)
         self.assertEqual(a.buckets[2].doc_count, 1036951)
         self.assertIs(a.buckets[2], a.get_bucket(4))
-        self.assertEqual(str(a.buckets[2]), '<Bucket key=4 doc_count=1036951>')
+        self.assertEqual(repr(a.buckets[2]), '<Bucket key=4 doc_count=1036951>')
 
         self.assertEqual(a.buckets[3].key, 2)
         self.assertEqual(a.buckets[3].doc_count, 438384)
         self.assertIs(a.buckets[3], a.get_bucket(2))
-        self.assertEqual(str(a.buckets[3]), '<Bucket key=2 doc_count=438384>')
+        self.assertEqual(repr(a.buckets[3]), '<Bucket key=2 doc_count=438384>')
 
         self.assertEqual(a.buckets[4].key, 3)
         self.assertEqual(a.buckets[4].doc_count, 9594)
         self.assertIs(a.buckets[4], a.get_bucket(3))
-        self.assertEqual(str(a.buckets[4]), '<Bucket key=3 doc_count=9594>')
+        self.assertEqual(repr(a.buckets[4]), '<Bucket key=3 doc_count=9594>')
 
         self.assertEqual(a.buckets[5].key, 5)
         self.assertEqual(a.buckets[5].doc_count, 46)
         self.assertIs(a.buckets[5], a.get_bucket(5))
-        self.assertEqual(str(a.buckets[5]), '<Bucket key=5 doc_count=46>')
+        self.assertEqual(repr(a.buckets[5]), '<Bucket key=5 doc_count=46>')
 
         a = agg.Terms(f.is_visible, type=Boolean)
         self.assert_expression(

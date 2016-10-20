@@ -6,9 +6,7 @@ from elasticmagic import Cluster, Index
 
 
 class BaseTestCase(unittest.TestCase):
-    def __init__(self, *args, **kwargs):
-        super(BaseTestCase, self).__init__(*args, **kwargs)
-        self.maxDiff = None
+    maxDiff = None
 
     def setUp(self):
         self.client = MagicMock()
@@ -17,4 +15,3 @@ class BaseTestCase(unittest.TestCase):
 
     def assert_expression(self, expr, params):
         self.assertEqual(expr.to_dict(), params)
-

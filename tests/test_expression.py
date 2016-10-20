@@ -787,7 +787,7 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
         self.assert_expression(
-            Field('status').not_in_([0, 5, 10]),
+            Field('status').not_in([0, 5, 10]),
             {
                 "bool": {
                     "must_not": [{
@@ -797,7 +797,7 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
         self.assert_expression(
-            Field('status').not_in_(iter([0, 5, 10])),
+            Field('status').not_in(iter([0, 5, 10])),
             {
                 "bool": {
                     "must_not": [{

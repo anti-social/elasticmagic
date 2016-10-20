@@ -3,8 +3,9 @@ import unittest
 from .base import BaseTestCase
 
 
+@unittest.skip
 class ScriptTest(BaseTestCase):
-    @unittest.skip
+
     def test(self):
         self.assert_expression(
             script.doc[ShopDocument.type].value,

@@ -16,3 +16,5 @@ dist/
 .tox/
 .vagga/
 .cache/
+htmlcov
+.coverage
