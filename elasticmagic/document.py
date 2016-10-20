@@ -141,7 +141,7 @@ class Document(with_metaclass(DocumentMeta)):
         self._index = self._type = self._id = self._score = None
         self._hit_fields = None
         self._highlight = None
-        self._matched_queries = None
+        self.matched_queries = None
         if _hit:
             self._score = _hit.get('_score')
             for attr_field in self._mapping_fields:
@@ -157,7 +157,7 @@ class Document(with_metaclass(DocumentMeta)):
             if _hit.get('highlight'):
                 self._highlight = _hit['highlight']
             if _hit.get('matched_queries'):
-                self._matched_queries = _hit['matched_queries']
+                self.matched_queries = _hit['matched_queries']
 
         for fkey, fvalue in kwargs.items():
             setattr(self, fkey, fvalue)

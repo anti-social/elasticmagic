@@ -41,6 +41,7 @@ class TestDocument(Document):
     tags = Field(List(Object(TagDocument)))
     date_created = Field(Date)
     unused = Field(String)
+    matched_queries = Field(List(String))
 
     __dynamic_fields__ = [
         Field('i_attr_*', Integer),
@@ -115,6 +116,7 @@ class DocumentTestCase(BaseTestCase):
                 TestDocument.tags,
                 TestDocument.date_created,
                 TestDocument.unused,
+                TestDocument.matched_queries,
             ]
         )
         self.assertSameElements(
@@ -127,6 +129,7 @@ class DocumentTestCase(BaseTestCase):
                 TestDocument.tags,
                 TestDocument.date_created,
                 TestDocument.unused,
+                TestDocument.matched_queries,
             ]
         )
         self.assertSameElements(
@@ -349,7 +352,8 @@ class DocumentTestCase(BaseTestCase):
                 },
                 'highlight': {
                     'test_name': '<em>Test</em> name'
-                }
+                },
+                'matched_queries': ['field_1', 'field_2']
             }
         )
         self.assertEqual(hit_doc._id, '123')
@@ -369,6 +373,8 @@ class DocumentTestCase(BaseTestCase):
                          datetime.datetime(2014, 8, 14, 14, 5, 28, 789000, dateutil.tz.tzutc()))
         self.assertIs(hit_doc.unused, None)
         self.assertEqual(hit_doc.get_highlight(), {'test_name': '<em>Test</em> name'})
+        self.assertIn('field_1', hit_doc.matched_queries)
+        self.assertIn('field_2', hit_doc.matched_queries)
 
         hit_doc = TestDocument(
             _hit={
@@ -467,6 +473,7 @@ class DocumentTestCase(BaseTestCase):
                 InheritedDocument.tags,
                 InheritedDocument.date_created,
                 InheritedDocument.unused,
+                InheritedDocument.matched_queries,
                 InheritedDocument.description,
             ]
         )
