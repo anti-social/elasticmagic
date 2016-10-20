@@ -89,7 +89,7 @@ class DocumentMeta(type):
             value = attr_field
 
         super(DocumentMeta, cls).__setattr__(name, value)
-    
+
     @property
     def fields(cls):
         return cls._fields
@@ -141,6 +141,7 @@ class Document(with_metaclass(DocumentMeta)):
         self._index = self._type = self._id = self._score = None
         self._hit_fields = None
         self._highlight = None
+        self._matched_queries = None
         if _hit:
             self._score = _hit.get('_score')
             for attr_field in self._mapping_fields:
@@ -155,6 +156,8 @@ class Document(with_metaclass(DocumentMeta)):
                 self._hit_fields = self._process_fields(_hit['fields'])
             if _hit.get('highlight'):
                 self._highlight = _hit['highlight']
+            if _hit.get('matched_queries'):
+                self._matched_queries = _hit['matched_queries']
 
         for fkey, fvalue in kwargs.items():
             setattr(self, fkey, fvalue)
@@ -195,7 +198,7 @@ class Document(with_metaclass(DocumentMeta)):
             if value:
                 doc_meta[field_name] = value
         return doc_meta
-    
+
     def to_source(self, validate=False):
         res = {}
         for key, value in self.__dict__.items():
@@ -256,4 +259,3 @@ class DynamicDocument(with_metaclass(DynamicDocumentMeta, Document)):
         if isinstance(value, dict):
             return key, DynamicDocument(**value)
         return key, value
-
