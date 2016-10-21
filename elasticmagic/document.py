@@ -31,7 +31,7 @@ class DocumentMeta(type):
         cls._user_fields = OrderedAttributes(defaults=cls._dynamic_defaults)
         cls._mapping_fields = OrderedAttributes()
         cls._dynamic_fields = OrderedAttributes()
-        cls._field_name_map = {}
+        cls._raw_field_names = {}
 
         process_fields = []
 
@@ -84,7 +84,8 @@ class DocumentMeta(type):
             else:
                 cls._user_fields[name] = attr_field
             cls._fields[name] = attr_field
-            cls._field_name_map[field._name] = attr_field
+            print(field._name)
+            cls._raw_field_names[field._name] = (name, attr_field.get_type())
 
             value = attr_field
 
@@ -147,7 +148,13 @@ class Document(with_metaclass(DocumentMeta)):
                 setattr(self, attr_field._attr_name, _hit.get(attr_field._field._name))
             if _hit.get('_source'):
                 for hit_key, hit_value in _hit['_source'].items():
-                    setattr(self, *self._process_source_key_value(hit_key, hit_value))
+                    print(self._raw_field_names.keys())
+                    print(hit_key, hit_key in self._raw_field_names)
+                    if hit_key in self._raw_field_names:
+                        attr_name, field_type = self._raw_field_names[hit_key]
+                        setattr(self, attr_name, field_type.to_python(hit_value))
+                    else:
+                        setattr(self, hit_key, hit_value)
             if _hit.get('fields'):
                 # we cannot construct document from fields
                 # in next example we cannot decide which tag has name and which has not:
@@ -161,11 +168,11 @@ class Document(with_metaclass(DocumentMeta)):
 
         self._result = _result
 
-    def _process_source_key_value(self, key, value):
-        if key in self._field_name_map:
-            attr_field = self._field_name_map[key]
-            return attr_field._attr_name, attr_field._to_python(value)
-        return key, value
+    # def _process_source_key_value(self, key, value):
+    #     attr_name, field_type = self._raw_field_names.get(key)
+    #     if attr_name:
+    #         return attr_name, field_type.to_python(value)
+    #     return key, value
 
     def _process_fields(self, hit_fields):
         processed_fields = {}
@@ -174,10 +181,9 @@ class Document(with_metaclass(DocumentMeta)):
             doc_cls = self.__class__
             field_type = None
             for fname in field_path:
-                attr_field = doc_cls._field_name_map.get(fname)
-                if not attr_field:
+                _, field_type = doc_cls._raw_field_names.get(fname)
+                if field_type:
                     break
-                field_type = attr_field.get_field().get_type()
                 doc_cls = field_type.doc_cls
             if field_type:
                 processed_values = list(map(field_type.to_python, field_values))

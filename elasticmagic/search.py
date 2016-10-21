@@ -2,10 +2,9 @@ import warnings
 import collections
 
 from .compat import zip
-from .util import _with_clone, cached_property, clean_params, merge_params, collect_doc_classes
-from .result import Result
+from .util import _with_clone, cached_property, merge_params, collect_doc_classes
 from .compiler import DefaultCompiler
-from .expression import Expression, ParamsExpression, Params, Filtered, And, Bool, FunctionScore
+from .expression import Expression, ParamsExpression, Params
 
 
 __all__ = ['SearchQuery']
@@ -93,6 +92,8 @@ class SearchQuery(object):
 
     _search_params = Params()
 
+    _doc_processor = None
+    
     _instance_mapper = None
     _iter_instances = False
 
@@ -101,6 +102,7 @@ class SearchQuery(object):
             cluster=None, index=None, doc_cls=None, doc_type=None,
             routing=None, preference=None, timeout=None, search_type=None,
             query_cache=None, terminate_after=None, scroll=None,
+            doc_processor=None,
             _compiler=None, **kwargs
     ):
         self._compiler = _compiler or DefaultCompiler().get_query_compiler()
@@ -128,6 +130,9 @@ class SearchQuery(object):
         )
         if search_params:
             self._search_params = search_params
+
+        if doc_processor:
+            self._doc_processor = doc_processor
 
     def clone(self):
         cls = self.__class__

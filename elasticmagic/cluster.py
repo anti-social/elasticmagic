@@ -124,6 +124,7 @@ class Cluster(object):
         return SearchResult(
             raw_result, q._aggregations,
             doc_cls=q._get_doc_cls(), instance_mapper=q._instance_mapper,
+            doc_processor=q._doc_processor,
         )
 
     def count(self, q, index=None, doc_type=None, routing=None, preference=None, **kwargs):
