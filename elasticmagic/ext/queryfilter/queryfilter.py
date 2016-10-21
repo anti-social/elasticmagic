@@ -3,7 +3,7 @@ import functools
 from math import ceil
 from itertools import chain
 
-from elasticmagic import agg, Params, Term, Terms, MatchAll, Query, Bool, Field, Sort
+from elasticmagic import agg, Params, Term, Terms, MatchAll, Query, Bool, Field, Sort, Nested
 from elasticmagic.attribute import AttributedField
 from elasticmagic.cluster import MAX_RESULT_WINDOW
 from elasticmagic.compat import text_type, string_types, with_metaclass
@@ -287,7 +287,6 @@ class FacetFilter(SimpleFilter):
             }
         else:
             aggs = {self._agg_name: terms_agg}
-
         return search_query.aggregations(**aggs)
 
     def _process_result(self, result, params):
@@ -947,3 +946,327 @@ class GroupedPageFilter(PageFilter):
             self._process_pagination_agg(pagination_agg)
         groups_agg = self._get_groups_agg_result(result)
         self.items = groups_agg.buckets
+
+
+class NestedFacetFilter(BaseFilter):
+
+    def __init__(
+        self, name, path, key_expression, value_field,
+        alias=None, type=None, conj_operator=QueryFilter.CONJ_OR,
+        instance_mapper=None, get_title=None, **kwargs
+    ):
+        super(NestedFacetFilter, self).__init__(name, alias=alias)
+        self._instance_mapper = instance_mapper
+        self._get_title = get_title
+        self._agg_kwargs = kwargs
+        self._conj_operator = conj_operator
+
+        self.type = instantiate(type or value_field.get_type())
+        self.key_expression = key_expression
+        self.value_field = value_field
+        self.path = path
+
+        self.values = []
+        self.selected_values = []
+        self.all_values = []
+        self.values_map = {}
+
+    def _reset(self):
+        self.values = []
+        self.selected_values = []
+        self.all_values = []
+        self.values_map = {}
+
+    @property
+    def _types(self):
+        return {self.alias: self.type}
+
+    @staticmethod
+    def _get_values_from_params(params):
+        values = params.get('exact', [])
+        return list(filter(is_not_none, map(first, values)))
+
+    def _get_expression(self, params):
+        values = self._get_values_from_params(params.get(self.alias, {}))
+        if not values:
+            return None
+
+        if len(values) == 1:
+            return Nested(
+                path=self.path,
+                query=Bool.must(
+                    self.key_expression,
+                    self.value_field == values[0]
+                )
+            )
+
+        expressions = [self.key_expression]
+        if self._conj_operator == QueryFilter.CONJ_AND:
+            expressions.append(*(self.value_field == v for v in values))
+        else:
+            expressions.append(self.value_field.in_(values))
+
+        return Nested(
+            path=self.path,
+            query=Bool.must(*expressions)
+        )
+
+    def _apply_filter(self, search_query, params):
+        expr = self._get_expression(params)
+        if expr is None:
+            return search_query
+        return search_query.post_filter(expr, meta={'tags': {self.name}})
+
+    @property
+    def _agg_name(self):
+        return '{}.{}'.format(self.qf._name, self.name)
+
+    @property
+    def _filter_agg_name(self):
+        return '{}.{}.filter'.format(self.qf._name, self.name)
+
+    @property
+    def _filter_key_agg_name(self):
+        return '{}.{}.key'.format(self.qf._name, self.name)
+
+    @property
+    def _filter_value_agg_name(self):
+        return '{}.{}.value'.format(self.qf._name, self.name)
+
+    def _apply_agg(self, search_query):
+        exclude_tags = {self.qf._name}
+        if self._conj_operator == QueryFilter.CONJ_OR:
+            exclude_tags.add(self.name)
+
+        filters = self._get_agg_filters(
+            search_query.get_context().iter_post_filters_with_meta(), exclude_tags
+        )
+
+        terms_agg = agg.Nested(path=self.path, aggs={
+            self._filter_key_agg_name: agg.Filter(
+                self.key_expression,
+                aggs={
+                    self._filter_value_agg_name: agg.Terms(
+                        self.value_field,
+                        instance_mapper=self._instance_mapper,
+                        **self._agg_kwargs
+                    )
+                },
+                **self._agg_kwargs
+            )
+        })
+        if filters:
+            aggs = {
+                self._filter_agg_name: agg.Filter(
+                    Bool.must(*filters), aggs={self._agg_name: terms_agg}
+                )
+            }
+        else:
+            aggs = {self._agg_name: terms_agg}
+
+        return search_query.aggregations(**aggs)
+
+    def _process_result(self, result, params):
+        values = self._get_values_from_params(params.get(self.alias, {}))
+
+        if result.get_aggregation(self._filter_agg_name):
+            terms_agg = (
+                result
+                .get_aggregation(self._filter_agg_name)
+                .get_aggregation(self._agg_name)
+                .get_aggregation(self._filter_key_agg_name)
+                .get_aggregation(self._filter_value_agg_name)
+            )
+        else:
+            terms_agg = (
+                result
+                .get_aggregation(self._agg_name)
+                .get_aggregation(self._filter_key_agg_name)
+                .get_aggregation(self._filter_value_agg_name)
+            )
+
+        processed_values = set()
+        for bucket in terms_agg.buckets:
+            if bucket.key in values:
+                self.qf._set_selected(self.name, bucket.key)
+            self.qf._set_value_data(self.name, bucket.key, {'bucket': bucket})
+            self.add_value(FacetValue(bucket.key, _filter=self))
+            processed_values.add(bucket.key)
+
+        for v in values:
+            if v not in processed_values:
+                fake_agg_data = {'key': v, 'doc_count': None}
+                fake_bucket = terms_agg.bucket_cls(
+                    fake_agg_data, terms_agg.expr.aggs(None), terms_agg
+                )
+                terms_agg.add_bucket(fake_bucket)
+                self.qf._set_selected(self.name, fake_bucket.key)
+                self.qf._set_value_data(self.name, fake_bucket.key, {'bucket': fake_bucket})
+                self.add_value(FacetValue(fake_bucket.key).bind(self))
+
+    def add_value(self, fv):
+        self.all_values.append(fv)
+        self.values_map[fv.value] = fv
+        if fv.selected:
+            self.selected_values.append(fv)
+        else:
+            self.values.append(fv)
+
+    def get_value(self, value):
+        return self.values_map.get(value)
+
+
+class NestedRangeFilter(BaseFilter):
+
+    def __init__(
+            self, name, path, key_expression, value_field, alias=None,
+            type=None, compute_enabled=True, compute_min_max=None,
+    ):
+        super(NestedRangeFilter, self).__init__(name, alias=alias)
+
+        self.type = instantiate(type or value_field.get_type())
+        self.key_expression = key_expression
+        self.value_field = value_field
+        self.path = path
+
+        self._compute_enabled = compute_enabled
+        self._compute_min_max = compute_min_max
+        self.from_value = None
+        self.to_value = None
+        self.enabled = None
+        self.min = None
+        self.max = None
+
+    def _reset(self):
+        self.from_value = None
+        self.to_value = None
+        self.enabled = None
+        self.min = None
+        self.max = None
+
+    @property
+    def _types(self):
+        return {self.alias: self.type}
+
+    @property
+    def _filter_agg_name(self):
+        return '{}.{}.filter'.format(self.qf._name, self.name)
+
+    @property
+    def _filter_key_agg_name(self):
+        return '{}.{}.key'.format(self.qf._name, self.name)
+
+    @property
+    def _filter_value_agg_name(self):
+        return '{}.{}.value'.format(self.qf._name, self.name)
+
+    @property
+    def _min_agg_name(self):
+        return '{}.{}.min'.format(self.qf._name, self.name)
+
+    @property
+    def _max_agg_name(self):
+        return '{}.{}.max'.format(self.qf._name, self.name)
+
+    @property
+    def _enabled_agg_name(self):
+        return '{}.{}.enabled'.format(self.qf._name, self.name)
+
+    @property
+    def _enabled_agg_name_stat(self):
+        return '{}.{}.enabled.stat'.format(self.qf._name, self.name)
+
+    @staticmethod
+    def _get_from_value(params):
+        from_values = params.get('gte')
+        return from_values[0][0] if from_values else None
+
+    @staticmethod
+    def _get_to_value(params):
+        to_values = params.get('lte')
+        return to_values[0][0] if to_values else None
+
+    def _apply_filter(self, search_query, params):
+        params = params.get(self.alias) or {}
+        self.from_value = self._get_from_value(params)
+        self.to_value = self._get_to_value(params)
+        if self.from_value is None and self.to_value is None:
+            return search_query
+
+        expr = Nested(
+            path=self.path,
+            query=Bool.must(
+                self.key_expression,
+                self.value_field.range(gte=self.from_value, lte=self.to_value),
+            )
+        )
+        return search_query.post_filter(expr, meta={'tags': {self.name}})
+
+    def _apply_agg(self, search_query):
+        filters = self._get_agg_filters(
+            search_query.get_context().iter_post_filters_with_meta(), {self.qf._name, self.name}
+        )
+
+        aggs = {}
+        if self._compute_enabled:
+            aggs.update({
+                self._enabled_agg_name: agg.Nested(
+                    path=self.path,
+                    aggs={
+                        self._filter_key_agg_name: agg.Filter(
+                            self.key_expression,
+                            aggs={
+                                self._filter_value_agg_name: agg.Filter(
+                                    self.value_field != None
+                                )
+                            }
+                        )
+                    }
+                )
+            })
+        if self._compute_min_max:
+            stat_aggs = {
+                self._enabled_agg_name_stat: agg.Nested(
+                    path=self.path,
+                    aggs={
+                        self._filter_key_agg_name: agg.Filter(
+                            self.key_expression,
+                            aggs={
+                                self._min_agg_name: agg.Min(self.value_field),
+                                self._max_agg_name: agg.Max(self.value_field),
+                            }
+                        )
+                    }
+                )
+            }
+            if filters:
+                aggs.update({
+                    self._filter_agg_name: agg.Filter(Bool.must(*filters), aggs=stat_aggs)
+                })
+            else:
+                aggs.update(stat_aggs)
+
+        return search_query.aggregations(**aggs)
+
+    def _process_result(self, result, params):
+        if result.get_aggregation(self._filter_agg_name):
+            base_agg = result.get_aggregation(self._filter_agg_name)
+        else:
+            base_agg = result
+
+        if self._compute_enabled:
+            self.enabled = bool(
+                result
+                .get_aggregation(self._enabled_agg_name)
+                .get_aggregation(self._filter_key_agg_name)
+                .get_aggregation(self._filter_value_agg_name)
+                .doc_count
+            )
+        if self._compute_min_max:
+            base_agg = (
+                base_agg
+                .get_aggregation(self._enabled_agg_name_stat)
+                .get_aggregation(self._filter_key_agg_name)
+            )
+            self.min = base_agg.get_aggregation(self._min_agg_name).value
+            self.max = base_agg.get_aggregation(self._max_agg_name).value

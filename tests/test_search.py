@@ -858,6 +858,7 @@ class SearchQueryTest(BaseTestCase):
         )
         self.assertEqual(collect_doc_classes(sq), {CarDocument})
         results = sq.result
+        self.assertEquals(len(results), 2)
 
         self.client.search.assert_called_with(
             index='test',
@@ -961,6 +962,7 @@ class SearchQueryTest(BaseTestCase):
             }
         )
         results = sq.result
+        self.assertEquals(len(results), 2)
 
         self.client.search.assert_called_with(
             index='test',
