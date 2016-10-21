@@ -4,8 +4,8 @@ containers:
       - !Ubuntu xenial
       - !PipConfig
         dependencies: true
-      - !Py2Requirements requirements.txt      
-      - !Py2Requirements requirements_geo.txt      
+      - !Py2Requirements requirements.txt
+      - !Py2Requirements requirements_geo.txt
       - !Py2Requirements requirements_test.txt
 
   py3-test:
@@ -13,9 +13,20 @@ containers:
       - !Ubuntu xenial
       - !PipConfig
         dependencies: true
-      - !Py3Requirements requirements.txt      
-      - !Py3Requirements requirements_geo.txt      
+      - !Py3Requirements requirements.txt
+      - !Py3Requirements requirements_geo.txt
       - !Py3Requirements requirements_test.txt
+
+  bench:
+    environ:
+      HOME: /work
+      PYTHONPATH: /work
+    setup:
+      - !Alpine v3.4
+      - !PipConfig
+        dependencies: true
+      - !Py3Requirements requirements.txt
+      - !Py3Install [coverage]
 
 commands:
   py2-test: !Command
@@ -36,3 +47,8 @@ commands:
     prerequisites: [_py2-cov]
     container: py3-test
     run: [py.test, --cov, --cov-append]
+
+  bench: !Command
+    description: Run benchmarks
+    container: bench
+    run: [python3, benchmark/run.py]
