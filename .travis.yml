@@ -19,5 +19,9 @@ install:
 - pip install -r requirements_test.txt
 - pip install python-geohash==0.8.5
 - pip install -e .
+- pip install codecov
 
 script: py.test -v --cov
+
+after_success:
+- codecov
