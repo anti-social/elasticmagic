@@ -44,3 +44,35 @@ class FlaskPaginationTest(BaseTestCase):
             self.assertEqual(page, check_page)
 
         self.assertEqual(self.client.search.call_count, 1)
+
+    def test_wrapper(self):
+        self.client.search = MagicMock(
+            return_value={
+                "hits": {
+                    "max_score": 1,
+                    "total": 28,
+                    "hits": [
+                        {
+                            "_id": "333",
+                            "_type": "car",
+                            "_score": 1
+                        },
+                        {
+                            "_id": "444",
+                            "_type": "car",
+                            "_score": 1
+                        }
+                    ]
+                }
+            }
+        )
+
+        sq = self.index.search_query(doc_cls=self.index.car)
+        wrapper = SearchQueryWrapper(sq)
+        self.assertRaises(ValueError, lambda: wrapper[None])
+        self.assertRaises(ValueError, lambda: [d for d in wrapper])
+        self.assertRaises(ValueError, lambda: len(wrapper))
+        self.assertRaises(ValueError, lambda: wrapper.result)
+        self.assertEqual(len(wrapper[:2]), 2)
+        self.assertEqual(len([d for d in wrapper]), 2)
+        self.assertEqual(len(wrapper.result.hits), 2)

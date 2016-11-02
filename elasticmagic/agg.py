@@ -277,6 +277,13 @@ class Bucket(object):
         self.parent._populate_instances()
         return self.__dict__['instance']
 
+    def __repr__(self):
+        return "<{} key={} doc_count={}>".format(
+            self.__class__.__name__,
+            self.key,
+            self.doc_count
+        )
+
 
 class MultiBucketAggResult(AggResult):
     bucket_cls = Bucket

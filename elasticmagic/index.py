@@ -33,6 +33,9 @@ class Index(object):
     def get_cluster(self):
         return self._cluster
 
+    def get_settings(self):
+        return self._cluster._client.indices.get_settings(index=self._name)
+
     def search_query(self, *args, **kwargs):
         kwargs['index'] = self
         kwargs.setdefault('_compiler', self._cluster._compiler.get_query_compiler())
