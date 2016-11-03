@@ -4,10 +4,9 @@
 Search Query API
 ================
 
-.. testsetup:: python
+.. testsetup:: *
 
    import datetime
-   import pprint
    
    from elasticmagic import SearchQuery
    from elasticmagic import DynamicDocument

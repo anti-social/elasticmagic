@@ -65,6 +65,14 @@ class Highlight(Expression):
 
 
 class SearchQuery(object):
+    """Elasticsearch search query construction object.
+
+    :class:`.SearchQuery` object is usually instantiated by calling
+    :func:`Index.search_query()` method.
+
+    See :func:`Index.search_query()` for more details.
+    """
+
     __visit_name__ = 'search_query'
 
     _q = None
@@ -100,7 +108,7 @@ class SearchQuery(object):
             self, q=None,
             cluster=None, index=None, doc_cls=None, doc_type=None,
             routing=None, preference=None, timeout=None, search_type=None,
-            query_cache=None, terminate_after=None, scroll=None,
+            request_cache=None, terminate_after=None, scroll=None,
             _compiler=None, **kwargs
     ):
         self._compiler = _compiler or DefaultCompiler().get_query_compiler()
@@ -121,7 +129,7 @@ class SearchQuery(object):
             preference=preference,
             timeout=timeout,
             search_type=search_type,
-            query_cache=query_cache,
+            request_cache=request_cache,
             terminate_after=terminate_after,
             scroll=scroll,
             **kwargs
@@ -169,18 +177,19 @@ class SearchQuery(object):
 
     @_with_clone
     def filter(self, *filters, **kwargs):
-        """Adds a filters into elasticsearch filter context.
+        """Adds a filters into elasticsearch
+        `filter context <https://www.elastic.co/guide/en/elasticsearch/reference/current/query-filter-context.html>`_.
 
         Multiple expressions may be specified, so they will be joined together
         using ``Bool.must`` expression.
 
         Returns new :class:`.SearchQuery` object with applied filters.
 
-        .. testcode:: python
+        .. testcode:: filter
 
            search_query = search_query.filter(
                PostDocument.status == 'published',
-               PostDocument.publish_date >= datetime.date(2015, 1, 1)
+               PostDocument.publish_date >= datetime.date(2015, 1, 1),
            )
            assert search_query.to_dict() == {
                'query': {
@@ -194,6 +203,17 @@ class SearchQuery(object):
                                    {
                                        'range': {
                                            'publish_date': {'gte': datetime.date(2015, 1, 1)}}}]}}}}}
+
+        Filter expression can be a python dictionary object:
+
+        .. testcode:: filter
+
+           search_query = search_query.filter(
+               {'term': {PostDocument.status: 'published'}}
+           )
+           # the same as
+           search_query = search_query.filter({'term': {'status': 'published'}})
+
         """
         meta = kwargs.pop('meta', None)
         self._filters = self._filters + filters
@@ -201,12 +221,42 @@ class SearchQuery(object):
 
     @_with_clone
     def post_filter(self, *filters, **kwargs):
+        """Adds a filters into elasticsearch
+        `post filter context <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-post-filter.html>`_.
+
+        All parameters have the same meaning as for
+        :meth:`.filter` method.
+        """
         meta = kwargs.pop('meta', None)
         self._post_filters = self._post_filters + filters
         self._post_filters_meta = self._post_filters_meta + (meta,) * len(filters)
 
     @_with_clone
     def order_by(self, *orders):
+        """Apply sorting criterion to the search query. Corresponds elasticsearch's
+        `sort <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-sort.html>`_.
+
+        .. testcode:: order_by
+
+           search_query = search_query.order_by(
+               PostDocument.publish_date.desc(),
+               PostDocument._score,
+           )
+           assert search_query.to_dict() == {
+               'sort': [
+                   {'publish_date': 'desc'},
+                   '_score'
+               ]
+           }
+
+        When called with single ``None`` argument clears any sorting criterion
+        applied before:
+
+        .. testcode:: order_by
+
+           search_query = search_query.order_by(None)
+           assert search_query.to_dict() == {}
+        """
         if len(orders) == 1 and orders[0] is None:
             if '_order_by' in self.__dict__:
                 del self._order_by
@@ -326,8 +376,8 @@ class SearchQuery(object):
     def with_search_type(self, search_type):
         return self.with_search_params(search_type=search_type)
 
-    def with_query_cache(self, query_cache):
-        return self.with_search_params(query_cache=query_cache)
+    def with_request_cache(self, request_cache):
+        return self.with_search_params(request_cache=request_cache)
 
     def with_terminate_after(self, terminate_after):
         return self.with_search_params(terminate_after=terminate_after)
