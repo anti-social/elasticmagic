@@ -154,12 +154,12 @@ And finally make request and process result:
 .. testcode:: python
 
    for doc in search_query:
-       print(doc._id, doc.name)
+       print('{}: {}'.format(doc._id, doc.name))
 
 .. testoutput:: python
    :hide:
 
-   ('1234', u"Lego Ninjago Cole's dragon")
+   1234: Lego Ninjago Cole's dragon
 
 .. testcode:: python
    :hide:
@@ -187,14 +187,14 @@ Let's build a histogram by price:
    )
 
    for bucket in search_query.get_result().get_aggregation('prices').buckets:
-       print(bucket.key, bucket.doc_count)
+       print('{} ({})'.format(bucket.key, bucket.doc_count))
 
 .. testoutput:: python
    :hide:
 
-   (0, 4)
-   (20, 35)
-   (40, 7)
+   0 (4)
+   20 (35)
+   40 (7)
 
 .. testcode:: python
    :hide:
