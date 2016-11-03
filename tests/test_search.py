@@ -805,7 +805,7 @@ class SearchQueryTest(BaseTestCase):
         class CarSellerDocument(Document):
             name = Field(Object(NameDocument))
             rating = Field(Float)
-        
+
         class CarDocument(Document):
             __doc_type__ = 'car'
 
@@ -813,7 +813,7 @@ class SearchQueryTest(BaseTestCase):
             model = Field(String)
             year = Field(Integer)
             seller = Field(Object(CarSellerDocument))
-            
+
         self.client.search = MagicMock(
             return_value={
                 'hits': {
@@ -857,7 +857,7 @@ class SearchQueryTest(BaseTestCase):
             .with_instance_mapper(obj_mapper)
         )
         self.assertEqual(collect_doc_classes(sq), {CarDocument})
-        results = sq.result
+        results = sq.get_result()
         self.assertEquals(len(results), 2)
 
         self.client.search.assert_called_with(
@@ -878,8 +878,8 @@ class SearchQueryTest(BaseTestCase):
             search_type='dfs_query_then_fetch',
         )
 
-        self.assertEqual(len(sq.result.hits), 2)
-        doc = sq.result.hits[0]
+        self.assertEqual(len(sq.get_result().hits), 2)
+        doc = sq.get_result().hits[0]
         self.assertIsInstance(doc, CarDocument)
         self.assertEqual(doc._id, '31888815')
         self.assertEqual(doc._type, 'car')
@@ -890,7 +890,7 @@ class SearchQueryTest(BaseTestCase):
         self.assertEqual(doc.year, 2004)
         self.assertEqual(doc.instance.id, 31888815)
         self.assertEqual(doc.instance.name, '31888815:31888815')
-        doc = sq.result.hits[1]
+        doc = sq.get_result().hits[1]
         self.assertIsInstance(doc, CarDocument)
         self.assertEqual(doc._id, '987321')
         self.assertEqual(doc._type, 'car')
@@ -909,7 +909,7 @@ class SearchQueryTest(BaseTestCase):
 
         def customer_mapper(ids):
             return {id: '{0}:{0}'.format(id) for id in ids}
-        
+
         sq = (
             self.index.query(
                 self.index.seller.name.first.match('Alex'),
@@ -961,7 +961,7 @@ class SearchQueryTest(BaseTestCase):
                 'took': 25
             }
         )
-        results = sq.result
+        results = sq.get_result()
         self.assertEquals(len(results), 2)
 
         self.client.search.assert_called_with(
@@ -982,8 +982,8 @@ class SearchQueryTest(BaseTestCase):
             },
         )
 
-        self.assertEqual(len(sq.result.hits), 2)
-        doc = sq.result.hits[0]
+        self.assertEqual(len(sq.get_result().hits), 2)
+        doc = sq.get_result().hits[0]
         self.assertIsInstance(doc, self.index.customer)
         self.assertEqual(doc._id, '3')
         self.assertEqual(doc._type, 'customer')
@@ -993,7 +993,7 @@ class SearchQueryTest(BaseTestCase):
         self.assertEqual(doc.name.last, 'Exler')
         self.assertEqual(doc.birthday, '1966-10-04')
         self.assertEqual(doc.instance, '3:3')
-        doc = sq.result.hits[1]
+        doc = sq.get_result().hits[1]
         self.assertIsInstance(doc, self.index.seller)
         self.assertEqual(doc._id, '21')
         self.assertEqual(doc._type, 'seller')
@@ -1022,7 +1022,7 @@ class SearchQueryTest(BaseTestCase):
             self.index.search_query(search_type='scan', scroll='1m')
             .limit(1000)
         )
-        result = sq.result
+        result = sq.get_result()
 
         self.client.search.assert_called_with(
             index='test',

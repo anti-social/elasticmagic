@@ -156,7 +156,7 @@ class Cluster(object):
             doc_cls=doc_cls,
             instance_mapper=instance_mapper,
         )
-    
+
     def multi_search(self, queries, index=None, doc_type=None, 
                      routing=None, preference=None, search_type=None,
                      raise_on_error=None, **kwargs):
@@ -186,7 +186,7 @@ class Cluster(object):
                 doc_cls=q._get_doc_cls(),
                 instance_mapper=q._instance_mapper
             )
-            q.__dict__['result'] = result
+            q.__dict__['_result'] = result
             if result.error:
                 errors.append(result.error)
 
@@ -202,7 +202,7 @@ class Cluster(object):
                 error_msg = '{} queries were failed'.format(len(errors))
             raise MultiSearchError(error_msg, errors)
 
-        return [q.result for q in queries]
+        return [q._result for q in queries]
 
     msearch = multi_search
 
