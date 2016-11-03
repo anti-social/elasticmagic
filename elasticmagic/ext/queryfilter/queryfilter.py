@@ -910,7 +910,7 @@ class GroupedPageFilter(PageFilter):
             .aggs(**aggs)
         )
 
-        pagination_agg_res = self._get_pagination_agg_result(sq.result)
+        pagination_agg_res = self._get_pagination_agg_result(sq.get_result())
         self._process_pagination_agg(pagination_agg_res)
         values = [
             group_bucket.key for group_bucket in pagination_agg_res.buckets
