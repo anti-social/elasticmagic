@@ -7,6 +7,17 @@ Quick Start
    from mock import patch
 
    from elasticsearch import Elasticsearch
+   from elasticsearch.client import IndicesClient
+
+   put_mapping_patch = patch.object(IndicesClient, 'put_mapping')
+
+   index_patch = patch.object(Elasticsearch, 'bulk',
+       return_value={
+           'took': 5,
+           'errors': False,
+           'items': [],
+       }
+   )
                
    search_hits_patch = patch.object(Elasticsearch, 'search',
        return_value={
@@ -25,6 +36,25 @@ Quick Start
                        }
                    }
                ],
+           }
+       }
+   )
+
+   search_aggs_patch = patch.object(Elasticsearch, 'search',
+       return_value={
+           'hits': {
+               'total': 1,
+               'max_score': 1,
+               'hits': [],
+           },
+           'aggregations': {
+               'prices': {
+                   'buckets': [
+                       {'key': 0, 'doc_count': 4},
+                       {'key': 20, 'doc_count': 35},
+                       {'key': 40, 'doc_count': 7},
+                   ]
+               }
            }
        }
    )
@@ -56,6 +86,50 @@ Let's describe elasticsearch document:
        })
        status = Field(Integer)
        price = Field(Float)
+
+To create or update document mapping just run:
+
+.. testcode:: python
+   :hide:
+
+   put_mapping_patch.__enter__()
+
+.. testcode:: python
+
+   es_index.put_mapping(ProductDocument)
+
+.. testcode:: python
+   :hide:
+
+   put_mapping_patch.__exit__()
+
+Try to reindex some documents:
+
+.. testcode:: python
+   :hide:
+
+   index_patch.__enter__()
+
+.. testcode:: python
+
+   from decimal import Decimal
+
+   doc1 = ProductDocument(
+       name="Lego Ninjago Cole's dragon",
+       status=0,
+       price=Decimal('10.99'),
+   )
+   doc2 = ProductDocument()
+   doc2.name = 'Lego minifigure'
+   doc2.status = 1
+   doc2.price = Decimal('2.50')
+   result = es_index.add([doc1, doc2])
+   assert result.errors == False
+
+.. testcode:: python
+   :hide:
+
+   index_patch.__exit__()
 
 Now we can build query:
 
@@ -89,3 +163,38 @@ And finally make request and process result:
    :hide:
 
    search_hits_patch.__exit__()
+
+Let's build a histogram by price:
+
+.. testcode:: python
+   :hide:
+
+   search_aggs_patch.__enter__()
+
+.. testcode:: python
+
+   from elasticmagic import agg
+
+   search_query = (
+       es_index.search_query()
+       .filter(ProductDocument.status == 0)
+       .aggs({
+           'prices': agg.Histogram(ProductDocument.price, interval=20)
+       })
+       .limit(0)
+   )
+
+   for bucket in search_query.get_result().get_aggregation('prices').buckets:
+       print(bucket.key, bucket.doc_count)
+
+.. testoutput:: python
+   :hide:
+
+   (0, 4)
+   (20, 35)
+   (40, 7)
+
+.. testcode:: python
+   :hide:
+
+   search_aggs_patch.__exit__()
