@@ -169,6 +169,32 @@ class SearchQuery(object):
 
     @_with_clone
     def filter(self, *filters, **kwargs):
+        """Adds a filters into elasticsearch filter context.
+
+        Multiple expressions may be specified, so they will be joined together
+        using ``Bool.must`` expression.
+
+        Returns new :class:`.SearchQuery` object with applied filters.
+
+        .. testcode:: python
+
+           search_query = search_query.filter(
+               PostDocument.status == 'published',
+               PostDocument.publish_date >= datetime.date(2015, 1, 1)
+           )
+           assert search_query.to_dict() == {
+               'query': {
+                   'filtered': {
+                       'filter': {
+                           'bool': {
+                               'must': [
+                                   {
+                                       'term': {
+                                           'status': 'published'}},
+                                   {
+                                       'range': {
+                                           'publish_date': {'gte': datetime.date(2015, 1, 1)}}}]}}}}}
+        """
         meta = kwargs.pop('meta', None)
         self._filters = self._filters + filters
         self._filters_meta = self._filters_meta + (meta,) * len(filters)
@@ -378,15 +404,11 @@ class SearchQuery(object):
 
     @property
     def result(self):
-        '''Deprecated!!!
-        '''
         warnings.warn('Field "result" is deprecated', DeprecationWarning)
         return self.get_result()
 
     @property
     def results(self):
-        '''Deprecated!!!
-        '''
         warnings.warn('Field "results" is deprecated', DeprecationWarning)
         return self.get_result()
 

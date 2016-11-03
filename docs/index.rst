@@ -12,12 +12,10 @@ Contents:
    :maxdepth: 2
 
    quick_start
+   search_api
 
 
 Indices and tables
 ==================
 
 * :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
-
