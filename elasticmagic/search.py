@@ -1,5 +1,5 @@
-import warnings
 import collections
+import warnings
 
 from .compat import zip
 from .util import _with_clone, cached_property, clean_params, merge_params, collect_doc_classes
@@ -166,7 +166,7 @@ class SearchQuery(object):
                 del self._q
         else:
             self._q = q
-        
+
     @_with_clone
     def filter(self, *filters, **kwargs):
         meta = kwargs.pop('meta', None)
@@ -364,7 +364,7 @@ class SearchQuery(object):
         return SearchQueryContext(self, compiler or self._compiler)
 
     @cached_property
-    def result(self):
+    def _result(self):
         doc_cls = self._get_doc_cls()
         doc_type = self._get_doc_type(doc_cls)
         return (self._index or self._cluster).search(
@@ -373,9 +373,22 @@ class SearchQuery(object):
             **(self._search_params or {})
         )
 
+    def get_result(self):
+        return self._result
+
+    @property
+    def result(self):
+        '''Deprecated!!!
+        '''
+        warnings.warn('Field "result" is deprecated', DeprecationWarning)
+        return self.get_result()
+
     @property
     def results(self):
-        return self.result
+        '''Deprecated!!!
+        '''
+        warnings.warn('Field "results" is deprecated', DeprecationWarning)
+        return self.get_result()
 
     def count(self):
         res = self._index.count(
@@ -405,15 +418,19 @@ class SearchQuery(object):
 
     def __iter__(self):
         if self._iter_instances:
-            return iter(doc.instance for doc in self.result.hits if doc.instance)
-        return iter(self.result)
+            return iter(
+                doc.instance
+                for doc in self.get_result().hits
+                if doc.instance
+            )
+        return iter(self.get_result())
 
     def __getitem__(self, k):
         if not isinstance(k, (slice, int)):
             raise TypeError
 
         if 'results' in self.__dict__:
-            docs = self.result.hits[k]
+            docs = self.get_result().hits[k]
         else:
             if isinstance(k, slice):
                 start, stop = k.start, k.stop
@@ -427,7 +444,7 @@ class SearchQuery(object):
                         clone._limit = stop - start
                 return clone
             else:
-                docs = self.result.hits[k]
+                docs = self.get_result().hits[k]
         if self._iter_instances:
             return [doc.instance for doc in docs if doc.instance]
         return docs
@@ -436,7 +453,7 @@ class SearchQuery(object):
 class SearchQueryContext(object):
     def __init__(self, search_query, compiler):
         self.compiler = compiler
-        
+
         self.q = search_query._q
         self.source = search_query._source
         self.fields = search_query._fields

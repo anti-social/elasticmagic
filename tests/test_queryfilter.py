@@ -296,7 +296,7 @@ class QueryFilterTest(BaseTestCase):
         )
 
         self.client.search = MagicMock(
-           return_value={
+            return_value={
                 "hits": {
                     "hits": [],
                     "max_score": 1.829381,
@@ -329,8 +329,7 @@ class QueryFilterTest(BaseTestCase):
                                 {
                                     "key": "Subaru",
                                     "doc_count": 2153,
-                                    "min_price": {"value": 4000}
-                                        ,
+                                    "min_price": {"value": 4000},
                                 },
                             ]
                         }
@@ -354,7 +353,7 @@ class QueryFilterTest(BaseTestCase):
             }
         )
 
-        qf.process_results(sq.result)
+        qf.process_results(sq.get_result())
 
         type_filter = qf.type
         self.assertEqual(len(type_filter.selected_values), 3)
@@ -650,7 +649,7 @@ class QueryFilterTest(BaseTestCase):
                 }
             }
         )
-        qf.process_results(sq.result)
+        qf.process_results(sq.get_result())
 
         price_filter = qf.price
         self.assertEqual(price_filter.enabled, True)
@@ -718,7 +717,7 @@ class QueryFilterTest(BaseTestCase):
                 }
             }
         )
-        qf.process_results(sq.result)
+        qf.process_results(sq.get_result())
 
         price_filter = qf.price
         self.assertEqual(price_filter.enabled, True)
@@ -732,7 +731,7 @@ class QueryFilterTest(BaseTestCase):
         self.assertAlmostEqual(disp_filter.max, 3.0)
         self.assertIs(disp_filter.from_value, None)
         self.assertIs(disp_filter.to_value, None)
-        
+
     def test_simple_query_filter(self):
         class CarQueryFilter(QueryFilter):
             is_new = SimpleQueryFilter(
@@ -970,7 +969,7 @@ class QueryFilterTest(BaseTestCase):
                 }
             }
         )
-        qf.process_results(sq.result)
+        qf.process_results(sq.get_result())
         self.assertEqual(len(qf.is_new.all_values), 1)
         self.assertEqual(len(qf.is_new.selected_values), 1)
         self.assertEqual(len(qf.is_new.values), 0)
@@ -1130,7 +1129,7 @@ class QueryFilterTest(BaseTestCase):
                 }
             }
         )
-        qf.process_results(sq.result)
+        qf.process_results(sq.get_result())
         self.assertEqual(len(qf.is_new.all_values), 1)
         self.assertEqual(len(qf.is_new.selected_values), 0)
         self.assertEqual(len(qf.is_new.values), 1)
@@ -1362,7 +1361,7 @@ class QueryFilterTest(BaseTestCase):
                 }
             }
         )
-        qf.process_results(sq.result)
+        qf.process_results(sq.get_result())
         self.assertEqual(qf.page.offset, 20)
         self.assertEqual(qf.page.limit, 10)
         self.assertEqual(qf.page.total, 105)
@@ -1808,7 +1807,7 @@ class QueryFilterTest(BaseTestCase):
                 }
             }
         )
-        qf.process_results(sq.result)
+        qf.process_results(sq.get_result())
         self.assertEqual(qf.page.total, 6)
         self.assertEqual(qf.page.page, 2)
         self.assertEqual(qf.page.pages, 3)
