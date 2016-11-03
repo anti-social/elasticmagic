@@ -208,10 +208,6 @@ class SearchQuery(object):
 
         .. testcode:: filter
 
-           search_query = search_query.filter(
-               {'term': {PostDocument.status: 'published'}}
-           )
-           # the same as
            search_query = search_query.filter({'term': {'status': 'published'}})
 
         """
