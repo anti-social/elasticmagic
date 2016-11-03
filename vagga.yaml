@@ -17,6 +17,23 @@ containers:
       - !Py3Requirements requirements_geo.txt
       - !Py3Requirements requirements_test.txt
 
+  sphinx:
+    setup:
+      - !Alpine v3.4
+      - !Install
+        - py-sphinx
+        - make
+      - !PipConfig
+        dependencies: true
+      - !Py2Install
+        - sphinx-rtd-theme
+      # Seems like Alpine v3.4 has broken Sphinx package
+      # so install imagesize dependency manually
+      - !Py2Install [imagesize==0.7.1]
+      # To run doctests
+      - !Py2Requirements requirements.txt
+      - !Py2Requirements requirements_test.txt
+
   bench:
     environ:
       HOME: /work
@@ -48,6 +65,25 @@ commands:
     container: py3-test
     run: [py.test, --cov, --cov-append]
 
+  sphinx-make: !Command
+    description: Run arbitrary make target from 
+    container: sphinx
+    work-dir: docs
+    run: [make]
+
+  doctest: !Command
+    description: Run doctests
+    container: sphinx
+    work-dir: docs
+    run: [make, doctest]
+  
+  doc: !Command
+    description: Build documentation
+    container: sphinx
+    work-dir: docs
+    prerequisites: [doctest]
+    run: [make, html]
+  
   bench: !Command
     description: Run benchmarks
     container: bench

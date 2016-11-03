@@ -18,3 +18,4 @@ dist/
 .cache/
 htmlcov
 .coverage
+docs/_build
