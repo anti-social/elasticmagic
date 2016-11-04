@@ -38,10 +38,10 @@ class SearchQueryWrapper(object):
 
     @property
     def result(self):
-        log.warn('Field "result" is deprecated')
+        log.warning('Field "result" is deprecated')
         return self.get_result()
 
     @property
     def results(self):
-        log.warn('Field "results" is deprecated')
+        log.warning('Field "results" is deprecated')
         return self.get_result()
