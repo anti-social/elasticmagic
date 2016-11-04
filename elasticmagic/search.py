@@ -1,4 +1,5 @@
 import collections
+import logging
 import warnings
 
 from .compat import zip
@@ -9,6 +10,8 @@ from .expression import Expression, ParamsExpression, Params, Filtered, And, Boo
 
 
 __all__ = ['SearchQuery']
+
+log = logging.getLogger(__name__)
 
 
 class Source(Expression):
@@ -450,12 +453,12 @@ class SearchQuery(object):
 
     @property
     def result(self):
-        warnings.warn('Field "result" is deprecated', DeprecationWarning)
+        log.warn('Field "result" is deprecated')
         return self.get_result()
 
     @property
     def results(self):
-        warnings.warn('Field "results" is deprecated', DeprecationWarning)
+        log.warn('Field "results" is deprecated')
         return self.get_result()
 
     def count(self):
