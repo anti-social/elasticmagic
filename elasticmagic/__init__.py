@@ -1,4 +1,5 @@
 import logging
+import warnings
 
 from .cluster import Cluster, MultiSearchError
 from .document import Document, DynamicDocument
@@ -17,3 +18,4 @@ from .version import __version__
 
 
 logging.captureWarnings(True)
+warnings.filterwarnings('always', category=DeprecationWarning)
