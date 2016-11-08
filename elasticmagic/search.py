@@ -358,6 +358,30 @@ class SearchQuery(object):
 
     @_with_clone
     def function_score(self, *functions, **kwargs):
+        """Adds `function scores <https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-function-score-query.html>`_
+        to the search query.
+
+        :param \*functions: list of function scores.
+
+        .. testcode:: function_score
+
+           from elasticmagic import Weight, FieldValueFactor
+
+           search_query = SearchQuery(PostDocument.name.match('test')).function_score(
+               Weight(2, filter=PostDocument.created_date == 'now/d'),
+               FieldValueFactor(PostDocument.popularity, factor=1.2, modifier='sqrt'))
+
+        .. testcode:: function_score
+
+           assert search_query.to_dict() == {
+               'query': {
+                   'function_score': {
+                       'query': {'match': {'name': 'test'}},
+                       'functions': [
+                           {'weight': 2,
+                            'filter': {'term': {'created_date': 'now/d'}}},
+                           {'field_value_factor': {'field': 'popularity', 'factor': 1.2, 'modifier': 'sqrt'}}]}}}
+        """
         if functions == (None,):
             if '_function_score' in self.__dict__:
                 del self._function_score

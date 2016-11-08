@@ -19,8 +19,10 @@ class Expression(object):
         expression_compiler = (compiler or DefaultCompiler()).get_expression_compiler()
         return expression_compiler(self)
 
-    def to_dict(self, compiler=None):
+    def to_elastic(self, compiler=None):
         return self.compile(compiler=compiler).params
+
+    to_dict = to_elastic
 
 
 class Literal(object):
