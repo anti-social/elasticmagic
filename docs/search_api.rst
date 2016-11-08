@@ -4,16 +4,5 @@
 Search Query API
 ================
 
-.. testsetup:: *
-
-   import datetime
-   
-   from elasticmagic import SearchQuery
-   from elasticmagic import DynamicDocument
-
-   PostDocument = DynamicDocument
-
-   search_query = SearchQuery()
-
 .. autoclass:: elasticmagic.search.SearchQuery
    :members:

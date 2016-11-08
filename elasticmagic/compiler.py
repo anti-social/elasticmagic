@@ -273,6 +273,33 @@ class ExpressionCompiled(Compiled):
         params['type'] = child_type
         return {'has_child': params}
 
+    def visit_script(self, script):
+        return self.visit(script.params)
+
+    def visit_function(self, func):
+        params = {func.__func_name__: self.visit(func.params)}
+        if func.filter:
+            params['filter'] = self.visit(func.filter)
+        if func.weight is not None:
+            params['weight'] = self.visit(func.weight)
+        return params
+
+    def visit_weight_function(self, func):
+        params = {func.__func_name__: func.weight}
+        if func.filter:
+            params['filter'] = self.visit(func.filter)
+        return params
+
+    def visit_decay_function(self, func):
+        params = {func.__func_name__: {
+            self.visit(func.field): self.visit(func.decay_params)
+        }}
+        if func.params:
+            params[func.__func_name__].update(self.visit(func.params))
+        if func.filter:
+            params['filter'] = self.visit(func.filter)
+        return params
+
 
 class QueryCompiled(ExpressionCompiled):
     @classmethod

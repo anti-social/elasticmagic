@@ -2,8 +2,7 @@ import collections
 import warnings
 
 from .compat import zip
-from .util import _with_clone, cached_property, clean_params, merge_params, collect_doc_classes
-from .result import Result
+from .util import _with_clone, cached_property, merge_params, collect_doc_classes
 from .compiler import DefaultCompiler
 from .expression import Expression, ParamsExpression, Params, Filtered, And, Bool, FunctionScore
 
@@ -71,6 +70,14 @@ class SearchQuery(object):
     :func:`Index.search_query()` method.
 
     See :func:`Index.search_query()` for more details.
+
+    .. testsetup:: *
+
+       import datetime
+   
+       from elasticmagic import SearchQuery, DynamicDocument
+
+       PostDocument = DynamicDocument
     """
 
     __visit_name__ = 'search_query'
@@ -137,38 +144,97 @@ class SearchQuery(object):
         if search_params:
             self._search_params = search_params
 
+    def to_dict(self):
+        return self._compiler(self).params
+
     def clone(self):
+        """Clones current search query."""
         cls = self.__class__
         q = cls.__new__(cls)
         q.__dict__ = {k: v for k, v in self.__dict__.items()
                       if not isinstance(getattr(cls, k, None), cached_property)}
         return q
 
-    def to_dict(self):
-        return self._compiler(self).params
-
     @_with_clone
-    def source(self, *args, **kwargs):
-        if len(args) == 1 and args[0] is None:
+    def source(self, *fields, **kwargs):
+        """Controls which fields of the document ``_source`` field to retrieve.
+
+        .. _fields_arg:
+
+        :param \*fields: list of fields which should be returned by \
+        elasticsearch. Can be one of the following types:
+
+           - field expression, for example: ``PostDocument.name``
+           - ``str`` means field name or glob pattern. For example: ``"name"``,
+             ``"user.*"``
+           - ``False`` disables retrieving source
+           - ``True`` enables retrieving all source document
+           - ``None`` cancels source filtering applied before
+
+        :param include: list of fields to include
+
+        :param exclude: list of fields to exclude
+
+        Example:
+
+        .. testcode:: source
+
+           search_query = SearchQuery().source(PostDocument.name, 'user.*')
+
+        .. testcode:: source
+
+           assert search_query.to_dict() == {'_source': ['name', 'user.*']}
+        
+        See `source filtering <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-source-filtering.html>`_
+        for more information.
+        """
+        if len(fields) == 1 and fields[0] is None:
             if '_source' in self.__dict__:
                 del self._source
-        elif len(args) == 1 and isinstance(args[0], bool):
-            self._source = Source(args[0], **kwargs)
+        elif len(fields) == 1 and isinstance(fields[0], bool):
+            self._source = Source(fields[0], **kwargs)
         else:
-            self._source = Source(args, **kwargs)
+            self._source = Source(fields, **kwargs)
 
     @_with_clone
-    def fields(self, *args):
-        if len(args) == 1 and args[0] is None:
+    def fields(self, *fields):
+        """Controls which stored fields to retrieve.
+
+        :param \*fields: see :ref:`fields <fields_arg>`
+
+        See `fields <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-stored-fields.html>`_
+        parameter of the request and
+        `store <https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-store.html>`_
+        mapping field option.
+        """
+        if len(fields) == 1 and fields[0] is None:
             if '_fields' in self.__dict__:
                 del self._fields
-        elif len(args) == 1 and isinstance(args[0], bool):
-            self._fields = args[0]
+        elif len(fields) == 1 and isinstance(fields[0], bool):
+            self._fields = fields[0]
         else:
-            self._fields = args
+            self._fields = fields
 
     @_with_clone
     def query(self, q):
+        """Replaces query clause. Elasticsearch's query clause will calculate
+        ``_score`` for every matching document.
+
+        :param q: query expression. Existing query can be cancelled by passing \
+        ``None``.
+
+        .. testcode:: query
+
+           search_query = SearchQuery().query(
+               PostDocument.title.match('test', minimum_should_match='100%'))
+
+        .. testcode:: query
+
+           assert search_query.to_dict() == {
+               'query': {'match': {'title': {
+                   'query': 'test',
+                   'minimum_should_match': '100%'}}}}
+        """
         if q is None:
             if '_q' in self.__dict__:
                 del self._q
@@ -187,28 +253,23 @@ class SearchQuery(object):
 
         .. testcode:: filter
 
-           search_query = search_query.filter(
+           search_query = SearchQuery().filter(
                PostDocument.status == 'published',
                PostDocument.publish_date >= datetime.date(2015, 1, 1),
            )
+
+        .. testcode:: filter
+
            assert search_query.to_dict() == {
-               'query': {
-                   'filtered': {
-                       'filter': {
-                           'bool': {
-                               'must': [
-                                   {
-                                       'term': {
-                                           'status': 'published'}},
-                                   {
-                                       'range': {
-                                           'publish_date': {'gte': datetime.date(2015, 1, 1)}}}]}}}}}
+               'query': {'filtered': {'filter': {'bool': {'must': [
+                   {'term': {'status': 'published'}},
+                   {'range': {'publish_date': {'gte': datetime.date(2015, 1, 1)}}}]}}}}}
 
         Filter expression can be a python dictionary object:
 
         .. testcode:: filter
 
-           search_query = search_query.filter({'term': {'status': 'published'}})
+           search_query = SearchQuery().filter({'term': {'status': 'published'}})
 
         """
         meta = kwargs.pop('meta', None)
@@ -234,7 +295,7 @@ class SearchQuery(object):
 
         .. testcode:: order_by
 
-           search_query = search_query.order_by(
+           search_query = SearchQuery().order_by(
                PostDocument.publish_date.desc(),
                PostDocument._score,
            )
@@ -250,7 +311,7 @@ class SearchQuery(object):
 
         .. testcode:: order_by
 
-           search_query = search_query.order_by(None)
+           search_query = SearchQuery().order_by(None)
            assert search_query.to_dict() == {}
         """
         if len(orders) == 1 and orders[0] is None:
@@ -259,24 +320,74 @@ class SearchQuery(object):
         else:
             self._order_by = self._order_by + orders
 
+    sort = order_by
+
     @_with_clone
-    def aggregations(self, *args, **kwargs):
-        if len(args) == 1 and args[0] is None:
+    def aggregations(self, *aggs, **kwargs):
+        """Adds `aggregations <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations.html>`_
+        to the search query.
+
+        :param \*aggs: dictionaries with aggregations. Can be ``None`` that \
+        cleans up previous aggregations.
+
+        .. testcode:: aggs
+
+           from elasticmagic import agg
+
+           search_query = SearchQuery().aggregations({
+               'stars': agg.Terms(PostDocument.stars, size=50, aggs={
+                   'profit': agg.Sum(PostDocument.profit)})})
+
+        .. testcode:: aggs
+
+           assert search_query.to_dict() == {
+               'aggregations': {
+                   'stars': {'terms': {'field': 'stars', 'size': 50},
+                           'aggregations': {
+                               'profit': {'sum': {'field': 'profit'}}}}}}
+        """
+        if len(aggs) == 1 and aggs[0] is None:
             if '_aggregations' in self.__dict__:
                 del self._aggregations
         else:
-            self._aggregations = merge_params(self._aggregations, args, kwargs)
+            self._aggregations = merge_params(self._aggregations, aggs, kwargs)
 
-    aggs = aggregations
+    def aggs(self, *aggs, **kwargs):
+        """Shortcut for the :meth:`.aggregations` method."""
+        return self.aggregations(*aggs, **kwargs)
 
     @_with_clone
-    def function_score(self, *args, **kwargs):
-        if args == (None,):
+    def function_score(self, *functions, **kwargs):
+        """Adds `function scores <https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-function-score-query.html>`_
+        to the search query.
+
+        :param \*functions: list of function scores.
+
+        .. testcode:: function_score
+
+           from elasticmagic import Weight, FieldValueFactor
+
+           search_query = SearchQuery(PostDocument.name.match('test')).function_score(
+               Weight(2, filter=PostDocument.created_date == 'now/d'),
+               FieldValueFactor(PostDocument.popularity, factor=1.2, modifier='sqrt'))
+
+        .. testcode:: function_score
+
+           assert search_query.to_dict() == {
+               'query': {
+                   'function_score': {
+                       'query': {'match': {'name': 'test'}},
+                       'functions': [
+                           {'weight': 2,
+                            'filter': {'term': {'created_date': 'now/d'}}},
+                           {'field_value_factor': {'field': 'popularity', 'factor': 1.2, 'modifier': 'sqrt'}}]}}}
+        """
+        if functions == (None,):
             if '_function_score' in self.__dict__:
                 del self._function_score
                 del self._function_score_params
         else:
-            self._function_score = self._function_score + args
+            self._function_score = self._function_score + functions
             self._function_score_params = Params(dict(self._function_score_params), **kwargs)
 
     @_with_clone
@@ -451,6 +562,7 @@ class SearchQuery(object):
     @property
     def result(self):
         warnings.warn('Field "result" is deprecated', DeprecationWarning)
+        return
         return self.get_result()
 
     @property

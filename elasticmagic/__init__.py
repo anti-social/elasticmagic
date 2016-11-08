@@ -7,6 +7,10 @@ from .expression import (
     Field, SpanFirst, SpanMulti, SpanNear, SpanNot, SpanOr, SpanTerm, 
     Nested, HasParent, HasChild,
 )
+from .function import (
+    Weight, FieldValueFactor, Factor, ScriptScore, RandomScore, Script,
+    Gauss, Exp, Linear,
+)
 from .index import Index
 from .result import DelayedElasticsearchException
 from .search import SearchQuery, QueryRescorer
