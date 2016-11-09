@@ -675,3 +675,45 @@ def _wrap_literal(obj):
     if not isinstance(obj, Expression):
         return Literal(obj)
     return obj
+
+
+class Source(Expression):
+    __visit_name__ = 'source'
+
+    def __init__(self, fields, include=None, exclude=None):
+        self.fields = fields
+        self.include = include
+        self.exclude = exclude
+
+    def _collect_doc_classes(self):
+        return set().union(
+            collect_doc_classes(self.fields),
+            collect_doc_classes(self.include),
+            collect_doc_classes(self.exclude),
+        )
+
+
+class QueryRescorer(ParamsExpression):
+    __visit_name__ = 'query_rescorer'
+
+    def __init__(self, rescore_query, window_size=None, query_weight=None, rescore_query_weight=None, score_mode=None, **kwargs):
+        self.window_size = window_size
+        super(QueryRescorer, self).__init__(
+            rescore_query=rescore_query, query_weight=query_weight,
+            rescore_query_weight=rescore_query_weight, score_mode=score_mode,
+            **kwargs
+        )
+
+
+class Highlight(Expression):
+    __visit_name__ = 'highlight'
+
+    def __init__(self, fields=None, **kwargs):
+        self.fields = fields
+        self.params = Params(kwargs)
+
+    def _collect_doc_classes(self):
+        return set().union(
+            collect_doc_classes(self.fields),
+            collect_doc_classes(self.params),
+        )

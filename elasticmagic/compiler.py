@@ -198,7 +198,10 @@ class ExpressionCompiled(Compiled):
         return [self.visit(f) for f in expr.fields]
 
     def visit_query_rescorer(self, rescorer):
-        return {'query': self.visit(rescorer.params)}
+        params = {'query': self.visit(rescorer.params)}
+        if rescorer.window_size > 0:
+            params['window_size'] = self.visit(rescorer.window_size)
+        return params
 
     def visit_rescore(self, rescore):
         params = self.visit(rescore.rescorer)
@@ -369,8 +372,8 @@ class QueryCompiled(ExpressionCompiled):
             params['size'] = query_context.limit
         if query_context.offset is not None:
             params['from'] = query_context.offset
-        if query_context.rescores:
-            params['rescore'] = self.visit(query_context.rescores)
+        if query_context.rescorers:
+            params['rescore'] = self.visit(query_context.rescorers)
         if query_context.suggest:
             params['suggest'] = self.visit(query_context.suggest)
         if query_context.highlight:

@@ -477,17 +477,17 @@ class SearchQueryTest(BaseTestCase):
             .rescore(
                 QueryRescorer(
                     self.index.t.field1.match('the quick brown fox', type='phrase', slop=2),
+                    window_size=100,
                     query_weight=0.7,
                     rescore_query_weight=1.2
                 ),
-                window_size=100,
             )
             .rescore(
                 QueryRescorer(
                     FunctionScore(script_score={'script': "log10(doc['numeric'].value + 2)"}),
+                    window_size=10,
                     score_mode='multiply'
                 ),
-                window_size=10,
             )
         )
         self.assert_expression(

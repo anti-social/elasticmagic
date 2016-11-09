@@ -6,6 +6,7 @@ from .expression import (
     And, Or, Not, Sort, Boosting, Common, ConstantScore, FunctionScore,
     Field, SpanFirst, SpanMulti, SpanNear, SpanNot, SpanOr, SpanTerm, 
     Nested, HasParent, HasChild,
+    QueryRescorer,
 )
 from .function import (
     Weight, FieldValueFactor, Factor, ScriptScore, RandomScore, Script,
@@ -13,6 +14,6 @@ from .function import (
 )
 from .index import Index
 from .result import DelayedElasticsearchException
-from .search import SearchQuery, QueryRescorer
+from .search import SearchQuery
 from .types import ValidationError
 from .version import __version__

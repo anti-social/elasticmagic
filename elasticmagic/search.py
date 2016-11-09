@@ -4,63 +4,12 @@ import warnings
 from .compat import zip
 from .util import _with_clone, cached_property, merge_params, collect_doc_classes
 from .compiler import DefaultCompiler
-from .expression import Expression, ParamsExpression, Params, Filtered, And, Bool, FunctionScore
+from .expression import (
+    Params, Filtered, Bool, FunctionScore, Source, Highlight,
+)
 
 
 __all__ = ['SearchQuery']
-
-
-class Source(Expression):
-    __visit_name__ = 'source'
-
-    def __init__(self, fields, include=None, exclude=None):
-        self.fields = fields
-        self.include = include
-        self.exclude = exclude
-
-    def _collect_doc_classes(self):
-        return set().union(
-            collect_doc_classes(self.fields),
-            collect_doc_classes(self.include),
-            collect_doc_classes(self.exclude),
-        )
-
-
-class QueryRescorer(ParamsExpression):
-    __visit_name__ = 'query_rescorer'
-
-    def __init__(self, rescore_query, query_weight=None, rescore_query_weight=None, score_mode=None, **kwargs):
-        super(QueryRescorer, self).__init__(
-            rescore_query=rescore_query, query_weight=query_weight,
-            rescore_query_weight=rescore_query_weight, score_mode=score_mode,
-            **kwargs
-        )
-
-
-class Rescore(Expression):
-    __visit_name__ = 'rescore'
-
-    def __init__(self, rescorer, window_size=None,
-                 ):
-        self.rescorer = rescorer
-        self.window_size = window_size
-
-    def _collect_doc_classes(self):
-        return collect_doc_classes(self.rescorer)
-
-
-class Highlight(Expression):
-    __visit_name__ = 'highlight'
-
-    def __init__(self, fields=None, **kwargs):
-        self.fields = fields
-        self.params = Params(kwargs)
-
-    def _collect_doc_classes(self):
-        return set().union(
-            collect_doc_classes(self.fields),
-            collect_doc_classes(self.params),
-        )
 
 
 class SearchQuery(object):
@@ -77,7 +26,8 @@ class SearchQuery(object):
    
        from elasticmagic import SearchQuery, DynamicDocument
 
-       PostDocument = DynamicDocument
+       class PostDocument(DynamicDocument):
+           __doc_type__ = 'post'
     """
 
     __visit_name__ = 'search_query'
@@ -97,7 +47,7 @@ class SearchQuery(object):
     _boost_score_params = Params()
     _limit = None
     _offset = None
-    _rescores = ()
+    _rescorers = ()
     _suggest = Params()
     _highlight = Params()
 
@@ -154,66 +104,6 @@ class SearchQuery(object):
         q.__dict__ = {k: v for k, v in self.__dict__.items()
                       if not isinstance(getattr(cls, k, None), cached_property)}
         return q
-
-    @_with_clone
-    def source(self, *fields, **kwargs):
-        """Controls which fields of the document ``_source`` field to retrieve.
-
-        .. _fields_arg:
-
-        :param \*fields: list of fields which should be returned by \
-        elasticsearch. Can be one of the following types:
-
-           - field expression, for example: ``PostDocument.name``
-           - ``str`` means field name or glob pattern. For example: ``"name"``,
-             ``"user.*"``
-           - ``False`` disables retrieving source
-           - ``True`` enables retrieving all source document
-           - ``None`` cancels source filtering applied before
-
-        :param include: list of fields to include
-
-        :param exclude: list of fields to exclude
-
-        Example:
-
-        .. testcode:: source
-
-           search_query = SearchQuery().source(PostDocument.name, 'user.*')
-
-        .. testcode:: source
-
-           assert search_query.to_dict() == {'_source': ['name', 'user.*']}
-        
-        See `source filtering <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-source-filtering.html>`_
-        for more information.
-        """
-        if len(fields) == 1 and fields[0] is None:
-            if '_source' in self.__dict__:
-                del self._source
-        elif len(fields) == 1 and isinstance(fields[0], bool):
-            self._source = Source(fields[0], **kwargs)
-        else:
-            self._source = Source(fields, **kwargs)
-
-    @_with_clone
-    def fields(self, *fields):
-        """Controls which stored fields to retrieve.
-
-        :param \*fields: see :ref:`fields <fields_arg>`
-
-        See `fields <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-stored-fields.html>`_
-        parameter of the request and
-        `store <https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-store.html>`_
-        mapping field option.
-        """
-        if len(fields) == 1 and fields[0] is None:
-            if '_fields' in self.__dict__:
-                del self._fields
-        elif len(fields) == 1 and isinstance(fields[0], bool):
-            self._fields = fields[0]
-        else:
-            self._fields = fields
 
     @_with_clone
     def query(self, q):
@@ -320,7 +210,9 @@ class SearchQuery(object):
         else:
             self._order_by = self._order_by + orders
 
-    sort = order_by
+    def sort(self, *orders):
+        """Alias for the :meth:`.order_by` method."""
+        return self.order_by(*orders)
 
     @_with_clone
     def aggregations(self, *aggs, **kwargs):
@@ -329,6 +221,9 @@ class SearchQuery(object):
 
         :param \*aggs: dictionaries with aggregations. Can be ``None`` that \
         cleans up previous aggregations.
+
+        After executing the query you can get aggregation result by its name
+        calling :meth:`SearchResult.get_aggregation` method.
 
         .. testcode:: aggs
 
@@ -367,7 +262,7 @@ class SearchQuery(object):
 
            from elasticmagic import Weight, FieldValueFactor
 
-           search_query = SearchQuery(PostDocument.name.match('test')).function_score(
+           search_query = SearchQuery(PostDocument.title.match('test')).function_score(
                Weight(2, filter=PostDocument.created_date == 'now/d'),
                FieldValueFactor(PostDocument.popularity, factor=1.2, modifier='sqrt'))
 
@@ -376,7 +271,7 @@ class SearchQuery(object):
            assert search_query.to_dict() == {
                'query': {
                    'function_score': {
-                       'query': {'match': {'name': 'test'}},
+                       'query': {'match': {'title': 'test'}},
                        'functions': [
                            {'weight': 2,
                             'filter': {'term': {'created_date': 'now/d'}}},
@@ -391,43 +286,179 @@ class SearchQuery(object):
             self._function_score_params = Params(dict(self._function_score_params), **kwargs)
 
     @_with_clone
-    def boost_score(self, *args, **kwargs):
-        if args == (None,):
+    def boost_score(self, *functions, **kwargs):
+        """Adds one more level of the function_score query with default
+        sum modes. It is especially useful for complex ordering scenarios.
+
+        :param \*functions: See :meth:`.function_score`
+
+        .. testcode:: boost_score
+
+           from elasticmagic import Factor, ScriptScore, Script
+
+           search_query = (
+               SearchQuery(PostDocument.title.match('test'))
+               .function_score(
+                   # Slightly boost hits on post popularity
+                   Factor(PostDocument.popularity, modifier='sqrt'))
+               .boost_score(
+                   # Display advertized posts higher than any others
+                   ScriptScore(Script(inline='log10(10.0 + doc[cpc_field].value)',
+                                      params={'cpc_field': PostDocument.adv_cpc}),
+                               weight=1000,
+                               filter=PostDocument.adv_cpc > 0))
+           )
+
+        .. testcode:: boost_score
+
+           assert search_query.to_dict() == {
+               'query': {
+                   'function_score': {
+                       'query': {
+                           'function_score': {
+                               'query': {'match': {'title': 'test'}},
+                               'functions': [
+                                   {'field_value_factor': {'field': 'popularity',
+                                                           'modifier': 'sqrt'}}]}},
+                       'functions': [
+                           {'script_score': {'script': {
+                                'inline': 'log10(10.0 + doc[cpc_field].value)',
+                                'params': {'cpc_field': 'adv_cpc'}}},
+                            'filter': {'range': {'adv_cpc': {'gt': 0}}},
+                            'weight': 1000}],
+                       'boost_mode': 'sum',
+                       'score_mode': 'sum'}}}
+        """
+        if functions == (None,):
             if '_boost_score' in self.__dict__:
                 del self._boost_score
                 del self._boost_score_params
         else:
-            self._boost_score = self._boost_score + args
+            self._boost_score = self._boost_score + functions
             self._boost_score_params = Params(dict(self._boost_score_params), **kwargs)
 
     @_with_clone
+    def rescore(self, *rescorers):
+        """Adds `rescorers <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-rescore.html>`_
+        to the search query. It usually uses for precisely tuning search results.
+
+        :param \*rescorers: list of the rescorers. ``None`` cleans previously \
+        added rescorers.
+
+        .. testcode::
+
+           from elasticmagic import QueryRescorer
+
+           search_query = SearchQuery(PostDocument.title.match('the quick brown fox')).rescore(
+               QueryRescorer(
+                   PostDocument.title.match('the quick brown fox', type='phrase', slop=2),
+                   window_size=500,
+                   query_weight=0.7,
+                   rescore_query_weight=1.2))
+
+        .. testcode::
+
+           assert search_query.to_dict() == {
+               'query': {'match': {'title': 'the quick brown fox'}},
+               'rescore': [{
+                   'window_size': 500,
+                   'query': {
+                       'rescore_query': {
+                           'match': {'title': {'query': 'the quick brown fox',
+                                              'type': 'phrase',
+                                              'slop': 2}}},
+                       'query_weight': 0.7,
+                       'rescore_query_weight': 1.2}}]}
+        """
+        if rescorers == (None,):
+            if '_rescorers' in self.__dict__:
+                del self._rescorers
+            return
+        self._rescorers = self._rescorers + rescorers
+
+    @_with_clone
     def limit(self, limit):
+        """Sets size of the maximum amount of hits. Used for pagination.
+
+        See `from / size <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-from-size.html>`_
+        """
         self._limit = limit
 
-    size = limit
+    def size(self, limit):
+        """Alias for the :meth:`.limit` method."""
+        return self.limit(limit)
 
     @_with_clone
     def offset(self, offset):
+        """Sets the offset - the number of hits to skip. Used for pagination.
+
+        See `from / size <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-from-size.html>`_
+        """
         self._offset = offset
 
-    from_ = offset
+    def from_(self, offset):
+        """Alias for the :meth:`.offset` method."""
+        return self.offset(offset)
 
     @_with_clone
-    def rescore(self, rescorer, window_size=None):
-        if rescorer is None:
-            if '_rescores' in self.__dict__:
-                del self._rescores
-            return
-        rescore = Rescore(rescorer, window_size=window_size)
-        self._rescores = self._rescores + (rescore,)
+    def source(self, *fields, **kwargs):
+        """Controls which fields of the document ``_source`` field to retrieve.
 
-    @_with_clone
-    def suggest(self, *args, **kwargs):
-        if args == (None,):
-            if'_suggest' in self.__dict__:
-                del self._suggest
+        .. _fields_arg:
+
+        :param \*fields: list of fields which should be returned by \
+        elasticsearch. Can be one of the following types:
+
+           - field expression, for example: ``PostDocument.title``
+           - ``str`` means field name or glob pattern. For example: ``"title"``,
+             ``"user.*"``
+           - ``False`` disables retrieving source
+           - ``True`` enables retrieving all source document
+           - ``None`` cancels source filtering applied before
+
+        :param include: list of fields to include
+
+        :param exclude: list of fields to exclude
+
+        Example:
+
+        .. testcode:: source
+
+           search_query = SearchQuery().source(PostDocument.title, 'user.*')
+
+        .. testcode:: source
+
+           assert search_query.to_dict() == {'_source': ['title', 'user.*']}
+
+        See `source filtering <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-source-filtering.html>`_
+        for more information.
+        """
+        if len(fields) == 1 and fields[0] is None:
+            if '_source' in self.__dict__:
+                del self._source
+        elif len(fields) == 1 and isinstance(fields[0], bool):
+            self._source = Source(fields[0], **kwargs)
         else:
-            self._suggest = merge_params(self._suggest, args, kwargs)
+            self._source = Source(fields, **kwargs)
+
+    @_with_clone
+    def fields(self, *fields):
+        """Controls which stored fields to retrieve.
+
+        :param \*fields: see :ref:`fields <fields_arg>`
+
+        See `fields <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-stored-fields.html>`_
+        parameter of the request and
+        `store <https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-store.html>`_
+        mapping field option.
+        """
+        if len(fields) == 1 and fields[0] is None:
+            if '_fields' in self.__dict__:
+                del self._fields
+        elif len(fields) == 1 and isinstance(fields[0], bool):
+            self._fields = fields[0]
+        else:
+            self._fields = fields
 
     @_with_clone
     def highlight(
@@ -438,6 +469,21 @@ class SearchQuery(object):
             no_match_size=None, phrase_limit=None,
             **kwargs
     ):
+        """Highlights search results.
+
+        .. testcode:: highlight
+
+           from elasticmagic import MultiMatch
+
+           search_query = (
+               SearchQuery(MultiMatch('The quick brown fox',
+                                      [PostDocument.title, PostDocument.content]))
+               .highlight([PostDocument.title, PostDocument.content])
+           )
+
+        When processing search result you can get hit highlight by calling
+        :meth:`.Document.get_highlight`.
+        """
         self._highlight = Highlight(
             fields=fields, type=type, pre_tags=pre_tags, post_tags=post_tags,
             fragment_size=fragment_size, number_of_fragments=number_of_fragments, order=order,
@@ -446,6 +492,14 @@ class SearchQuery(object):
             no_match_size=no_match_size, phrase_limit=phrase_limit,
             **kwargs
         )
+
+    @_with_clone
+    def suggest(self, *args, **kwargs):
+        if args == (None,):
+            if'_suggest' in self.__dict__:
+                del self._suggest
+        else:
+            self._suggest = merge_params(self._suggest, args, kwargs)
 
     @_with_clone
     def instances(self):
@@ -516,7 +570,7 @@ class SearchQuery(object):
                     self._post_filters,
                     tuple(self._aggregations.values()),
                     self._order_by,
-                    self._rescores,
+                    self._rescorers,
                     self._highlight,
                 ]
             )
@@ -557,12 +611,15 @@ class SearchQuery(object):
         )
 
     def get_result(self):
+        """Executes current query and returns processed :class:`SearchResult`
+        object. Caches result so subsequence calls with the same search query
+        will return cached value.
+        """
         return self._result
 
     @property
     def result(self):
         warnings.warn('Field "result" is deprecated', DeprecationWarning)
-        return
         return self.get_result()
 
     @property
@@ -571,6 +628,9 @@ class SearchQuery(object):
         return self.get_result()
 
     def count(self):
+        """Executes current query and returns number of documents matched the
+        query. Uses `count api <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-count.html>`_.
+        """
         res = self._index.count(
             self.get_context().get_filtered_query(wrap_function_score=False),
             doc_type=self._get_doc_type(),
@@ -649,7 +709,7 @@ class SearchQueryContext(object):
         self.boost_score_params = search_query._boost_score_params
         self.limit = search_query._limit
         self.offset = search_query._offset
-        self.rescores = search_query._rescores
+        self.rescorers = search_query._rescorers
         self.suggest = search_query._suggest
         self.highlight = search_query._highlight
 
