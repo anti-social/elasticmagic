@@ -31,7 +31,7 @@ class TagDocument(Document):
     group = Field(Object(GroupDocument))
 
 
-class TestDocument(Document):
+class ProductDocument(Document):
     _all = Field(enable=False)
 
     name = Field('test_name', String(), fields={'raw': Field(String)})
@@ -50,7 +50,7 @@ class TestDocument(Document):
 
 class DocumentTestCase(BaseTestCase):
     # def test(self):
-    #     class TestDocument(Document):
+    #     class ProductDocument(Document):
     #         _all = Field(enable=False)
     #     1/0
 
@@ -90,217 +90,217 @@ class DocumentTestCase(BaseTestCase):
 
     def test_document(self):
         self.assertSameElements(
-            list(TestDocument.fields),
+            list(ProductDocument.fields),
             [
-                TestDocument._uid,
-                TestDocument._id,
-                TestDocument._type,
-                TestDocument._source,
-                TestDocument._analyzer,
-                TestDocument._boost,
-                TestDocument._parent,
-                TestDocument._field_names,
-                TestDocument._routing,
-                TestDocument._index,
-                TestDocument._size,
-                TestDocument._timestamp,
-                TestDocument._ttl,
-                TestDocument._version,
-                TestDocument._score,
-                TestDocument._all,
-                TestDocument.name,
-                TestDocument.status,
-                TestDocument.group,
-                TestDocument.price,
-                TestDocument.tags,
-                TestDocument.date_created,
-                TestDocument.unused,
+                ProductDocument._uid,
+                ProductDocument._id,
+                ProductDocument._type,
+                ProductDocument._source,
+                ProductDocument._analyzer,
+                ProductDocument._boost,
+                ProductDocument._parent,
+                ProductDocument._field_names,
+                ProductDocument._routing,
+                ProductDocument._index,
+                ProductDocument._size,
+                ProductDocument._timestamp,
+                ProductDocument._ttl,
+                ProductDocument._version,
+                ProductDocument._score,
+                ProductDocument._all,
+                ProductDocument.name,
+                ProductDocument.status,
+                ProductDocument.group,
+                ProductDocument.price,
+                ProductDocument.tags,
+                ProductDocument.date_created,
+                ProductDocument.unused,
             ]
         )
         self.assertSameElements(
-            list(TestDocument.user_fields),
+            list(ProductDocument.user_fields),
             [
-                TestDocument.name,
-                TestDocument.status,
-                TestDocument.group,
-                TestDocument.price,
-                TestDocument.tags,
-                TestDocument.date_created,
-                TestDocument.unused,
+                ProductDocument.name,
+                ProductDocument.status,
+                ProductDocument.group,
+                ProductDocument.price,
+                ProductDocument.tags,
+                ProductDocument.date_created,
+                ProductDocument.unused,
             ]
         )
         self.assertSameElements(
-            list(TestDocument.mapping_fields),
+            list(ProductDocument.mapping_fields),
             [
-                TestDocument._uid,
-                TestDocument._id,
-                TestDocument._type,
-                TestDocument._source,
-                TestDocument._analyzer,
-                TestDocument._boost,
-                TestDocument._parent,
-                TestDocument._field_names,
-                TestDocument._routing,
-                TestDocument._index,
-                TestDocument._size,
-                TestDocument._timestamp,
-                TestDocument._ttl,
-                TestDocument._version,
-                TestDocument._score,
-                TestDocument._all,
+                ProductDocument._uid,
+                ProductDocument._id,
+                ProductDocument._type,
+                ProductDocument._source,
+                ProductDocument._analyzer,
+                ProductDocument._boost,
+                ProductDocument._parent,
+                ProductDocument._field_names,
+                ProductDocument._routing,
+                ProductDocument._index,
+                ProductDocument._size,
+                ProductDocument._timestamp,
+                ProductDocument._ttl,
+                ProductDocument._version,
+                ProductDocument._score,
+                ProductDocument._all,
             ]
         )
-        self.assertIsInstance(TestDocument._id, AttributedField)
-        self.assertIsInstance(TestDocument._id.get_field().get_type(), String)
-        self.assertEqual(TestDocument._id.get_field().get_name(), '_id')
-        self.assertEqual(TestDocument._id.get_attr_name(), '_id')
-        self.assertIs(TestDocument._id.get_parent(), TestDocument)
-        self.assert_expression(TestDocument._id, '_id')
+        self.assertIsInstance(ProductDocument._id, AttributedField)
+        self.assertIsInstance(ProductDocument._id.get_field().get_type(), String)
+        self.assertEqual(ProductDocument._id.get_field().get_name(), '_id')
+        self.assertEqual(ProductDocument._id.get_attr_name(), '_id')
+        self.assertIs(ProductDocument._id.get_parent(), ProductDocument)
+        self.assert_expression(ProductDocument._id, '_id')
 
-        self.assertIsInstance(TestDocument._all, AttributedField)
-        self.assertIsInstance(TestDocument._all.get_field().get_type(), String)
-        self.assertEqual(TestDocument._all.get_field().get_name(), '_all')
-        self.assertEqual(TestDocument._all.get_attr_name(), '_all')
-        self.assertIs(TestDocument._all.get_parent(), TestDocument)
-        self.assert_expression(TestDocument._all, '_all')
+        self.assertIsInstance(ProductDocument._all, AttributedField)
+        self.assertIsInstance(ProductDocument._all.get_field().get_type(), String)
+        self.assertEqual(ProductDocument._all.get_field().get_name(), '_all')
+        self.assertEqual(ProductDocument._all.get_attr_name(), '_all')
+        self.assertIs(ProductDocument._all.get_parent(), ProductDocument)
+        self.assert_expression(ProductDocument._all, '_all')
 
-        self.assertIsInstance(TestDocument._score, AttributedField)
-        self.assertIsInstance(TestDocument._score.get_field().get_type(), Float)
-        self.assertEqual(TestDocument._score.get_field().get_name(), '_score')
-        self.assertEqual(TestDocument._score.get_attr_name(), '_score')
-        self.assertIs(TestDocument._score.get_parent(), TestDocument)
-        self.assert_expression(TestDocument._score, '_score')
+        self.assertIsInstance(ProductDocument._score, AttributedField)
+        self.assertIsInstance(ProductDocument._score.get_field().get_type(), Float)
+        self.assertEqual(ProductDocument._score.get_field().get_name(), '_score')
+        self.assertEqual(ProductDocument._score.get_attr_name(), '_score')
+        self.assertIs(ProductDocument._score.get_parent(), ProductDocument)
+        self.assert_expression(ProductDocument._score, '_score')
 
-        self.assertIsInstance(TestDocument.name, AttributedField)
-        self.assertIsInstance(TestDocument.name.get_field().get_type(), String)
-        self.assertEqual(TestDocument.name.get_field().get_name(), 'test_name')
-        self.assertEqual(TestDocument.name.get_attr_name(), 'name')
-        self.assertIs(TestDocument.name.get_parent(), TestDocument)
-        self.assert_expression(TestDocument.name, 'test_name')
-        self.assertEqual(list(TestDocument.name.fields), [TestDocument.name.raw])
-        self.assertEqual(collect_doc_classes(TestDocument.name), {TestDocument})
+        self.assertIsInstance(ProductDocument.name, AttributedField)
+        self.assertIsInstance(ProductDocument.name.get_field().get_type(), String)
+        self.assertEqual(ProductDocument.name.get_field().get_name(), 'test_name')
+        self.assertEqual(ProductDocument.name.get_attr_name(), 'name')
+        self.assertIs(ProductDocument.name.get_parent(), ProductDocument)
+        self.assert_expression(ProductDocument.name, 'test_name')
+        self.assertEqual(list(ProductDocument.name.fields), [ProductDocument.name.raw])
+        self.assertEqual(collect_doc_classes(ProductDocument.name), {ProductDocument})
 
-        self.assertIsInstance(TestDocument.name.raw, AttributedField)
-        self.assertIsInstance(TestDocument.name.raw.get_field().get_type(), String)
-        self.assert_expression(TestDocument.name.raw, 'test_name.raw')
-        self.assertEqual(TestDocument.name.raw.get_field().get_name(), 'test_name.raw')
-        self.assertEqual(TestDocument.name.raw.get_attr_name(), 'raw')
-        self.assertIsInstance(TestDocument.name.raw.get_parent(), AttributedField)
-        self.assertEqual(collect_doc_classes(TestDocument.name.raw), {TestDocument})
+        self.assertIsInstance(ProductDocument.name.raw, AttributedField)
+        self.assertIsInstance(ProductDocument.name.raw.get_field().get_type(), String)
+        self.assert_expression(ProductDocument.name.raw, 'test_name.raw')
+        self.assertEqual(ProductDocument.name.raw.get_field().get_name(), 'test_name.raw')
+        self.assertEqual(ProductDocument.name.raw.get_attr_name(), 'raw')
+        self.assertIsInstance(ProductDocument.name.raw.get_parent(), AttributedField)
+        self.assertEqual(collect_doc_classes(ProductDocument.name.raw), {ProductDocument})
 
-        self.assertIsInstance(TestDocument.status, AttributedField)
-        self.assertIsInstance(TestDocument.status.get_field().get_type(), Integer)
+        self.assertIsInstance(ProductDocument.status, AttributedField)
+        self.assertIsInstance(ProductDocument.status.get_field().get_type(), Integer)
 
-        self.assertIsInstance(TestDocument.price, AttributedField)
-        self.assertIsInstance(TestDocument.price.get_field().get_type(), Float)
+        self.assertIsInstance(ProductDocument.price, AttributedField)
+        self.assertIsInstance(ProductDocument.price.get_field().get_type(), Float)
 
-        self.assertIsInstance(TestDocument.group, AttributedField)
-        self.assertIsInstance(TestDocument.group.get_field().get_type(), Object)
-        self.assertEqual(list(TestDocument.group.fields), [TestDocument.group.id, TestDocument.group.name])
+        self.assertIsInstance(ProductDocument.group, AttributedField)
+        self.assertIsInstance(ProductDocument.group.get_field().get_type(), Object)
+        self.assertEqual(list(ProductDocument.group.fields), [ProductDocument.group.id, ProductDocument.group.name])
 
-        self.assertIsInstance(TestDocument.group.name, AttributedField)
-        self.assertEqual(list(TestDocument.group.name.fields), [TestDocument.group.name.raw])
-        self.assertEqual(TestDocument.group.name.get_field().get_name(), 'group.test_name')
-        self.assertIsInstance(TestDocument.group.name.get_field().get_type(), String)
-        self.assertIs(TestDocument.group.name.get_parent(), TestDocument)
-        self.assertEqual(collect_doc_classes(TestDocument.group.name), {TestDocument})
+        self.assertIsInstance(ProductDocument.group.name, AttributedField)
+        self.assertEqual(list(ProductDocument.group.name.fields), [ProductDocument.group.name.raw])
+        self.assertEqual(ProductDocument.group.name.get_field().get_name(), 'group.test_name')
+        self.assertIsInstance(ProductDocument.group.name.get_field().get_type(), String)
+        self.assertIs(ProductDocument.group.name.get_parent(), ProductDocument)
+        self.assertEqual(collect_doc_classes(ProductDocument.group.name), {ProductDocument})
 
-        self.assertEqual(TestDocument.group.name.raw.get_attr_name(), 'raw')
-        self.assertEqual(TestDocument.group.name.raw.get_field().get_name(), 'group.test_name.raw')
-        self.assertIsInstance(TestDocument.group.name.raw.get_field().get_type(), String)
-        self.assertIsInstance(TestDocument.group.name.raw.get_parent(), AttributedField)
-        self.assertEqual(collect_doc_classes(TestDocument.group.name.raw), {TestDocument})
+        self.assertEqual(ProductDocument.group.name.raw.get_attr_name(), 'raw')
+        self.assertEqual(ProductDocument.group.name.raw.get_field().get_name(), 'group.test_name.raw')
+        self.assertIsInstance(ProductDocument.group.name.raw.get_field().get_type(), String)
+        self.assertIsInstance(ProductDocument.group.name.raw.get_parent(), AttributedField)
+        self.assertEqual(collect_doc_classes(ProductDocument.group.name.raw), {ProductDocument})
 
-        self.assertIsInstance(TestDocument.tags, AttributedField)
-        self.assertIsInstance(TestDocument.tags.get_field().get_type(), List)
-        self.assertEqual(list(TestDocument.tags.fields), [TestDocument.tags.id, TestDocument.tags.name, TestDocument.tags.group])
-        self.assertEqual(TestDocument.tags.get_field().get_name(), 'tags')
-        self.assert_expression(TestDocument.tags, 'tags')
+        self.assertIsInstance(ProductDocument.tags, AttributedField)
+        self.assertIsInstance(ProductDocument.tags.get_field().get_type(), List)
+        self.assertEqual(list(ProductDocument.tags.fields), [ProductDocument.tags.id, ProductDocument.tags.name, ProductDocument.tags.group])
+        self.assertEqual(ProductDocument.tags.get_field().get_name(), 'tags')
+        self.assert_expression(ProductDocument.tags, 'tags')
 
-        self.assertIsInstance(TestDocument.tags.group, AttributedField)
-        self.assertIsInstance(TestDocument.tags.group.get_field().get_type(), Object)
-        self.assertEqual(list(TestDocument.tags.group.fields), [TestDocument.tags.group.id, TestDocument.tags.group.name])
-        self.assertEqual(TestDocument.tags.group.get_field().get_name(), 'tags.group')
-        self.assert_expression(TestDocument.tags.group, 'tags.group')
+        self.assertIsInstance(ProductDocument.tags.group, AttributedField)
+        self.assertIsInstance(ProductDocument.tags.group.get_field().get_type(), Object)
+        self.assertEqual(list(ProductDocument.tags.group.fields), [ProductDocument.tags.group.id, ProductDocument.tags.group.name])
+        self.assertEqual(ProductDocument.tags.group.get_field().get_name(), 'tags.group')
+        self.assert_expression(ProductDocument.tags.group, 'tags.group')
 
-        self.assertIsInstance(TestDocument.tags.group.name, AttributedField)
-        self.assertIsInstance(TestDocument.tags.group.name.get_field().get_type(), String)
-        self.assertEqual(list(TestDocument.tags.group.name.fields), [TestDocument.tags.group.name.raw])
-        self.assertEqual(TestDocument.tags.group.name.get_field().get_name(), 'tags.group.test_name')
-        self.assert_expression(TestDocument.tags.group.name, 'tags.group.test_name')
+        self.assertIsInstance(ProductDocument.tags.group.name, AttributedField)
+        self.assertIsInstance(ProductDocument.tags.group.name.get_field().get_type(), String)
+        self.assertEqual(list(ProductDocument.tags.group.name.fields), [ProductDocument.tags.group.name.raw])
+        self.assertEqual(ProductDocument.tags.group.name.get_field().get_name(), 'tags.group.test_name')
+        self.assert_expression(ProductDocument.tags.group.name, 'tags.group.test_name')
 
-        self.assertIsInstance(TestDocument.tags.group.name.raw, AttributedField)
-        self.assertIsInstance(TestDocument.tags.group.name.raw.get_field().get_type(), String)
-        self.assertEqual(list(TestDocument.tags.group.name.raw.fields), [])
-        self.assertEqual(TestDocument.tags.group.name.raw.get_field().get_name(), 'tags.group.test_name.raw')
-        self.assert_expression(TestDocument.tags.group.name.raw, 'tags.group.test_name.raw')
+        self.assertIsInstance(ProductDocument.tags.group.name.raw, AttributedField)
+        self.assertIsInstance(ProductDocument.tags.group.name.raw.get_field().get_type(), String)
+        self.assertEqual(list(ProductDocument.tags.group.name.raw.fields), [])
+        self.assertEqual(ProductDocument.tags.group.name.raw.get_field().get_name(), 'tags.group.test_name.raw')
+        self.assert_expression(ProductDocument.tags.group.name.raw, 'tags.group.test_name.raw')
 
-        self.assertIsInstance(TestDocument.tags.group.group_id_1, AttributedField)
-        self.assertIsInstance(TestDocument.tags.group.group_id_1.get_field().get_type(), Integer)
-        self.assertEqual(list(TestDocument.tags.group.group_id_1.fields), [])
-        self.assertEqual(TestDocument.tags.group.group_id_1.get_field().get_name(), 'tags.group.group_id_1')
-        self.assert_expression(TestDocument.tags.group.group_id_1, 'tags.group.group_id_1')
+        self.assertIsInstance(ProductDocument.tags.group.group_id_1, AttributedField)
+        self.assertIsInstance(ProductDocument.tags.group.group_id_1.get_field().get_type(), Integer)
+        self.assertEqual(list(ProductDocument.tags.group.group_id_1.fields), [])
+        self.assertEqual(ProductDocument.tags.group.group_id_1.get_field().get_name(), 'tags.group.group_id_1')
+        self.assert_expression(ProductDocument.tags.group.group_id_1, 'tags.group.group_id_1')
 
-        self.assertRaises(AttributeError, lambda: TestDocument.group._id)
-        self.assertRaises(KeyError, lambda: TestDocument.group.fields['_id'])
+        self.assertRaises(AttributeError, lambda: ProductDocument.group._id)
+        self.assertRaises(KeyError, lambda: ProductDocument.group.fields['_id'])
 
-        self.assertRaises(AttributeError, lambda: TestDocument.group.missing_field)
-        self.assertRaises(KeyError, lambda: TestDocument.group.fields['missing_field'])
+        self.assertRaises(AttributeError, lambda: ProductDocument.group.missing_field)
+        self.assertRaises(KeyError, lambda: ProductDocument.group.fields['missing_field'])
 
-        self.assertIsInstance(TestDocument.i_attr_2, AttributedField)
-        self.assertIsInstance(TestDocument.i_attr_2.get_field().get_type(), Integer)
-        self.assertEqual(collect_doc_classes(TestDocument.i_attr_2), {TestDocument})
-        self.assertEqual(TestDocument.i_attr_2.get_field().get_name(), 'i_attr_2')
-        self.assert_expression(TestDocument.i_attr_2, 'i_attr_2')
+        self.assertIsInstance(ProductDocument.i_attr_2, AttributedField)
+        self.assertIsInstance(ProductDocument.i_attr_2.get_field().get_type(), Integer)
+        self.assertEqual(collect_doc_classes(ProductDocument.i_attr_2), {ProductDocument})
+        self.assertEqual(ProductDocument.i_attr_2.get_field().get_name(), 'i_attr_2')
+        self.assert_expression(ProductDocument.i_attr_2, 'i_attr_2')
 
-        self.assertIsInstance(TestDocument.b_attr_1, AttributedField)
-        self.assertIsInstance(TestDocument.b_attr_1.get_field().get_type(), Boolean)
-        self.assertEqual(collect_doc_classes(TestDocument.b_attr_1), {TestDocument})
-        self.assertEqual(TestDocument.b_attr_1.get_field().get_name(), 'b_attr_1')
-        self.assert_expression(TestDocument.b_attr_1, 'b_attr_1')
+        self.assertIsInstance(ProductDocument.b_attr_1, AttributedField)
+        self.assertIsInstance(ProductDocument.b_attr_1.get_field().get_type(), Boolean)
+        self.assertEqual(collect_doc_classes(ProductDocument.b_attr_1), {ProductDocument})
+        self.assertEqual(ProductDocument.b_attr_1.get_field().get_name(), 'b_attr_1')
+        self.assert_expression(ProductDocument.b_attr_1, 'b_attr_1')
 
-        self.assertRaises(AttributeError, lambda: TestDocument.fake_attr_1)
+        self.assertRaises(AttributeError, lambda: ProductDocument.fake_attr_1)
 
-        self.assertIsInstance(TestDocument.wildcard('date_*'), AttributedField)
-        self.assertIsInstance(TestDocument.wildcard('date_*').get_field().get_type(), Type)
-        self.assert_expression(TestDocument.wildcard('date_*'), 'date_*')
-        self.assertEqual(TestDocument.wildcard('date_*').get_field().get_name(), 'date_*')
-        self.assertEqual(collect_doc_classes(TestDocument.wildcard('date_*')), {TestDocument})
+        self.assertIsInstance(ProductDocument.wildcard('date_*'), AttributedField)
+        self.assertIsInstance(ProductDocument.wildcard('date_*').get_field().get_type(), Type)
+        self.assert_expression(ProductDocument.wildcard('date_*'), 'date_*')
+        self.assertEqual(ProductDocument.wildcard('date_*').get_field().get_name(), 'date_*')
+        self.assertEqual(collect_doc_classes(ProductDocument.wildcard('date_*')), {ProductDocument})
 
-        self.assertIsInstance(TestDocument.group.wildcard('date_*'), AttributedField)
-        self.assertIsInstance(TestDocument.group.wildcard('date_*').get_field().get_type(), Type)
-        self.assert_expression(TestDocument.group.wildcard('date_*'), 'group.date_*')
-        self.assertEqual(TestDocument.group.wildcard('date_*').get_field().get_name(), 'group.date_*')
-        self.assertEqual(collect_doc_classes(TestDocument.group.wildcard('date_*')), {TestDocument})
+        self.assertIsInstance(ProductDocument.group.wildcard('date_*'), AttributedField)
+        self.assertIsInstance(ProductDocument.group.wildcard('date_*').get_field().get_type(), Type)
+        self.assert_expression(ProductDocument.group.wildcard('date_*'), 'group.date_*')
+        self.assertEqual(ProductDocument.group.wildcard('date_*').get_field().get_name(), 'group.date_*')
+        self.assertEqual(collect_doc_classes(ProductDocument.group.wildcard('date_*')), {ProductDocument})
 
-        self.assertIsInstance(TestDocument.wildcard('group_*').id, AttributedField)
-        self.assertIsInstance(TestDocument.wildcard('group_*').id.get_field().get_type(), Type)
-        self.assert_expression(TestDocument.wildcard('group_*').id, 'group_*.id')
-        self.assertEqual(TestDocument.wildcard('group_*').id.get_field().get_name(), 'group_*.id')
-        self.assertEqual(collect_doc_classes(TestDocument.wildcard('group_*').id), {TestDocument})
+        self.assertIsInstance(ProductDocument.wildcard('group_*').id, AttributedField)
+        self.assertIsInstance(ProductDocument.wildcard('group_*').id.get_field().get_type(), Type)
+        self.assert_expression(ProductDocument.wildcard('group_*').id, 'group_*.id')
+        self.assertEqual(ProductDocument.wildcard('group_*').id.get_field().get_name(), 'group_*.id')
+        self.assertEqual(collect_doc_classes(ProductDocument.wildcard('group_*').id), {ProductDocument})
 
-        self.assertIsInstance(TestDocument.tags.group.dynamic_fields['group_id_*'], AttributedField)
-        self.assertIsInstance(TestDocument.tags.group.dynamic_fields['group_id_*'].get_type(), Integer)
-        self.assert_expression(TestDocument.tags.group.dynamic_fields['group_id_*'], 'tags.group.group_id_*')
-        self.assertEqual(TestDocument.tags.group.dynamic_fields['group_id_*'].get_field().get_name(), 'tags.group.group_id_*')
-        self.assertEqual(collect_doc_classes(TestDocument.tags.group.dynamic_fields['group_id_*']), {TestDocument})
+        self.assertIsInstance(ProductDocument.tags.group.dynamic_fields['group_id_*'], AttributedField)
+        self.assertIsInstance(ProductDocument.tags.group.dynamic_fields['group_id_*'].get_type(), Integer)
+        self.assert_expression(ProductDocument.tags.group.dynamic_fields['group_id_*'], 'tags.group.group_id_*')
+        self.assertEqual(ProductDocument.tags.group.dynamic_fields['group_id_*'].get_field().get_name(), 'tags.group.group_id_*')
+        self.assertEqual(collect_doc_classes(ProductDocument.tags.group.dynamic_fields['group_id_*']), {ProductDocument})
 
-        self.assertRaises(KeyError, lambda: TestDocument.tags.group.dynamic_fields['*'])
+        self.assertRaises(KeyError, lambda: ProductDocument.tags.group.dynamic_fields['*'])
 
-        self.assertIs(TestDocument._id, TestDocument._id)
-        self.assertIs(TestDocument.name, TestDocument.name)
-        self.assertIs(TestDocument.group.name, TestDocument.group.name)
-        self.assertIs(TestDocument.tags.group.name, TestDocument.tags.group.name)
-        self.assertIs(TestDocument.tags.group.name.raw, TestDocument.tags.group.name.raw)
+        self.assertIs(ProductDocument._id, ProductDocument._id)
+        self.assertIs(ProductDocument.name, ProductDocument.name)
+        self.assertIs(ProductDocument.group.name, ProductDocument.group.name)
+        self.assertIs(ProductDocument.tags.group.name, ProductDocument.tags.group.name)
+        self.assertIs(ProductDocument.tags.group.name.raw, ProductDocument.tags.group.name.raw)
         # TODO: May be we should cache dynamic fields?
-        self.assertIsNot(TestDocument.i_attr_2, TestDocument.i_attr_2)
-        self.assertIsNot(TestDocument._id, GroupDocument._id)
-        self.assertIsNot(GroupDocument.name, TestDocument.group.name)
-        self.assertIsNot(GroupDocument.name, TestDocument.tags.group.name)
-        self.assertIsNot(TestDocument.group.name, TestDocument.tags.group.name)
-        self.assertIsNot(TagDocument.name, TestDocument.tags.name)
+        self.assertIsNot(ProductDocument.i_attr_2, ProductDocument.i_attr_2)
+        self.assertIsNot(ProductDocument._id, GroupDocument._id)
+        self.assertIsNot(GroupDocument.name, ProductDocument.group.name)
+        self.assertIsNot(GroupDocument.name, ProductDocument.tags.group.name)
+        self.assertIsNot(ProductDocument.group.name, ProductDocument.tags.group.name)
+        self.assertIsNot(TagDocument.name, ProductDocument.tags.name)
 
-        doc = TestDocument()
+        doc = ProductDocument()
         self.assertIs(doc._id, None)
         self.assertIs(doc.name, None)
         self.assertIs(doc.status, None)
@@ -308,13 +308,13 @@ class DocumentTestCase(BaseTestCase):
         self.assertIsInstance(doc._id, int)
         self.assertEqual(doc._id, 123)
 
-        doc = TestDocument(_id=123)
+        doc = ProductDocument(_id=123)
         self.assertIsInstance(doc._id, int)
         self.assertEqual(doc._id, 123)
         self.assertIs(doc.name, None)
         self.assertIs(doc.status, None)
 
-        doc = TestDocument(_id=123, name='Test name', status=0,
+        doc = ProductDocument(_id=123, name='Test name', status=0,
                            group=GroupDocument(name='Test group'),
                            price=99.99,
                            tags=[TagDocument(id=1, name='Test tag'),
@@ -334,7 +334,7 @@ class DocumentTestCase(BaseTestCase):
         self.assertIsInstance(doc.tags[0].name, string_types)
         self.assertEqual(doc.tags[0].name, 'Test tag')
 
-        hit_doc = TestDocument(
+        hit_doc = ProductDocument(
             _hit={
                 '_id':'123',
                 '_score': 1.23,
@@ -373,7 +373,7 @@ class DocumentTestCase(BaseTestCase):
         self.assertIn('field_1', hit_doc.get_matched_queries())
         self.assertIn('field_2', hit_doc.get_matched_queries())
 
-        hit_doc = TestDocument(
+        hit_doc = ProductDocument(
             _hit={
                 '_id':'123',
                 '_score': 1.23,
@@ -405,7 +405,7 @@ class DocumentTestCase(BaseTestCase):
             }
         )
 
-        hit_doc = TestDocument(
+        hit_doc = ProductDocument(
             _hit={
                 '_id':'123'
             }
@@ -414,7 +414,7 @@ class DocumentTestCase(BaseTestCase):
         self.assertIs(hit_doc.name, None)
         self.assertEqual(hit_doc.get_highlight(), {})
 
-        doc = TestDocument(_id=123, name='Test name', status=0,
+        doc = ProductDocument(_id=123, name='Test name', status=0,
                            group=GroupDocument(name='Test group'),
                            price=101.5,
                            tags=[TagDocument(id=1, name='Test tag'),
@@ -441,7 +441,7 @@ class DocumentTestCase(BaseTestCase):
         )
 
     def test_inheritance(self):
-        class InheritedDocument(TestDocument):
+        class InheritedDocument(ProductDocument):
             description = Field(String)
 
         self.assertSameElements(
@@ -742,17 +742,17 @@ class DocumentTestCase(BaseTestCase):
             ValidationError, lambda: doc.to_source(validate=True))
 
     def test_to_source_with_validation(self):
-        class TestDocument(Document):
+        class ProductDocument(Document):
             name = Field(String, required=True)
             status = Field(Integer)
 
-        doc = TestDocument(status=1)
+        doc = ProductDocument(status=1)
         self.assertRaises(ValidationError, lambda: doc.to_source(validate=True))
 
-        doc = TestDocument(name=None, status=1)
+        doc = ProductDocument(name=None, status=1)
         self.assertRaises(ValidationError, lambda: doc.to_source(validate=True))
 
-        doc = TestDocument(name=123, status='4')
+        doc = ProductDocument(name=123, status='4')
         self.assertEqual(
             doc.to_source(validate=True),
             {
@@ -761,18 +761,18 @@ class DocumentTestCase(BaseTestCase):
             }
         )
 
-        doc = TestDocument(name=123, status='4 test')
+        doc = ProductDocument(name=123, status='4 test')
         with self.assertRaises(ValidationError):
             doc.to_source(validate=True)
 
-        doc = TestDocument(name=123, status=[1, 2])
+        doc = ProductDocument(name=123, status=[1, 2])
         with self.assertRaises(ValidationError):
             doc.to_source(validate=True)
 
-        doc = TestDocument(name=123, status=datetime.datetime.now())
+        doc = ProductDocument(name=123, status=datetime.datetime.now())
         with self.assertRaises(ValidationError):
             doc.to_source(validate=True)
 
-        doc = TestDocument(name=123, status=1 << 31)
+        doc = ProductDocument(name=123, status=1 << 31)
         with self.assertRaises(ValidationError):
             doc.to_source(validate=True)
