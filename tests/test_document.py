@@ -5,13 +5,13 @@ import dateutil
 from elasticmagic.util import collect_doc_classes
 from elasticmagic.types import (
     Type, String, Integer, Float, Boolean,
-    Date, Object, List, GeoPoint, Completion,
+    Date, Object, List, GeoPoint, Completion, Percolator,
 )
 from elasticmagic.types import ValidationError
 from elasticmagic.compat import string_types
 from elasticmagic.document import Document, DynamicDocument
 from elasticmagic.attribute import AttributedField, DynamicAttributedField
-from elasticmagic.expression import Field
+from elasticmagic.expression import Field, MultiMatch
 
 from .base import BaseTestCase
 
@@ -774,5 +774,48 @@ class DocumentTestCase(BaseTestCase):
             doc.to_source(validate=True)
 
         doc = ProductDocument(name=123, status=1 << 31)
+        with self.assertRaises(ValidationError):
+            doc.to_source(validate=True)
+
+    def test_percolator_field(self):
+        class ProductDocument(Document):
+            name = Field(String)
+            keywords = Field(List(String))
+
+        class QueryDocument(Document):
+            __doc_type__ = 'query'
+
+            query = Field(Percolator)
+
+        self.assertEqual(
+            QueryDocument.to_mapping(),
+            {
+                "query": {
+                    "properties": {
+                        "query": {"type": "percolator"}
+                    }
+                }
+            }
+        )
+
+        doc = QueryDocument(
+            query=MultiMatch(
+                "Super deal",
+                [ProductDocument.name.boost(1.5), ProductDocument.keywords],
+                type='cross_fields'))
+        self.assertEqual(
+            doc.to_source(),
+            {
+                "query": {
+                    "multi_match": {
+                        "type": "cross_fields",
+                        "query": "Super deal",
+                        "fields": ["name^1.5", "keywords"],
+                    }
+                }
+            }
+        )
+
+        doc = QueryDocument(query='test')
         with self.assertRaises(ValidationError):
             doc.to_source(validate=True)

@@ -336,3 +336,17 @@ class Completion(Type):
             # we copy value to be sure it won't be chaged in future.
             value = copy.deepcopy(value)
         return value
+
+
+class Percolator(Type):
+    __visit_name__ = 'percolator'
+
+    def from_python(self, value, validate=False):
+        if hasattr(value, 'to_elastic'):
+            value = value.to_elastic()
+        if validate:
+            if not isinstance(value, dict):
+                raise ValidationError(
+                    'Value must be dictionary or expression: {!r}'
+                    .format(value))
+        return value
