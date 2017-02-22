@@ -1,2 +1,3 @@
 include requirements.txt
 include requirements_geo.txt
+include requirements_test.txt
