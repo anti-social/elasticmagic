@@ -4,18 +4,18 @@ containers:
       - !Ubuntu xenial
       - !PipConfig
         dependencies: true
-      - !Py2Requirements requirements.txt
-      - !Py2Requirements requirements_geo.txt
-      - !Py2Requirements requirements_test.txt
+      - !Py2Requirements requirements/base.txt
+      - !Py2Requirements requirements/geo.txt
+      - !Py2Requirements requirements/test.txt
 
   py3-test:
     setup:
       - !Ubuntu xenial
       - !PipConfig
         dependencies: true
-      - !Py3Requirements requirements.txt
-      - !Py3Requirements requirements_geo.txt
-      - !Py3Requirements requirements_test.txt
+      - !Py3Requirements requirements/base.txt
+      - !Py3Requirements requirements/geo.txt
+      - !Py3Requirements requirements/test.txt
 
   py2-sphinx:
     setup:
@@ -31,8 +31,8 @@ containers:
       # so install imagesize dependency manually
       - !Py2Install [imagesize==0.7.1]
       # To run doctests
-      - !Py2Requirements requirements.txt
-      - !Py2Requirements requirements_test.txt
+      - !Py2Requirements requirements/base.txt
+      - !Py2Requirements requirements/test.txt
 
   py3-sphinx:
     setup:
@@ -48,8 +48,8 @@ containers:
       # so install imagesize dependency manually
       - !Py3Install [imagesize==0.7.1]
       # To run doctests
-      - !Py3Requirements requirements.txt
-      - !Py3Requirements requirements_test.txt
+      - !Py3Requirements requirements/base.txt
+      - !Py3Requirements requirements/test.txt
 
   bench:
     environ:
@@ -59,7 +59,7 @@ containers:
       - !Alpine v3.4
       - !PipConfig
         dependencies: true
-      - !Py3Requirements requirements.txt
+      - !Py3Requirements requirements/base.txt
       - !Py3Install [coverage]
 
 commands:
