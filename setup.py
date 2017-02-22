@@ -7,7 +7,7 @@ def get_version():
         return version_file.readline().split('=')[1].strip().strip("'\"")
 
 def parse_requirements(req_file_path):
-    with open(req_file_path) as req_file:
+    with open(os.path.join('requirements', req_file_path)) as req_file:
         return req_file.read().splitlines()
 
 setup(
@@ -20,10 +20,10 @@ setup(
     keywords="elasticsearch dsl",
     url="https://github.com/anti-social/elasticmagic",
     packages=find_packages(exclude=["tests"]),
-    install_requires=parse_requirements("requirements.txt"),
-    tests_require=parse_requirements("requirements_test.txt"),
+    install_requires=parse_requirements("base.txt"),
+    tests_require=parse_requirements("test.txt"),
     extras_require={
-        "geo": parse_requirements("requirements_geo.txt"),
+        "geo": parse_requirements("geo.txt"),
     },
     classifiers=[
         "Development Status :: 3 - Alpha",
