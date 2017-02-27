@@ -21,7 +21,6 @@ setup(
     url="https://github.com/anti-social/elasticmagic",
     packages=find_packages(exclude=["tests"]),
     install_requires=parse_requirements("requirements.txt"),
-    tests_require=parse_requirements("requirements_test.txt"),
     extras_require={
         "geo": parse_requirements("requirements_geo.txt"),
     },
