@@ -17,11 +17,11 @@ before_cache:
 
 install:
 - pip install tox-travis
-- pip install -r requirements_doc.txt
+- pip install codecov
 
 script:
-- py.test -v --cov
-- cd docs && make doctest
+- tox -- -v --cov
+- tox -e doctest
 
 after_success:
 - codecov
