@@ -1,16 +1,14 @@
-from mock import MagicMock
+from mock import Mock, MagicMock
 
-import pytest
-
-from elasticmagic import agg, Document, DynamicDocument, Field, SearchQuery, Term, Match, Index
-from elasticmagic.types import Integer, Float
+from elasticmagic import agg, Document, Field, Match
+from elasticmagic.types import Integer, Float, List, Nested, String
 from elasticmagic.ext.queryfilter import QueryFilter, FacetFilter, RangeFilter, SimpleFilter
 from elasticmagic.ext.queryfilter import FacetQueryFilter, FacetQueryValue
 from elasticmagic.ext.queryfilter import SimpleQueryFilter, SimpleQueryValue
 from elasticmagic.ext.queryfilter import OrderingFilter, OrderingValue
+from elasticmagic.ext.queryfilter import NestedFacetFilter, NestedRangeFilter
 from elasticmagic.ext.queryfilter import PageFilter
 
-from .base import BaseTestCase
 from .fixtures import client, index
 from .util import assert_expr
 
@@ -1409,3 +1407,548 @@ def test_page_with_max_items(index):
             "size": 0
         }
     )
+
+
+def test_nested_facet_filter(index, client):
+    class AttributeDoc(Document):
+        name = Field(String)
+        value = Field(Float)
+
+    class ProductDoc(Document):
+        __doc_type__ = 'product'
+
+        attrs = Field(List(Nested(AttributeDoc)))
+
+    f = NestedFacetFilter(
+        'size', 'attrs', ProductDoc.attrs.name == 'size', ProductDoc.attrs.value,
+    )
+    f.qf = Mock(_name='qf')
+    assert_expr(
+        f._apply_filter(index.search_query(), {}),
+        {}
+    )
+    assert_expr(
+        f._apply_agg(index.search_query(), {}),
+        {
+            "aggregations": {
+                "qf.size": {
+                    "nested": {
+                        "path": "attrs"
+                    },
+                    "aggregations": {
+                        "qf.size.key": {
+                            "filter": {
+                                "term": {"attrs.name": "size"}
+                            },
+                            "aggregations": {
+                                "qf.size.value": {
+                                    "terms": {"field": "attrs.value"}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
+    assert_expr(
+        f._apply_filter(index.search_query(), {'size': {'exact': [[1]]}}),
+        {
+            "post_filter": {
+                "nested": {
+                    "path": "attrs",
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {"term": {"attrs.name": "size"}},
+                                {"term": {"attrs.value": 1}}
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    )
+    assert_expr(
+        f._apply_filter(index.search_query(), {'size': {'exact': [[1], [2]]}}),
+        {
+            "post_filter": {
+                "nested": {
+                    "path": "attrs",
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {"term": {"attrs.name": "size"}},
+                                {"terms": {"attrs.value": [1, 2]}}
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    )
+
+    f = NestedFacetFilter(
+        'size', ProductDoc.attrs, ProductDoc.attrs.name == 'size', ProductDoc.attrs.value,
+        conj_operator=QueryFilter.CONJ_AND,
+    )
+    assert \
+        f._apply_filter(index.search_query(), {}).to_dict() == \
+        {}
+    assert \
+        f._apply_filter(index.search_query(),
+                        {'size': {'exact': [[1]]}}).to_dict() == \
+        {
+            "post_filter": {
+                "nested": {
+                    "path": "attrs",
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {"term": {"attrs.name": "size"}},
+                                {"term": {"attrs.value": 1}}
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    assert \
+        f._apply_filter(index.search_query(),
+                        {'size': {'exact': [[1], [2]]}}).to_dict() == \
+        {
+            "post_filter": {
+                "nested": {
+                    "path": "attrs",
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {"term": {"attrs.name": "size"}},
+                                {"term": {"attrs.value": 1}},
+                                {"term": {"attrs.value": 2}}
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+
+def test_nested_facet_filter_func(index, client):
+    class AttributeDoc(Document):
+        name = Field(String)
+        value = Field(String)
+
+    class ProductDoc(Document):
+        __doc_type__ = 'product'
+
+        attrs = Field(List(Nested(AttributeDoc)))
+
+    class TestQueryFilter(QueryFilter):
+        size = NestedFacetFilter(
+            ProductDoc.attrs,
+            ProductDoc.attrs.name == 'size', ProductDoc.attrs.value,
+        )
+        color = NestedFacetFilter(
+            ProductDoc.attrs,
+            ProductDoc.attrs.name == 'color', ProductDoc.attrs.value,
+        )
+
+    qf = TestQueryFilter()
+
+    client.search = MagicMock(
+        return_value={
+            "hits": {
+                "hits": [],
+                "max_score": 1,
+                "total": 1
+            },
+            "aggregations": {
+                "qf.size": {
+                    "doc_count": 1000,
+                    "qf.size.key": {
+                        "doc_count": 1000,
+                        "qf.size.value": {
+                            "buckets": [
+                                {
+                                    "key": "M",
+                                    "doc_count": 284
+                                },
+                                {
+                                    "key": "S",
+                                    "doc_count": 172
+                                },
+                                {
+                                    "key": "L",
+                                    "doc_count": 93
+                                },
+                                {
+                                    "key": "XL",
+                                    "doc_count": 26
+                                },
+                            ]
+                        }
+                    }
+                },
+                "qf.color": {
+                    "doc_count": 1000,
+                    "qf.color.key": {
+                        "doc_count": 1000,
+                        "qf.color.value": {
+                            "buckets": []
+                        }
+                    }
+                }
+            }
+        }
+    )
+    sq = index.search_query()
+    sq = qf.apply(sq, {})
+    qf_res = qf.process_result(sq.get_result())
+    size_res = qf_res.size
+    assert len(size_res.values) == 4
+    assert len(size_res.all_values) == 4
+    assert len(size_res.selected_values) == 0
+    values = iter(size_res.all_values)
+    fv = next(values)
+    assert fv.value == 'M'
+    assert fv.count == 284
+    assert fv.count_text == '284'
+    assert not fv.selected
+    fv = next(values)
+    assert fv.value == 'S'
+    assert fv.count == 172
+    assert fv.count_text == '172'
+    assert not fv.selected
+    fv = next(values)
+    assert fv.value == 'L'
+    assert fv.count == 93
+    assert fv.count_text == '93'
+    assert not fv.selected
+    fv = next(values)
+    assert fv.value == 'XL'
+    assert fv.count == 26
+    assert fv.count_text == '26'
+    assert not fv.selected
+    color_res = qf_res.color
+    assert len(color_res.values) == 0
+    assert len(color_res.all_values) == 0
+    assert len(color_res.selected_values) == 0
+
+    client.search = MagicMock(
+        return_value={
+            "hits": {
+                "hits": [],
+                "max_score": 1,
+                "total": 1
+            },
+            "aggregations": {
+                "qf.size": {
+                    "doc_count": 1000,
+                    "qf.size.key": {
+                        "doc_count": 1000,
+                        "qf.size.value": {
+                            "buckets": [
+                                {
+                                    "key": "M",
+                                    "doc_count": 284
+                                },
+                                {
+                                    "key": "S",
+                                    "doc_count": 172
+                                },
+                                {
+                                    "key": "L",
+                                    "doc_count": 93
+                                },
+                                {
+                                    "key": "XL",
+                                    "doc_count": 26
+                                },
+                            ]
+                        }
+                    }
+                },
+                "qf.color.filter": {
+                    "doc_count": 900,
+                    "qf.color": {
+                        "doc_count": 900,
+                        "qf.color.key": {
+                            "doc_count": 900,
+                            "qf.color.value": {
+                                "buckets": []
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
+    sq = index.search_query()
+    sq = qf.apply(sq, {"size": ['S', 'XS']})
+    assert \
+        sq.to_dict() == \
+        {
+            "aggregations": {
+                "qf.color.filter": {
+                    "filter": {
+                        "nested": {
+                            "path": "attrs",
+                            "query": {
+                                "bool": {
+                                    "must": [
+                                        {"term": {"attrs.name": "size"}},
+                                        {"terms": {"attrs.value": ["S", "XS"]}}
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "aggregations": {
+                        "qf.color": {
+                            "nested": {
+                                "path": "attrs"
+                            },
+                            "aggregations": {
+                                "qf.color.key": {
+                                    "filter": {
+                                        "term": {"attrs.name": "color"}
+                                    },
+                                    "aggregations": {
+                                        "qf.color.value": {
+                                            "terms": {"field": "attrs.value"}
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "qf.size": {
+                    "nested": {
+                        "path": "attrs"
+                    },
+                    "aggregations": {
+                        "qf.size.key": {
+                            "filter": {
+                                "term": {"attrs.name": "size"}
+                            },
+                            "aggregations": {
+                                "qf.size.value": {
+                                    "terms": {"field": "attrs.value"}
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post_filter": {
+                "nested": {
+                    "path": "attrs",
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {"term": {"attrs.name": "size"}},
+                                {"terms": {"attrs.value": ["S", "XS"]}}
+                            ]
+
+                        }
+                    }
+                }
+            }
+        }
+    qf_res = qf.process_result(sq.get_result())
+    size_res = qf_res.size
+    assert len(size_res.values) == 3
+    assert len(size_res.all_values) == 5
+    assert len(size_res.selected_values) == 2
+    values = iter(size_res.all_values)
+    fv = next(values)
+    assert fv.value == 'M'
+    assert fv.count == 284
+    assert fv.count_text == '+284'
+    assert not fv.selected
+    fv = next(values)
+    assert fv.value == 'S'
+    assert fv.count == 172
+    assert fv.count_text == '172'
+    assert fv.selected
+    fv = next(values)
+    assert fv.value == 'L'
+    assert fv.count == 93
+    assert fv.count_text == '+93'
+    assert not fv.selected
+    fv = next(values)
+    assert fv.value == 'XL'
+    assert fv.count == 26
+    assert fv.count_text == '+26'
+    assert not fv.selected
+    fv = next(values)
+    assert fv.value == 'XS'
+    assert fv.count is None
+    assert fv.count_text == ''
+    assert fv.selected
+    color_res = qf_res.color
+    assert len(color_res.values) == 0
+    assert len(color_res.all_values) == 0
+    assert len(color_res.selected_values) == 0
+
+def test_nested_range_filter(index, client):
+    class AttributeDoc(Document):
+        name = Field(String)
+        value = Field(Float)
+
+    class ProductDoc(Document):
+        __doc_type__ = 'product'
+
+        attrs = Field(List(Nested(AttributeDoc)))
+
+    f = NestedRangeFilter(
+        'test', 'attrs', ProductDoc.attrs.name == 'size', ProductDoc.attrs.value,
+        compute_enabled=True, compute_min_max=True,
+    )
+    f.qf = Mock(_name='qf')
+    assert \
+        f._apply_filter(index.search_query(), {}).to_dict() == \
+        {}
+    assert \
+        f._apply_agg(index.search_query(), {}).to_dict() == \
+        {
+            "aggregations": {
+                "qf.test.enabled": {
+                    "nested": {
+                        "path": "attrs"
+                    },
+                    "aggregations": {
+                        "qf.test.key": {
+                            "filter": {
+                                "term": {"attrs.name": "size"}
+                            },
+                            "aggregations": {
+                                "qf.test.value": {
+                                    "filter": {
+                                        "exists": {"field": "attrs.value"}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "qf.test.enabled.stat": {
+                    "nested": {
+                        "path": "attrs"
+                    },
+                    "aggregations": {
+                        "qf.test.key": {
+                            "filter": {
+                                "term": {"attrs.name": "size"}
+                            },
+                            "aggregations": {
+                                "qf.test.min": {
+                                    "min": {"field": "attrs.value"}
+                                },
+                                "qf.test.max": {
+                                    "max": {"field": "attrs.value"}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+    assert \
+        f._apply_filter(index.search_query(),
+                        {'test': {'gte': [[5.1]]}}).to_dict() == \
+        {
+            "post_filter": {
+                "nested": {
+                    "path": "attrs",
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {"term": {"attrs.name": "size"}},
+                                {"range": {"attrs.value": {"gte": 5.1}}}
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+
+def test_nested_range_filter_func(index, client):
+    class AttributeDoc(Document):
+        name = Field(String)
+        value = Field(Float)
+
+    class ProductDoc(Document):
+        __doc_type__ = 'product'
+
+        attrs = Field(List(Nested(AttributeDoc)))
+
+    class TestQueryFilter(QueryFilter):
+        diagonal = NestedRangeFilter(
+            ProductDoc.attrs, ProductDoc.attrs.name == 'diagonal', ProductDoc.attrs.value,
+            compute_enabled=True, compute_min_max=True,
+        )
+        weight = NestedRangeFilter(
+            ProductDoc.attrs, ProductDoc.attrs.name == 'weight', ProductDoc.attrs.value,
+            compute_enabled=False, compute_min_max=True,
+        )
+
+    qf = TestQueryFilter()
+
+    client.search = MagicMock(
+        return_value={
+            "hits": {
+                "hits": [],
+                "max_score": 1,
+                "total": 1
+            },
+            "aggregations": {
+                "qf.diagonal.enabled": {
+                    "doc_count": 1000,
+                    "qf.diagonal.key": {
+                        "doc_count": 1000,
+                        "qf.diagonal.value": {
+                            "doc_count": 1000
+                        }
+                    }
+                },
+                "qf.diagonal.enabled.stat": {
+                    "doc_count": 1000,
+                    "qf.diagonal.key": {
+                        "doc_count": 1000,
+                        "qf.diagonal.min": {
+                            "value": 17
+                        },
+                        "qf.diagonal.max": {
+                            "value": 102
+                        }
+                    }
+                },
+                "qf.weight.enabled.stat": {
+                    "doc_count": 1000,
+                    "qf.weight.key": {
+                        "doc_count": 1000,
+                        "qf.weight.min": {
+                            "value": 2.5
+                        },
+                        "qf.weight.max": {
+                            "value": 38
+                        }
+                    }
+                }
+            }
+        }
+    )
+    sq = index.search_query()
+    sq = qf.apply(sq, {})
+    qf_res = qf.process_result(sq.get_result())
+    diag = qf_res.diagonal
+    assert diag.enabled is True
+    assert diag.min_value == 17
+    assert diag.max_value == 102
+    weight = qf_res.weight
+    assert weight.enabled is None
+    assert weight.min_value == 2.5
+    assert weight.max_value == 38.0

@@ -880,7 +880,7 @@ class NestedFacetFilter(BaseFilter):
 
         expressions = [self.key_expression]
         if self._conj_operator == QueryFilter.CONJ_AND:
-            expressions.append(*(self.value_field == v for v in values))
+            expressions.extend(self.value_field == v for v in values)
         else:
             expressions.append(self.value_field.in_(values))
 
@@ -963,12 +963,12 @@ class NestedFacetFilter(BaseFilter):
                 .get_aggregation(self._filter_value_agg_name)
             )
 
+        facet_result = FacetFilterResult(self.name, self.alias)
         processed_values = set()
         for bucket in terms_agg.buckets:
-            if bucket.key in values:
-                self.qf._set_selected(self.name, bucket.key)
-            self.qf._set_value_data(self.name, bucket.key, {'bucket': bucket})
-            self.add_value(FacetValue(bucket.key, _filter=self))
+            facet_result.add_value(FacetValueResult(
+                bucket, bucket.key in values, bool(values), get_title=self._get_title,
+            ))
             processed_values.add(bucket.key)
 
         for v in values:
@@ -978,20 +978,11 @@ class NestedFacetFilter(BaseFilter):
                     fake_agg_data, terms_agg.expr.aggs(None), terms_agg
                 )
                 terms_agg.add_bucket(fake_bucket)
-                self.qf._set_selected(self.name, fake_bucket.key)
-                self.qf._set_value_data(self.name, fake_bucket.key, {'bucket': fake_bucket})
-                self.add_value(FacetValue(fake_bucket.key).bind(self))
+                facet_result.add_value(FacetValueResult(
+                    fake_bucket, True, True, get_title=self._get_title,
+                ))
 
-    def add_value(self, fv):
-        self.all_values.append(fv)
-        self.values_map[fv.value] = fv
-        if fv.selected:
-            self.selected_values.append(fv)
-        else:
-            self.values.append(fv)
-
-    def get_value(self, value):
-        return self.values_map.get(value)
+        return facet_result
 
 
 class NestedRangeFilter(BaseFilter):
@@ -1009,11 +1000,8 @@ class NestedRangeFilter(BaseFilter):
 
         self._compute_enabled = compute_enabled
         self._compute_min_max = compute_min_max
-        self.from_value = None
-        self.to_value = None
-        self.enabled = None
-        self.min = None
-        self.max = None
+        self._from_value = None
+        self._to_value = None
 
     @property
     def _types(self):
@@ -1059,16 +1047,16 @@ class NestedRangeFilter(BaseFilter):
 
     def _apply_filter(self, search_query, params):
         params = params.get(self.alias) or {}
-        self.from_value = self._get_from_value(params)
-        self.to_value = self._get_to_value(params)
-        if self.from_value is None and self.to_value is None:
+        self._from_value = self._get_from_value(params)
+        self._to_value = self._get_to_value(params)
+        if self._from_value is None and self._to_value is None:
             return search_query
 
         expr = Nested(
             path=self.path,
             query=Bool.must(
                 self.key_expression,
-                self.value_field.range(gte=self.from_value, lte=self.to_value),
+                self.value_field.range(gte=self._from_value, lte=self._to_value),
             )
         )
         return search_query.post_filter(expr, meta={'tags': {self.name}})
@@ -1125,19 +1113,26 @@ class NestedRangeFilter(BaseFilter):
         else:
             base_agg = result
 
+        enabled = None
         if self._compute_enabled:
-            self.enabled = bool(
+            enabled = bool(
                 result
                 .get_aggregation(self._enabled_agg_name)
                 .get_aggregation(self._filter_key_agg_name)
                 .get_aggregation(self._filter_value_agg_name)
                 .doc_count
             )
+        min_value = max_value = None
         if self._compute_min_max:
             base_agg = (
                 base_agg
                 .get_aggregation(self._enabled_agg_name_stat)
                 .get_aggregation(self._filter_key_agg_name)
             )
-            self.min = base_agg.get_aggregation(self._min_agg_name).value
-            self.max = base_agg.get_aggregation(self._max_agg_name).value
+            min_value = base_agg.get_aggregation(self._min_agg_name).value
+            max_value = base_agg.get_aggregation(self._max_agg_name).value
+
+        return RangeFilterResult(
+            self._from_value, self._to_value,
+            enabled=enabled, min_value=min_value, max_value=max_value
+        )

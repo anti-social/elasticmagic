@@ -1,3 +1,4 @@
 
 def assert_expr(expr, params):
-    assert expr.to_dict() == params
+    compiled = expr.to_dict()
+    assert compiled == params
