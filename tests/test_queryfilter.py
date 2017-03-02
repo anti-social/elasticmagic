@@ -20,6 +20,7 @@ class CarType(object):
         self.id = id
         self.title = title
 
+
 TYPES = {
     t.id: t
     for t in [
@@ -29,6 +30,7 @@ TYPES = {
             CarType(3, 'Coupe'),
     ]
 }
+
 
 def type_mapper(values):
     return TYPES
@@ -90,6 +92,7 @@ def test_simple_filter(index):
         }
     )
 
+
 def test_simple_filter_with_and_conjunction(index):
     class ClientQueryFilter(QueryFilter):
         label = SimpleFilter(index.client.label, conj_operator=QueryFilter.CONJ_AND)
@@ -143,6 +146,7 @@ def test_simple_filter_with_and_conjunction(index):
             }
         }
     )
+
 
 def test_facet_filter(index, client):
     class CarQueryFilter(QueryFilter):
@@ -584,6 +588,7 @@ def test_facet_filter_with_and_conjunction(index):
         }
     )
 
+
 def test_range_filter(index, client):
     class CarDocument(Document):
         __doc_type__ = 'car'
@@ -818,6 +823,7 @@ def test_simple_query_filter(index):
         }
     )
 
+
 def test_simple_query_filter_with_and_conjunction(index):
     class ItemQueryFilter(QueryFilter):
         selling_type = SimpleQueryFilter(
@@ -855,6 +861,7 @@ def test_simple_query_filter_with_and_conjunction(index):
             }
         }
     )
+
 
 def test_facet_query_filter(index, client):
     class CarQueryFilter(QueryFilter):
@@ -1167,6 +1174,7 @@ def test_facet_query_filter(index, client):
     assert qf_res.price.get_value('30000-*').selected is False
     assert qf_res.price.get_value('30000-*').agg.get_aggregation('disp_avg').value == 2.67
 
+
 def test_facet_query_filter_with_and_conjunction(index):
     class ItemQueryFilter(QueryFilter):
         available = FacetQueryFilter(
@@ -1246,6 +1254,7 @@ def test_facet_query_filter_with_and_conjunction(index):
             }
         }
     )
+
 
 def test_ordering(index):
     class CarQueryFilter(QueryFilter):
@@ -1377,6 +1386,7 @@ def test_page(index, client):
     assert qf_res.page.has_next == True
     assert qf_res.page.has_prev == True
     assert len(qf_res.page.items) == 10
+
 
 def test_page_with_max_items(index):
     class CarQueryFilter(QueryFilter):
