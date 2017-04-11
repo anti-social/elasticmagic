@@ -642,7 +642,7 @@ class SearchQuery(object):
         """Executes current query and returns number of documents matched the
         query. Uses `count api <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-count.html>`_.
         """
-        res = self._index.count(
+        res = (self._index or self._cluster).count(
             self.get_context().get_filtered_query(wrap_function_score=False),
             doc_type=self._get_doc_type(),
             routing=self._search_params.get('routing'),
@@ -650,7 +650,7 @@ class SearchQuery(object):
         return res.count
 
     def exists(self, refresh=None):
-        res = self._index.exists(
+        res = (self._index or self._cluster).exists(
             self.get_context().get_filtered_query(wrap_function_score=False),
             self._get_doc_type(),
             refresh=refresh,
@@ -659,7 +659,7 @@ class SearchQuery(object):
         return res.exists
 
     def delete(self, timeout=None, consistency=None, replication=None):
-        return self._index.delete_by_query(
+        return (self._index or self._cluster).delete_by_query(
             self.get_context().get_filtered_query(wrap_function_score=False),
             self._get_doc_type(),
             timeout=timeout,
@@ -680,7 +680,7 @@ class SearchQuery(object):
         if not isinstance(k, (slice, int)):
             raise TypeError
 
-        if 'results' in self.__dict__:
+        if '_result' in self.__dict__:
             docs = self.get_result().hits[k]
         else:
             if isinstance(k, slice):
