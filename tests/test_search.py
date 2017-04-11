@@ -917,8 +917,10 @@ class SearchQueryTest(BaseTestCase):
             .with_instance_mapper(obj_mapper)
         )
         self.assertEqual(collect_doc_classes(sq), {CarDocument})
-        results = sq.get_result()
-        self.assertEquals(len(results), 2)
+        result = sq.get_result()
+        self.assertEquals(len(result), 2)
+        self.assertIs(result, sq.result)
+        self.assertIs(result, sq.results)
 
         self.client.search.assert_called_with(
             index='test',

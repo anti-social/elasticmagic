@@ -624,12 +624,18 @@ class SearchQuery(object):
 
     @property
     def result(self):
-        warnings.warn('Field "result" is deprecated', DeprecationWarning)
+        warnings.warn(
+            "'result' attribute is deprecated, use 'get_result' method",
+            DeprecationWarning
+        )
         return self.get_result()
 
     @property
     def results(self):
-        warnings.warn('Field "results" is deprecated', DeprecationWarning)
+        warnings.warn(
+            "'results' attribute is deprecated, use 'get_result' method",
+            DeprecationWarning
+        )
         return self.get_result()
 
     def count(self):
