@@ -2,12 +2,20 @@ from mock import Mock, MagicMock
 
 from elasticmagic import agg, Document, Field, Match
 from elasticmagic.types import Integer, Float, List, Nested, String
-from elasticmagic.ext.queryfilter import QueryFilter, FacetFilter, RangeFilter, SimpleFilter
-from elasticmagic.ext.queryfilter import FacetQueryFilter, FacetQueryValue
-from elasticmagic.ext.queryfilter import SimpleQueryFilter, SimpleQueryValue
-from elasticmagic.ext.queryfilter import OrderingFilter, OrderingValue
-from elasticmagic.ext.queryfilter import NestedFacetFilter, NestedRangeFilter
+from elasticmagic.ext.queryfilter import FacetFilter
+from elasticmagic.ext.queryfilter import FacetQueryFilter
+from elasticmagic.ext.queryfilter import FacetQueryValue
+from elasticmagic.ext.queryfilter import NestedFacetFilter
+from elasticmagic.ext.queryfilter import NestedRangeFilter
+from elasticmagic.ext.queryfilter import OrderingFilter
+from elasticmagic.ext.queryfilter import OrderingValue
 from elasticmagic.ext.queryfilter import PageFilter
+from elasticmagic.ext.queryfilter import QueryFilter
+from elasticmagic.ext.queryfilter import RangeFilter
+from elasticmagic.ext.queryfilter import SimpleFilter
+from elasticmagic.ext.queryfilter import SimpleQueryFilter
+from elasticmagic.ext.queryfilter import SimpleQueryValue
+
 
 from .fixtures import client, index
 from .util import assert_expr
@@ -67,7 +75,8 @@ def test_simple_filter(index):
         index.search_query(Match(index.car.name, 'test'))
         .filter(index.car.status == 0)
     )
-    sq = qf.apply(sq, {'type': ['0', '1:break', '3', 'null'], 'vendor': ['Subaru']})
+    sq = qf.apply(sq, {'type': ['0', '1:break', '3', 'null'],
+                       'vendor': ['Subaru']})
     assert_expr(
         sq,
         {
@@ -93,7 +102,8 @@ def test_simple_filter(index):
 
 def test_simple_filter_with_and_conjunction(index):
     class ClientQueryFilter(QueryFilter):
-        label = SimpleFilter(index.client.label, conj_operator=QueryFilter.CONJ_AND)
+        label = SimpleFilter(index.client.label,
+                             conj_operator=QueryFilter.CONJ_AND)
 
     qf = ClientQueryFilter()
 
@@ -147,14 +157,20 @@ def test_simple_filter_with_and_conjunction(index):
 
 
 def test_facet_filter(index, client):
+    def get_title(v):
+        if v.instance:
+            return v.instance.title
+        return unicode(v.value)
+
     class CarQueryFilter(QueryFilter):
         type = FacetFilter(
             index.car.type,
             instance_mapper=type_mapper,
-            get_title=lambda v: v.instance.title if v.instance else unicode(v.value),
+            get_title=get_title,
             type=Integer,
         )
-        vendor = FacetFilter(index.car.vendor, aggs={'min_price': agg.Min(index.car.price)})
+        vendor = FacetFilter(index.car.vendor,
+                             aggs={'min_price': agg.Min(index.car.price)})
         model = FacetFilter(index.car.model, alias='m')
 
     qf = CarQueryFilter()
@@ -232,7 +248,8 @@ def test_facet_filter(index, client):
         .post_filter(index.car.date_created > 'now-1y',
                      meta={'tags': {qf.get_name()}})
     )
-    sq = qf.apply(sq, {'type': ['0', '1:break', '3', 'null'], 'vendor': ['Subaru']})
+    sq = qf.apply(sq, {'type': ['0', '1:break', '3', 'null'],
+                       'vendor': ['Subaru']})
     assert_expr(
         sq,
         {
@@ -364,71 +381,79 @@ def test_facet_filter(index, client):
     assert len(type_filter.selected_values) == 3
     assert len(type_filter.values) == 1
     assert len(type_filter.all_values) == 4
-    assert type_filter.all_values[0].value == 0
-    assert type_filter.all_values[0].count == 744
-    assert type_filter.all_values[0].count_text == '744'
-    assert type_filter.all_values[0].selected == True
-    assert type_filter.all_values[0].title == 'Sedan'
-    assert type_filter.all_values[0].instance.title == 'Sedan'
-    assert type_filter.all_values[0] is type_filter.get_value(0)
-    assert type_filter.all_values[0] is type_filter.selected_values[0]
-    assert type_filter.all_values[1].value == 2
-    assert type_filter.all_values[1].count == 392
-    assert type_filter.all_values[1].count_text == '+392'
-    assert type_filter.all_values[1].selected == False
-    assert type_filter.all_values[1].title == 'Hatchback'
-    assert type_filter.all_values[1].instance.title == 'Hatchback'
-    assert type_filter.all_values[1] is type_filter.get_value(2)
-    assert type_filter.all_values[1] is type_filter.values[0]
-    assert type_filter.all_values[2].value == 1
-    assert type_filter.all_values[2].count == 162
-    assert type_filter.all_values[2].count_text == '162'
-    assert type_filter.all_values[2].selected == True
-    assert type_filter.all_values[2].title == 'Station Wagon'
-    assert type_filter.all_values[2].instance.title == 'Station Wagon'
-    assert type_filter.all_values[2] is type_filter.get_value(1)
-    assert type_filter.all_values[2] is type_filter.selected_values[1]
-    assert type_filter.all_values[3].value == 3
-    assert type_filter.all_values[3].count is None
-    assert type_filter.all_values[3].count_text == ''
-    assert type_filter.all_values[3].selected == True
-    assert type_filter.all_values[3].title == 'Coupe'
-    assert type_filter.all_values[3].instance.title == 'Coupe'
-    assert type_filter.all_values[3] is type_filter.get_value(3)
-    assert type_filter.all_values[3] is type_filter.selected_values[2]
+    fv = type_filter.all_values[0]
+    assert fv.value == 0
+    assert fv.count == 744
+    assert fv.count_text == '744'
+    assert fv.selected == True
+    assert fv.title == 'Sedan'
+    assert fv.instance.title == 'Sedan'
+    assert fv is type_filter.get_value(0)
+    assert fv is type_filter.selected_values[0]
+    fv = type_filter.all_values[1]
+    assert fv.value == 2
+    assert fv.count == 392
+    assert fv.count_text == '+392'
+    assert fv.selected == False
+    assert fv.title == 'Hatchback'
+    assert fv.instance.title == 'Hatchback'
+    assert fv is type_filter.get_value(2)
+    assert fv is type_filter.values[0]
+    fv = type_filter.all_values[2]
+    assert fv.value == 1
+    assert fv.count == 162
+    assert fv.count_text == '162'
+    assert fv.selected == True
+    assert fv.title == 'Station Wagon'
+    assert fv.instance.title == 'Station Wagon'
+    assert fv is type_filter.get_value(1)
+    assert fv is type_filter.selected_values[1]
+    fv = type_filter.all_values[3]
+    assert fv.value == 3
+    assert fv.count is None
+    assert fv.count_text == ''
+    assert fv.selected == True
+    assert fv.title == 'Coupe'
+    assert fv.instance.title == 'Coupe'
+    assert fv is type_filter.get_value(3)
+    assert fv is type_filter.selected_values[2]
     vendor_filter = qf_result.vendor
     assert len(vendor_filter.selected_values) == 1
     assert len(vendor_filter.values) == 0
     assert len(vendor_filter.all_values) == 1
-    assert vendor_filter.all_values[0].value == 'Subaru'
-    assert vendor_filter.all_values[0].count == 2153
-    assert vendor_filter.all_values[0].count_text == '2153'
-    assert vendor_filter.all_values[0].selected == True
-    assert vendor_filter.all_values[0].bucket.get_aggregation('min_price').value == 4000
-    assert vendor_filter.all_values[0] is vendor_filter.selected_values[0]
-    assert vendor_filter.all_values[0] is vendor_filter.get_value('Subaru')
+    fv = vendor_filter.all_values[0]
+    assert fv.value == 'Subaru'
+    assert fv.count == 2153
+    assert fv.count_text == '2153'
+    assert fv.selected == True
+    assert fv.bucket.get_aggregation('min_price').value == 4000
+    assert fv is vendor_filter.selected_values[0]
+    assert fv is vendor_filter.get_value('Subaru')
     model_filter = qf_result.model
     assert len(model_filter.selected_values) == 0
     assert len(model_filter.values) == 2
     assert len(model_filter.all_values) == 2
-    assert model_filter.all_values[0].value == 'Imprezza'
-    assert model_filter.all_values[0].count == 1586
-    assert model_filter.all_values[0].count_text == '1586'
-    assert model_filter.all_values[0].selected == False
-    assert model_filter.all_values[0] is model_filter.values[0]
-    assert model_filter.all_values[0] is model_filter.get_value('Imprezza')
-    assert model_filter.all_values[1].value == 'Forester'
-    assert model_filter.all_values[1].count == 456
-    assert model_filter.all_values[1].count_text == '456'
-    assert model_filter.all_values[1].selected == False
-    assert model_filter.all_values[1] is model_filter.values[1]
-    assert model_filter.all_values[1] is model_filter.get_value('Forester')
+    fv = model_filter.all_values[0]
+    assert fv.value == 'Imprezza'
+    assert fv.count == 1586
+    assert fv.count_text == '1586'
+    assert fv.selected == False
+    assert fv is model_filter.values[0]
+    assert fv is model_filter.get_value('Imprezza')
+    fv = model_filter.all_values[1]
+    assert fv.value == 'Forester'
+    assert fv.count == 456
+    assert fv.count_text == '456'
+    assert fv.selected == False
+    assert fv is model_filter.values[1]
+    assert fv is model_filter.get_value('Forester')
 
 
 def test_facet_filter_with_and_conjunction(index):
     class ClientQueryFilter(QueryFilter):
         region = FacetFilter(index.client.region_id, type=Integer)
-        label = FacetFilter(index.client.label, conj_operator=QueryFilter.CONJ_AND)
+        label = FacetFilter(index.client.label,
+                            conj_operator=QueryFilter.CONJ_AND)
 
     qf = ClientQueryFilter()
 
@@ -496,7 +521,8 @@ def test_facet_filter_with_and_conjunction(index):
     )
 
     sq = index.search_query()
-    sq = qf.apply(sq, {'region': [123, 456], 'label': ['greedy', 'young', 'nasty']})
+    sq = qf.apply(sq, {'region': [123, 456],
+                       'label': ['greedy', 'young', 'nasty']})
     assert_expr(
         sq,
         {
@@ -596,7 +622,9 @@ def test_range_filter(index, client):
 
     class CarQueryFilter(QueryFilter):
         price = RangeFilter(CarDocument.price, compute_min_max=False)
-        disp = RangeFilter(CarDocument.engine_displacement, alias='ed', compute_enabled=False)
+        disp = RangeFilter(CarDocument.engine_displacement,
+                           alias='ed',
+                           compute_enabled=False)
 
     qf = CarQueryFilter()
 
@@ -628,8 +656,12 @@ def test_range_filter(index, client):
                         "range": {"price": {"lte": 10000}}
                     },
                     "aggregations": {
-                        "qf.disp.min": {"min": {"field": "engine_displacement"}},
-                        "qf.disp.max": {"max": {"field": "engine_displacement"}}
+                        "qf.disp.min": {
+                            "min": {"field": "engine_displacement"}
+                        },
+                        "qf.disp.max": {
+                            "max": {"field": "engine_displacement"}
+                        }
                     }
                 }
             },
@@ -688,14 +720,20 @@ def test_range_filter_dynamic_document(index, client):
                 "qf.price.enabled": {"filter": {"exists": {"field": "price"}}},
                 "qf.price.min": {"min": {"field": "price"}},
                 "qf.price.max": {"max": {"field": "price"}},
-                "qf.disp.enabled": {"filter": {"exists": {"field": "engine_displacement"}}},
+                "qf.disp.enabled": {
+                    "filter": {"exists": {"field": "engine_displacement"}}
+                },
                 "qf.disp.filter": {
                     "filter": {
                         "range": {"price": {"lte": 10000}}
                     },
                     "aggregations": {
-                        "qf.disp.min": {"min": {"field": "engine_displacement"}},
-                        "qf.disp.max": {"max": {"field": "engine_displacement"}}
+                        "qf.disp.min": {
+                            "min": {"field": "engine_displacement"}
+                        },
+                        "qf.disp.max": {
+                            "max": {"field": "engine_displacement"}
+                        }
                     }
                 }
             },
@@ -749,8 +787,10 @@ def test_simple_query_filter(index):
         )
         price = SimpleQueryFilter(
             SimpleQueryValue('*-10000', index.car.price <= 10000),
-            SimpleQueryValue('10000-20000', index.car.price.range(gt=10000, lte=20000)),
-            SimpleQueryValue('20000-30000', index.car.price.range(gt=20000, lte=30000)),
+            SimpleQueryValue('10000-20000',
+                             index.car.price.range(gt=10000, lte=20000)),
+            SimpleQueryValue('20000-30000',
+                             index.car.price.range(gt=20000, lte=30000)),
             SimpleQueryValue('30000-*', index.car.price.range(gt=30000)),
             aggs={'disp_avg': agg.Avg(index.car.engine_displacement)}
         )
@@ -807,7 +847,10 @@ def test_simple_query_filter(index):
                                             },
                                             {
                                                 "range": {
-                                                    "price": {"gt": 10000, "lte": 20000}
+                                                    "price": {
+                                                        "gt": 10000,
+                                                        "lte": 20000
+                                                    }
                                                 }
                                             }
                                         ]
@@ -825,8 +868,10 @@ def test_simple_query_filter(index):
 def test_simple_query_filter_with_and_conjunction(index):
     class ItemQueryFilter(QueryFilter):
         selling_type = SimpleQueryFilter(
-            SimpleQueryValue('retail', index.item.selling_type.in_([1, 2, 3])),
-            SimpleQueryValue('wholesale', index.item.selling_type.in_([3, 4, 5])),
+            SimpleQueryValue('retail',
+                             index.item.selling_type.in_([1, 2, 3])),
+            SimpleQueryValue('wholesale',
+                             index.item.selling_type.in_([3, 4, 5])),
             conj_operator=QueryFilter.CONJ_AND
         )
 
@@ -869,8 +914,10 @@ def test_facet_query_filter(index, client):
         )
         price = FacetQueryFilter(
             FacetQueryValue('*-10000', index.car.price <= 10000),
-            FacetQueryValue('10000-20000', index.car.price.range(gt=10000, lte=20000)),
-            FacetQueryValue('20000-30000', index.car.price.range(gt=20000, lte=30000)),
+            FacetQueryValue('10000-20000',
+                            index.car.price.range(gt=10000, lte=20000)),
+            FacetQueryValue('20000-30000',
+                            index.car.price.range(gt=20000, lte=30000)),
             FacetQueryValue('30000-*', index.car.price.range(gt=30000)),
             aggs={'disp_avg': agg.Avg(index.car.engine_displacement)}
         )
@@ -984,33 +1031,38 @@ def test_facet_query_filter(index, client):
     assert len(qf_res.is_new.all_values) == 1
     assert len(qf_res.is_new.selected_values) == 1
     assert len(qf_res.is_new.values) == 0
-    assert qf_res.is_new.get_value('true').value == 'true'
-    assert qf_res.is_new.get_value('true').count == 82
-    assert qf_res.is_new.get_value('true').count_text == '82'
-    assert qf_res.is_new.get_value('true').selected == True
+    fv = qf_res.is_new.get_value('true')
+    assert fv.value == 'true'
+    assert fv.count == 82
+    assert fv.count_text == '82'
+    assert fv.selected == True
     assert len(qf_res.price.all_values) == 4
     assert len(qf_res.price.selected_values) == 0
     assert len(qf_res.price.values) == 4
-    assert qf_res.price.get_value('*-10000').value == '*-10000'
-    assert qf_res.price.get_value('*-10000').count == 11
-    assert qf_res.price.get_value('*-10000').count_text == '11'
-    assert qf_res.price.get_value('*-10000').selected == False
-    assert qf_res.price.get_value('*-10000').agg.get_aggregation('disp_avg').value == 1.56
-    assert qf_res.price.get_value('10000-20000').value == '10000-20000'
-    assert qf_res.price.get_value('10000-20000').count == 16
-    assert qf_res.price.get_value('10000-20000').count_text == '16'
-    assert qf_res.price.get_value('10000-20000').selected == False
-    assert qf_res.price.get_value('10000-20000').agg.get_aggregation('disp_avg').value == 2.4
-    assert qf_res.price.get_value('20000-30000').value == '20000-30000'
-    assert qf_res.price.get_value('20000-30000').count == 23
-    assert qf_res.price.get_value('20000-30000').count_text == '23'
-    assert qf_res.price.get_value('20000-30000').selected == False
-    assert qf_res.price.get_value('20000-30000').agg.get_aggregation('disp_avg').value == 2.85
-    assert qf_res.price.get_value('30000-*').value == '30000-*'
-    assert qf_res.price.get_value('30000-*').count == 32
-    assert qf_res.price.get_value('30000-*').count_text == '32'
-    assert qf_res.price.get_value('30000-*').selected == False
-    assert qf_res.price.get_value('30000-*').agg.get_aggregation('disp_avg').value == 2.92
+    fv = qf_res.price.get_value('*-10000')
+    assert fv.value == '*-10000'
+    assert fv.count == 11
+    assert fv.count_text == '11'
+    assert fv.selected == False
+    assert fv.agg.get_aggregation('disp_avg').value == 1.56
+    fv = qf_res.price.get_value('10000-20000')
+    assert fv.value == '10000-20000'
+    assert fv.count == 16
+    assert fv.count_text == '16'
+    assert fv.selected == False
+    assert fv.agg.get_aggregation('disp_avg').value == 2.4
+    fv = qf_res.price.get_value('20000-30000')
+    assert fv.value == '20000-30000'
+    assert fv.count == 23
+    assert fv.count_text == '23'
+    assert fv.selected == False
+    assert fv.agg.get_aggregation('disp_avg').value == 2.85
+    fv = qf_res.price.get_value('30000-*')
+    assert fv.value == '30000-*'
+    assert fv.count == 32
+    assert fv.count_text == '32'
+    assert fv.selected == False
+    assert fv.agg.get_aggregation('disp_avg').value == 2.92
 
     qf = CarQueryFilter()
     sq = index.search_query(index.car.year == 2014)
@@ -1144,33 +1196,38 @@ def test_facet_query_filter(index, client):
     assert len(qf_res.is_new.all_values) == 1
     assert len(qf_res.is_new.selected_values) == 0
     assert len(qf_res.is_new.values) == 1
-    assert qf_res.is_new.get_value('true').value == 'true'
-    assert qf_res.is_new.get_value('true').count == 32
-    assert qf_res.is_new.get_value('true').count_text == '32'
-    assert qf_res.is_new.get_value('true').selected is False
+    fv = qf_res.is_new.get_value('true')
+    assert fv.value == 'true'
+    assert fv.count == 32
+    assert fv.count_text == '32'
+    assert fv.selected is False
     assert len(qf_res.price.all_values) == 4
     assert len(qf_res.price.selected_values) == 2
     assert len(qf_res.price.values) == 2
-    assert qf_res.price.get_value('*-10000').value == '*-10000'
-    assert qf_res.price.get_value('*-10000').count == 7
-    assert qf_res.price.get_value('*-10000').count_text == '7'
-    assert qf_res.price.get_value('*-10000').selected is True
-    assert qf_res.price.get_value('*-10000').agg.get_aggregation('disp_avg').value == 1.43
-    assert qf_res.price.get_value('10000-20000').value == '10000-20000'
-    assert qf_res.price.get_value('10000-20000').count == 11
-    assert qf_res.price.get_value('10000-20000').count_text == '11'
-    assert qf_res.price.get_value('10000-20000').selected is True
-    assert qf_res.price.get_value('10000-20000').agg.get_aggregation('disp_avg').value == 1.98
-    assert qf_res.price.get_value('20000-30000').value == '20000-30000'
-    assert qf_res.price.get_value('20000-30000').count == 6
-    assert qf_res.price.get_value('20000-30000').count_text == '+6'
-    assert qf_res.price.get_value('20000-30000').selected is False
-    assert qf_res.price.get_value('20000-30000').agg.get_aggregation('disp_avg').value == 2.14
-    assert qf_res.price.get_value('30000-*').value == '30000-*'
-    assert qf_res.price.get_value('30000-*').count == 10
-    assert qf_res.price.get_value('30000-*').count_text == '+10'
-    assert qf_res.price.get_value('30000-*').selected is False
-    assert qf_res.price.get_value('30000-*').agg.get_aggregation('disp_avg').value == 2.67
+    fv = qf_res.price.get_value('*-10000')
+    assert fv.value == '*-10000'
+    assert fv.count == 7
+    assert fv.count_text == '7'
+    assert fv.selected is True
+    assert fv.agg.get_aggregation('disp_avg').value == 1.43
+    fv = qf_res.price.get_value('10000-20000')
+    assert fv.value == '10000-20000'
+    assert fv.count == 11
+    assert fv.count_text == '11'
+    assert fv.selected is True
+    assert fv.agg.get_aggregation('disp_avg').value == 1.98
+    fv = qf_res.price.get_value('20000-30000')
+    assert fv.value == '20000-30000'
+    assert fv.count == 6
+    assert fv.count_text == '+6'
+    assert fv.selected is False
+    assert fv.agg.get_aggregation('disp_avg').value == 2.14
+    fv = qf_res.price.get_value('30000-*')
+    assert fv.value == '30000-*'
+    assert fv.count == 10
+    assert fv.count_text == '+10'
+    assert fv.selected is False
+    assert fv.agg.get_aggregation('disp_avg').value == 2.67
 
 
 def test_facet_query_filter_with_and_conjunction(index):
@@ -1179,8 +1236,10 @@ def test_facet_query_filter_with_and_conjunction(index):
             SimpleQueryValue('true', index.item.is_available == True),
         )
         selling_type = FacetQueryFilter(
-            SimpleQueryValue('retail', index.item.selling_type.in_([1, 2, 3])),
-            SimpleQueryValue('wholesale', index.item.selling_type.in_([3, 4, 5])),
+            SimpleQueryValue('retail',
+                             index.item.selling_type.in_([1, 2, 3])),
+            SimpleQueryValue('wholesale',
+                             index.item.selling_type.in_([3, 4, 5])),
             conj_operator=QueryFilter.CONJ_AND
         )
 
@@ -1388,7 +1447,9 @@ def test_page(index, client):
 
 def test_page_with_max_items(index):
     class CarQueryFilter(QueryFilter):
-        page = PageFilter(alias='p', per_page_values=[24, 48, 96], max_items=1000)
+        page = PageFilter(alias='p',
+                          per_page_values=[24, 48, 96],
+                          max_items=1000)
 
     sq = index.search_query()
     qf = CarQueryFilter()
@@ -1420,7 +1481,9 @@ def test_nested_facet_filter(index, client):
         attrs = Field(List(Nested(AttributeDoc)))
 
     f = NestedFacetFilter(
-        'size', 'attrs', ProductDoc.attrs.name == 'size', ProductDoc.attrs.value,
+        'size', 'attrs',
+        ProductDoc.attrs.name == 'size',
+        ProductDoc.attrs.value,
     )
     f.qf = Mock(_name='qf')
     assert_expr(
@@ -1489,7 +1552,9 @@ def test_nested_facet_filter(index, client):
     )
 
     f = NestedFacetFilter(
-        'size', ProductDoc.attrs, ProductDoc.attrs.name == 'size', ProductDoc.attrs.value,
+        'size', ProductDoc.attrs,
+        ProductDoc.attrs.name == 'size',
+        ProductDoc.attrs.value,
         conj_operator=QueryFilter.CONJ_AND,
     )
     assert \
@@ -1532,6 +1597,7 @@ def test_nested_facet_filter(index, client):
                 }
             }
         }
+
 
 def test_nested_facet_filter_func(index, client):
     class AttributeDoc(Document):
@@ -1792,6 +1858,7 @@ def test_nested_facet_filter_func(index, client):
     assert len(color_res.all_values) == 0
     assert len(color_res.selected_values) == 0
 
+
 def test_nested_range_filter(index, client):
     class AttributeDoc(Document):
         name = Field(String)
@@ -1803,8 +1870,11 @@ def test_nested_range_filter(index, client):
         attrs = Field(List(Nested(AttributeDoc)))
 
     f = NestedRangeFilter(
-        'test', 'attrs', ProductDoc.attrs.name == 'size', ProductDoc.attrs.value,
-        compute_enabled=True, compute_min_max=True,
+        'test', 'attrs',
+        ProductDoc.attrs.name == 'size',
+        ProductDoc.attrs.value,
+        compute_enabled=True,
+        compute_min_max=True,
     )
     f.qf = Mock(_name='qf')
     assert \
@@ -1887,12 +1957,18 @@ def test_nested_range_filter_func(index, client):
 
     class TestQueryFilter(QueryFilter):
         diagonal = NestedRangeFilter(
-            ProductDoc.attrs, ProductDoc.attrs.name == 'diagonal', ProductDoc.attrs.value,
-            compute_enabled=True, compute_min_max=True,
+            ProductDoc.attrs,
+            ProductDoc.attrs.name == 'diagonal',
+            ProductDoc.attrs.value,
+            compute_enabled=True,
+            compute_min_max=True,
         )
         weight = NestedRangeFilter(
-            ProductDoc.attrs, ProductDoc.attrs.name == 'weight', ProductDoc.attrs.value,
-            compute_enabled=False, compute_min_max=True,
+            ProductDoc.attrs,
+            ProductDoc.attrs.name == 'weight',
+            ProductDoc.attrs.value,
+            compute_enabled=False,
+            compute_min_max=True,
         )
 
     qf = TestQueryFilter()

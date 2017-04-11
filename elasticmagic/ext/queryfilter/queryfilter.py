@@ -3,10 +3,13 @@ import functools
 from math import ceil
 from itertools import chain
 
-from elasticmagic import agg, Params, Term, Terms, MatchAll, Query, Bool, Field, Sort, Nested
+from elasticmagic import agg
 from elasticmagic.attribute import AttributedField
 from elasticmagic.cluster import MAX_RESULT_WINDOW
 from elasticmagic.compat import text_type, string_types, with_metaclass
+from elasticmagic.expression import (
+    Params, Term, Terms, MatchAll, Query, Bool, Field, Sort, Nested,
+)
 from elasticmagic.types import String, Integer, instantiate
 
 from .codec import SimpleCodec
@@ -115,7 +118,9 @@ class QueryFilter(with_metaclass(QueryFilterMeta)):
     def process_result(self, query_result):
         filter_results = {}
         for f in self._filters:
-            filter_results[f.name] = f._process_result(query_result, self._params)
+            filter_results[f.name] = f._process_result(
+                query_result, self._params
+            )
         return QueryFilterResult(filter_results)
 
     process_results = process_result
@@ -195,7 +200,10 @@ class BaseFilterValue(object):
 
 
 class SimpleFilter(FieldFilter):
-    def __init__(self, name, field, alias=None, type=None, conj_operator=QueryFilter.CONJ_OR):
+    def __init__(
+            self, name, field, alias=None, type=None,
+            conj_operator=QueryFilter.CONJ_OR,
+    ):
         super(SimpleFilter, self).__init__(name, field, alias=alias, type=type)
         self._conj_operator = conj_operator
 
@@ -225,8 +233,9 @@ class SimpleFilter(FieldFilter):
 
 class FacetFilter(SimpleFilter):
     def __init__(
-            self, name, field, alias=None, type=None, conj_operator=QueryFilter.CONJ_OR,
-            instance_mapper=None, get_title=None, **kwargs
+            self, name, field, alias=None, type=None,
+            conj_operator=QueryFilter.CONJ_OR, instance_mapper=None,
+            get_title=None, **kwargs
     ):
         super(FacetFilter, self).__init__(
             name, field, alias=alias, type=type, conj_operator=conj_operator
@@ -254,10 +263,14 @@ class FacetFilter(SimpleFilter):
         if self._conj_operator == QueryFilter.CONJ_OR:
             exclude_tags.add(self.name)
         filters = self._get_agg_filters(
-            search_query.get_context().iter_post_filters_with_meta(), exclude_tags
+            search_query.get_context().iter_post_filters_with_meta(),
+            exclude_tags
         )
 
-        terms_agg = agg.Terms(self.field, instance_mapper=self._instance_mapper, **self._agg_kwargs)
+        terms_agg = agg.Terms(
+            self.field, instance_mapper=self._instance_mapper,
+            **self._agg_kwargs
+        )
         if filters:
             aggs = {
                 self._filter_agg_name: agg.Filter(
@@ -283,7 +296,8 @@ class FacetFilter(SimpleFilter):
         for bucket in terms_agg.buckets:
             # FIXME: values can be a list of string but bucket.key may not
             facet_result.add_value(FacetValueResult(
-                bucket, bucket.key in values, bool(values), get_title=self._get_title,
+                bucket, bucket.key in values, bool(values),
+                get_title=self._get_title,
             ))
             processed_values.add(bucket.key)
 
@@ -374,7 +388,10 @@ class FacetValueResult(BaseFilterValue):
 
 class RangeFilter(FieldFilter):
 
-    def __init__(self, name, field, alias=None, type=None, compute_enabled=True, compute_min_max=True):
+    def __init__(
+            self, name, field, alias=None, type=None,
+            compute_enabled=True, compute_min_max=True,
+    ):
         super(RangeFilter, self).__init__(name, field, alias=alias)
         self.type = instantiate(type or self.field.get_type())
         self._compute_enabled = compute_enabled
@@ -420,7 +437,8 @@ class RangeFilter(FieldFilter):
 
     def _apply_agg(self, search_query, params):
         filters = self._get_agg_filters(
-            search_query.get_context().iter_post_filters_with_meta(), {self.qf._name, self.name}
+            search_query.get_context().iter_post_filters_with_meta(),
+            {self.qf._name, self.name}
         )
 
         aggs = {}
@@ -436,7 +454,9 @@ class RangeFilter(FieldFilter):
             }
             if filters:
                 aggs.update({
-                    self._filter_agg_name: agg.Filter(Bool.must(*filters), aggs=stat_aggs)
+                    self._filter_agg_name: agg.Filter(
+                        Bool.must(*filters), aggs=stat_aggs
+                    )
                 })
             else:
                 aggs.update(stat_aggs)
@@ -451,7 +471,9 @@ class RangeFilter(FieldFilter):
 
         enabled = None
         if self._compute_enabled:
-            enabled = bool(result.get_aggregation(self._enabled_agg_name).doc_count)
+            enabled = bool(
+                result.get_aggregation(self._enabled_agg_name).doc_count
+            )
         min_value = max_value = None
         if self._compute_min_max:
             min_value = base_agg.get_aggregation(self._min_agg_name).value
@@ -492,7 +514,9 @@ class SimpleQueryValue(BaseFilterValue):
 
 class SimpleQueryFilter(BaseFilter):
     def __init__(self, name, *values, **kwargs):
-        super(SimpleQueryFilter, self).__init__(name, alias=kwargs.pop('alias', None))
+        super(SimpleQueryFilter, self).__init__(
+            name, alias=kwargs.pop('alias', None)
+        )
         self._values = values
         self._values_map = {fv.value: fv for fv in self._values}
         self._conj_operator = kwargs.pop('conj_operator', QueryFilter.CONJ_OR)
@@ -558,12 +582,15 @@ class FacetQueryFilter(SimpleQueryFilter):
         if self._conj_operator == QueryFilter.CONJ_OR:
             exclude_tags.add(self.name)
         filters = self._get_agg_filters(
-            search_query.get_context().iter_post_filters_with_meta(), exclude_tags
+            search_query.get_context().iter_post_filters_with_meta(),
+            exclude_tags
         )
 
         filter_aggs = {}
         for fv in self._values:
-            filter_aggs[self._make_agg_name(fv.value)] = agg.Filter(fv.expr, **self.agg_kwargs)
+            filter_aggs[self._make_agg_name(fv.value)] = agg.Filter(
+                fv.expr, **self.agg_kwargs
+            )
 
         if filters:
             aggs = {
@@ -585,9 +612,13 @@ class FacetQueryFilter(SimpleQueryFilter):
             filters_agg = result
 
         facet_result = FacetQueryFilterResult()
-        has_selected_values = any(map(lambda fv: fv.value in values, self._values))
+        has_selected_values = any(
+            map(lambda fv: fv.value in values, self._values)
+        )
         for fv in self._values:
-            filt_agg = filters_agg.get_aggregation(self._make_agg_name(fv.value))
+            filt_agg = filters_agg.get_aggregation(
+                self._make_agg_name(fv.value)
+            )
             facet_result.add_value(FacetQueryValueResult(
                 fv.value, filt_agg, fv.value in values, has_selected_values
             ))
@@ -669,10 +700,13 @@ class FacetQueryValueResult(object):
 
 class OrderingFilter(BaseFilter):
     def __init__(self, name, *values, **kwargs):
-        super(OrderingFilter, self).__init__(name, alias=kwargs.pop('alias', None))
+        super(OrderingFilter, self).__init__(
+            name, alias=kwargs.pop('alias', None)
+        )
         self.values = values
         self._values_map = {fv.value: fv for fv in values}
-        self.default_value = self.get_value(kwargs.get('default')) or self.values[0]
+        self.default_value = self.get_value(kwargs.get('default')) or \
+                             self.values[0]
         self.selected_value = None
 
     def get_value(self, value):
@@ -693,7 +727,9 @@ class OrderingFilter(BaseFilter):
         ordering_result = OrderingFilterResult()
         for fv in self.values:
             ordering_result.add_value(
-                OrderingValueResult(fv.value, fv is selected_fv, fv is self.default_value)
+                OrderingValueResult(fv.value,
+                                    fv is selected_fv,
+                                    fv is self.default_value)
             )
         return ordering_result
 
@@ -917,7 +953,8 @@ class NestedFacetFilter(BaseFilter):
             exclude_tags.add(self.name)
 
         filters = self._get_agg_filters(
-            search_query.get_context().iter_post_filters_with_meta(), exclude_tags
+            search_query.get_context().iter_post_filters_with_meta(),
+            exclude_tags
         )
 
         terms_agg = agg.Nested(path=self.path, aggs={
@@ -967,7 +1004,8 @@ class NestedFacetFilter(BaseFilter):
         processed_values = set()
         for bucket in terms_agg.buckets:
             facet_result.add_value(FacetValueResult(
-                bucket, bucket.key in values, bool(values), get_title=self._get_title,
+                bucket, bucket.key in values, bool(values),
+                get_title=self._get_title,
             ))
             processed_values.add(bucket.key)
 
@@ -1056,14 +1094,17 @@ class NestedRangeFilter(BaseFilter):
             path=self.path,
             query=Bool.must(
                 self.key_expression,
-                self.value_field.range(gte=self._from_value, lte=self._to_value),
+                self.value_field.range(
+                    gte=self._from_value, lte=self._to_value
+                ),
             )
         )
         return search_query.post_filter(expr, meta={'tags': {self.name}})
 
     def _apply_agg(self, search_query, params):
         filters = self._get_agg_filters(
-            search_query.get_context().iter_post_filters_with_meta(), {self.qf._name, self.name}
+            search_query.get_context().iter_post_filters_with_meta(),
+            {self.qf._name, self.name}
         )
 
         aggs = {}
@@ -1100,7 +1141,9 @@ class NestedRangeFilter(BaseFilter):
             }
             if filters:
                 aggs.update({
-                    self._filter_agg_name: agg.Filter(Bool.must(*filters), aggs=stat_aggs)
+                    self._filter_agg_name: agg.Filter(
+                        Bool.must(*filters), aggs=stat_aggs
+                    )
                 })
             else:
                 aggs.update(stat_aggs)
