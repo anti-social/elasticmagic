@@ -514,7 +514,7 @@ class SearchQuery(object):
         self._index = index
 
     @_with_clone
-    def with_document(self, doc_cls):
+    def with_doc_cls(self, doc_cls):
         self._doc_cls = doc_cls
 
     @_with_clone
@@ -536,9 +536,6 @@ class SearchQuery(object):
 
     def with_search_type(self, search_type):
         return self.with_search_params(search_type=search_type)
-
-    def with_request_cache(self, request_cache):
-        return self.with_search_params(request_cache=request_cache)
 
     def with_terminate_after(self, terminate_after):
         return self.with_search_params(terminate_after=terminate_after)

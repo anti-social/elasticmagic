@@ -1154,7 +1154,10 @@ class SearchQueryTest(BaseTestCase):
             sq._search_params,
             {}
         )
-        sq = sq.with_search_params({'search_type': 'count', 'query_cache': True}, unknown_param='none')
+        sq = sq.with_search_params(
+            {'search_type': 'count', 'query_cache': True},
+            unknown_param='none'
+        )
         self.assertEqual(
             sq._search_params,
             {
@@ -1173,6 +1176,53 @@ class SearchQueryTest(BaseTestCase):
                 'unknown_param': 'none',
             }
         )
+
+    def test_search_params_new(self):
+        sq = SearchQuery().with_doc_type('product')
+        self.assertEqual(sq.get_context().doc_type, 'product')
+        sq = SearchQuery().with_routing('123')
+        self.assertEqual(sq.get_context().search_params, {'routing': '123'})
+        sq = SearchQuery().with_preference('_primary')
+        self.assertEqual(
+            sq.get_context().search_params,
+            {'preference': '_primary'}
+        )
+        sq = SearchQuery().with_timeout('1m')
+        self.assertEqual(sq.get_context().search_params, {'timeout': '1m'})
+        sq = SearchQuery().with_search_type('dfs_query_then_fetch')
+        self.assertEqual(
+            sq.get_context().search_params,
+            {'search_type': 'dfs_query_then_fetch'}
+        )
+        sq = SearchQuery().with_terminate_after(1)
+        self.assertEqual(
+            sq.get_context().search_params,
+            {'terminate_after': 1}
+        )
+        sq = SearchQuery().with_scroll('1h')
+        self.assertEqual(sq.get_context().search_params, {'scroll': '1h'})
+
+        sq = SearchQuery().with_routing('123').with_routing(None)
+        self.assertEqual(sq.get_context().search_params, {})
+
+        sq = (
+            SearchQuery()
+            .with_routing('123')
+            .with_terminate_after(1)
+            .with_routing(None)
+        )
+        self.assertEqual(
+            sq.get_context().search_params,
+            {'terminate_after': 1}
+        )
+
+        sq = (
+            SearchQuery()
+            .with_routing('123')
+            .with_terminate_after(1)
+            .with_search_params(None)
+        )
+        self.assertEqual(sq.get_context().search_params, {})
 
     def test_suggest(self):
         sq = SearchQuery()
