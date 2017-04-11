@@ -506,24 +506,32 @@ class SearchQuery(object):
         self._iter_instances = True
 
     @_with_clone
-    def with_cluster(self, cluster):
+    def using_cluster(self, cluster):
         self._cluster = cluster
 
-    @_with_clone
-    def with_index(self, index):
-        self._index = index
+    with_cluster = using_cluster
 
     @_with_clone
-    def with_doc_cls(self, doc_cls):
+    def using_index(self, index):
+        self._index = index
+
+    with_index = using_index
+
+    @_with_clone
+    def using_doc_cls(self, doc_cls):
         self._doc_cls = doc_cls
+
+    with_doc_cls = using_doc_cls
+
+    @_with_clone
+    def using_instance_mapper(self, instance_mapper):
+        self._instance_mapper = instance_mapper
+
+    with_instance_mapper = using_instance_mapper
 
     @_with_clone
     def with_doc_type(self, doc_type):
         self._doc_type = doc_type
-
-    @_with_clone
-    def with_instance_mapper(self, instance_mapper):
-        self._instance_mapper = instance_mapper
 
     def with_routing(self, routing):
         return self.with_search_params(routing=routing)

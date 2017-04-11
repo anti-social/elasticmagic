@@ -1224,6 +1224,27 @@ class SearchQueryTest(BaseTestCase):
         )
         self.assertEqual(sq.get_context().search_params, {})
 
+    def test_using(self):
+        sq = SearchQuery()
+        sq_ctx = sq.get_context()
+        self.assertIs(sq_ctx.cluster, None)
+        self.assertIs(sq_ctx.index, None)
+        self.assertIs(sq_ctx.doc_cls, None)
+        self.assertIs(sq_ctx.instance_mapper, None)
+
+        sq = SearchQuery().using_cluster(self.cluster)
+        self.assertIs(sq.get_context().cluster, self.cluster)
+
+        sq = SearchQuery().using_index(self.index)
+        self.assertIs(sq.get_context().index, self.index)
+
+        sq = SearchQuery().using_doc_cls(self.index.car)
+        self.assertIs(sq.get_context().doc_cls, self.index.car)
+
+        instance_mapper = lambda ids: {}
+        sq = SearchQuery().using_instance_mapper(instance_mapper)
+        self.assertIs(sq.get_context().instance_mapper, instance_mapper)
+
     def test_suggest(self):
         sq = SearchQuery()
         sq = sq.suggest(text="Complete",
