@@ -639,6 +639,10 @@ class SearchQueryTest(BaseTestCase):
         )
         self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
 
+        sq = SearchQuery().aggregations(min_price=agg.Min(f.price)).aggs(None)
+        self.assert_expression(sq, {})
+        self.assertEqual(collect_doc_classes(sq), set())
+
         sq = SearchQuery().aggregations(genders=agg.Terms(f.gender))
         self.assert_expression(
             sq,
@@ -716,7 +720,7 @@ class SearchQueryTest(BaseTestCase):
                         }
                     }
                 }
-            }  
+            }
         )
         self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
 
