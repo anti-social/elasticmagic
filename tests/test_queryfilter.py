@@ -16,9 +16,7 @@ from elasticmagic.ext.queryfilter import SimpleFilter
 from elasticmagic.ext.queryfilter import SimpleQueryFilter
 from elasticmagic.ext.queryfilter import SimpleQueryValue
 
-
 from .fixtures import client, index
-from .util import assert_expr
 
 
 class CarType(object):
@@ -52,12 +50,11 @@ def test_simple_filter(index):
 
     sq = index.search_query()
     sq = qf.apply(sq, {})
-    assert_expr(sq, {})
+    assert sq.to_dict() == {}
 
     sq = index.search_query()
     sq = qf.apply(sq, {'m': ['vrx']})
-    assert_expr(
-        sq,
+    assert sq.to_dict() == \
         {
             "query": {
                 "filtered": {
@@ -69,7 +66,6 @@ def test_simple_filter(index):
                 }
             }
         }
-    )
 
     sq = (
         index.search_query(Match(index.car.name, 'test'))
@@ -77,8 +73,7 @@ def test_simple_filter(index):
     )
     sq = qf.apply(sq, {'type': ['0', '1:break', '3', 'null'],
                        'vendor': ['Subaru']})
-    assert_expr(
-        sq,
+    assert sq.to_dict() == \
         {
             "query": {
                 "filtered": {
@@ -97,7 +92,6 @@ def test_simple_filter(index):
                 }
             }
         }
-    )
 
 
 def test_simple_filter_with_and_conjunction(index):
@@ -109,12 +103,11 @@ def test_simple_filter_with_and_conjunction(index):
 
     sq = index.search_query()
     sq = qf.apply(sq, {})
-    assert_expr(sq, {})
+    assert sq.to_dict() == {}
 
     sq = index.search_query()
     sq = qf.apply(sq, {'label': ['greedy']})
-    assert_expr(
-        sq,
+    assert sq.to_dict() == \
         {
             "query": {
                 "filtered": {
@@ -126,12 +119,10 @@ def test_simple_filter_with_and_conjunction(index):
                 }
             }
         }
-    )
 
     sq = index.search_query()
     sq = qf.apply(sq, {'label': ['greedy', 'young', 'nasty']})
-    assert_expr(
-        sq,
+    assert sq.to_dict() == \
         {
             "query": {
                 "filtered": {
@@ -153,7 +144,6 @@ def test_simple_filter_with_and_conjunction(index):
                 }
             }
         }
-    )
 
 
 def test_facet_filter(index, client):
@@ -177,8 +167,7 @@ def test_facet_filter(index, client):
 
     sq = index.search_query()
     sq = qf.apply(sq, {})
-    assert_expr(
-        sq,
+    assert sq.to_dict() == \
         {
             "aggregations": {
                 "qf.type": {
@@ -197,12 +186,10 @@ def test_facet_filter(index, client):
                 }
             }
         }
-    )
 
     sq = index.search_query()
     sq = qf.apply(sq, {'m': ['vrx']})
-    assert_expr(
-        sq,
+    assert sq.to_dict() == \
         {
             "aggregations": {
                 "qf.type.filter": {
@@ -240,7 +227,6 @@ def test_facet_filter(index, client):
                 }
             }
         }
-    )
 
     sq = (
         index.search_query(Match(index.car.name, 'test'))
@@ -250,8 +236,7 @@ def test_facet_filter(index, client):
     )
     sq = qf.apply(sq, {'type': ['0', '1:break', '3', 'null'],
                        'vendor': ['Subaru']})
-    assert_expr(
-        sq,
+    assert sq.to_dict() == \
         {
             "query": {
                 "filtered": {
@@ -315,7 +300,6 @@ def test_facet_filter(index, client):
                 }
             }
         }
-    )
 
     client.search = MagicMock(
         return_value={
@@ -459,8 +443,7 @@ def test_facet_filter_with_and_conjunction(index):
 
     sq = index.search_query()
     sq = qf.apply(sq, {})
-    assert_expr(
-        sq,
+    assert sq.to_dict() == \
         {
             "aggregations": {
                 "qf.region": {
@@ -475,12 +458,10 @@ def test_facet_filter_with_and_conjunction(index):
                 }
             }
         }
-    )
 
     sq = index.search_query()
     sq = qf.apply(sq, {'label': ['greedy']})
-    assert_expr(
-        sq,
+    assert sq.to_dict() == \
         {
             "aggregations": {
                 "qf.region.filter": {
@@ -518,13 +499,11 @@ def test_facet_filter_with_and_conjunction(index):
                 }
             }
         }
-    )
 
     sq = index.search_query()
     sq = qf.apply(sq, {'region': [123, 456],
                        'label': ['greedy', 'young', 'nasty']})
-    assert_expr(
-        sq,
+    assert sq.to_dict() == \
         {
             "aggregations": {
                 "qf.region.filter": {
@@ -610,7 +589,6 @@ def test_facet_filter_with_and_conjunction(index):
                 }
             }
         }
-    )
 
 
 def test_range_filter(index, client):
@@ -630,8 +608,7 @@ def test_range_filter(index, client):
 
     sq = index.search_query()
     sq = qf.apply(sq, {'ed__gte': ['1.9']})
-    assert_expr(
-        sq,
+    assert sq.to_dict() == \
         {
             "aggregations": {
                 "qf.price.enabled": {"filter": {"exists": {"field": "price"}}},
@@ -642,12 +619,10 @@ def test_range_filter(index, client):
                 "range": {"engine_displacement": {"gte": 1.9}}
             }
         }
-    )
 
     sq = index.search_query()
     sq = qf.apply(sq, {'price__lte': ['10000']})
-    assert_expr(
-        sq,
+    assert sq.to_dict() == \
         {
             "aggregations": {
                 "qf.price.enabled": {"filter": {"exists": {"field": "price"}}},
@@ -669,7 +644,6 @@ def test_range_filter(index, client):
                 "range": {"price": {"lte": 10000}}
             }
         }
-    )
 
     client.search = MagicMock(
         return_value={
@@ -713,8 +687,7 @@ def test_range_filter_dynamic_document(index, client):
 
     sq = index.search_query()
     sq = qf.apply(sq, {'price__lte': ['10000']})
-    assert_expr(
-        sq,
+    assert sq.to_dict() == \
         {
             "aggregations": {
                 "qf.price.enabled": {"filter": {"exists": {"field": "price"}}},
@@ -741,7 +714,6 @@ def test_range_filter_dynamic_document(index, client):
                 "range": {"price": {"lte": 10000}}
             }
         }
-    )
 
     client.search = MagicMock(
         return_value={
@@ -799,16 +771,15 @@ def test_simple_query_filter(index):
 
     sq = index.search_query()
     sq = qf.apply(sq, {})
-    assert_expr(sq, {})
+    assert sq.to_dict() == {}
 
     sq = index.search_query()
     sq = qf.apply(sq, {'price': [None]})
-    assert_expr(sq, {})
+    assert sq.to_dict() == {}
 
     sq = index.search_query()
     sq = qf.apply(sq, {'new': ['true', 'false']})
-    assert_expr(
-        sq,
+    assert sq.to_dict() == \
         {
             "query": {
                 "filtered": {
@@ -818,7 +789,6 @@ def test_simple_query_filter(index):
                 }
             }
         }
-    )
 
     qf = CarQueryFilter()
     sq = (
@@ -826,8 +796,7 @@ def test_simple_query_filter(index):
         .filter(index.car.year == 2014)
     )
     sq = qf.apply(sq, {'price': ['*-10000', '10000-20000', 'null']})
-    assert_expr(
-        sq,
+    assert sq.to_dict() == \
         {
             "query": {
                 "filtered": {
@@ -862,7 +831,6 @@ def test_simple_query_filter(index):
                 }
             }
         }
-    )
 
 
 def test_simple_query_filter_with_and_conjunction(index):
@@ -879,12 +847,11 @@ def test_simple_query_filter_with_and_conjunction(index):
 
     sq = index.search_query()
     sq = qf.apply(sq, {})
-    assert_expr(sq, {})
+    assert sq.to_dict() == {}
 
     sq = index.search_query()
     sq = qf.apply(sq, {'selling_type': ['retail', 'wholesale']})
-    assert_expr(
-        sq,
+    assert sq.to_dict() == \
         {
             "query": {
                 "filtered": {
@@ -903,7 +870,6 @@ def test_simple_query_filter_with_and_conjunction(index):
                 }
             }
         }
-    )
 
 
 def test_facet_query_filter(index, client):
@@ -931,8 +897,7 @@ def test_facet_query_filter(index, client):
 
     sq = index.search_query()
     sq = qf.apply(sq, {'new': ['true', 'false']})
-    assert_expr(
-        sq,
+    assert sq.to_dict() == \
         {
             "aggregations": {
                 "qf.is_new:true": {
@@ -992,7 +957,6 @@ def test_facet_query_filter(index, client):
                 "term": {"state": "new"}
             }
         }
-    )
 
     client.search = MagicMock(
         return_value={
@@ -1067,8 +1031,7 @@ def test_facet_query_filter(index, client):
     qf = CarQueryFilter()
     sq = index.search_query(index.car.year == 2014)
     sq = qf.apply(sq, {'price': ['*-10000', '10000-20000', 'null']})
-    assert_expr(
-        sq,
+    assert sq.to_dict() == \
         {
             "query": {
                 "term": {"year": 2014}
@@ -1157,7 +1120,6 @@ def test_facet_query_filter(index, client):
                 }
             }
         }
-    )
 
     client.search = MagicMock(
         return_value={
@@ -1247,8 +1209,7 @@ def test_facet_query_filter_with_and_conjunction(index):
 
     sq = index.search_query()
     sq = qf.apply(sq, {})
-    assert_expr(
-        sq,
+    assert sq.to_dict() == \
         {
             "aggregations": {
                 "qf.available:true": {
@@ -1268,12 +1229,10 @@ def test_facet_query_filter_with_and_conjunction(index):
                 }
             }
         }
-    )
 
     sq = index.search_query()
     sq = qf.apply(sq, {'selling_type': ['retail']})
-    assert_expr(
-        sq,
+    assert sq.to_dict() == \
         {
             "aggregations": {
                 "qf.available.filter": {
@@ -1310,7 +1269,6 @@ def test_facet_query_filter_with_and_conjunction(index):
                 "terms": {"selling_type": [1, 2, 3]}
             }
         }
-    )
 
 
 def test_ordering(index):
@@ -1331,8 +1289,7 @@ def test_ordering(index):
 
     qf = CarQueryFilter()
 
-    assert_expr(
-        qf.apply(sq, {}),
+    assert qf.apply(sq, {}).to_dict() == \
         {
             "sort": [
                 {
@@ -1343,7 +1300,6 @@ def test_ordering(index):
                 }
             ]
         }
-    )
 
     qf_res = qf.process_result(MagicMock())
     assert qf_res.sort.default_value.value == 'popularity'
@@ -1354,14 +1310,13 @@ def test_ordering(index):
     assert qf_res.sort.get_value('-price').selected is False
 
     qf = CarQueryFilter()
-    assert_expr(
-        qf.apply(sq, {'o': ['price']}),
+    assert qf.apply(sq, {'o': ['price']}).to_dict() == \
         {
             "sort": [
                 "price"
             ]
         }
-    )
+
     qf_res = qf.process_result(MagicMock())
     assert qf_res.sort.default_value.value == 'popularity'
     assert qf_res.sort.default_value.selected is False
@@ -1378,42 +1333,32 @@ def test_page(index, client):
     sq = index.search_query()
 
     qf = CarQueryFilter()
-    assert_expr(
-        qf.apply(sq, {}),
+    assert qf.apply(sq, {}).to_dict() == \
         {
             "size": 10
         }
-    )
 
-    assert_expr(
-        qf.apply(sq, {'p': 3}),
+    assert qf.apply(sq, {'p': 3}).to_dict() == \
         {
             "size": 10,
             "from": 20
         }
-    )
 
-    assert_expr(
-        qf.apply(sq, {'per_page': 25}),
+    assert qf.apply(sq, {'per_page': 25}).to_dict() == \
         {
             "size": 25
         }
-    )
 
-    assert_expr(
-        qf.apply(sq, {'p': 201, 'per_page': 50}),
+    assert qf.apply(sq, {'p': 201, 'per_page': 50}).to_dict() == \
         {
             "size": 0
         }
-    )
 
-    assert_expr(
-        qf.apply(sq, {'p': 3, 'per_page': 100}),
+    assert qf.apply(sq, {'p': 3, 'per_page': 100}).to_dict() == \
         {
             "size": 10,
             "from": 20
         }
-    )
 
     client.search = MagicMock(
         return_value={
@@ -1454,20 +1399,16 @@ def test_page_with_max_items(index):
     sq = index.search_query()
     qf = CarQueryFilter()
 
-    assert_expr(
-        qf.apply(sq, {'p': 11, 'per_page': 96}),
+    assert qf.apply(sq, {'p': 11, 'per_page': 96}).to_dict() == \
         {
             "size": 40,
             "from": 960
         }
-    )
 
-    assert_expr(
-        qf.apply(sq, {'p': 500}),
+    assert qf.apply(sq, {'p': 500}).to_dict() == \
         {
             "size": 0
         }
-    )
 
 
 def test_nested_facet_filter(index, client):
@@ -1486,12 +1427,9 @@ def test_nested_facet_filter(index, client):
         ProductDoc.attrs.value,
     )
     f.qf = Mock(_name='qf')
-    assert_expr(
-        f._apply_filter(index.search_query(), {}),
-        {}
-    )
-    assert_expr(
-        f._apply_agg(index.search_query(), {}),
+    assert f._apply_filter(index.search_query(), {}).to_dict() == {}
+    assert \
+        f._apply_agg(index.search_query(), {}).to_dict() == \
         {
             "aggregations": {
                 "qf.size": {
@@ -1513,9 +1451,9 @@ def test_nested_facet_filter(index, client):
                 }
             }
         }
-    )
-    assert_expr(
-        f._apply_filter(index.search_query(), {'size': {'exact': [[1]]}}),
+    assert \
+        f._apply_filter(index.search_query(),
+                        {'size': {'exact': [[1]]}}).to_dict() == \
         {
             "post_filter": {
                 "nested": {
@@ -1531,9 +1469,9 @@ def test_nested_facet_filter(index, client):
                 }
             }
         }
-    )
-    assert_expr(
-        f._apply_filter(index.search_query(), {'size': {'exact': [[1], [2]]}}),
+    assert \
+        f._apply_filter(index.search_query(),
+                        {'size': {'exact': [[1], [2]]}}).to_dict() == \
         {
             "post_filter": {
                 "nested": {
@@ -1549,7 +1487,6 @@ def test_nested_facet_filter(index, client):
                 }
             }
         }
-    )
 
     f = NestedFacetFilter(
         'size', ProductDoc.attrs,
