@@ -19,37 +19,25 @@ containers:
 
   py2-sphinx:
     setup:
-      - !Alpine v3.4
+      - !Alpine v3.5
       - !Install
-        - py-sphinx
         - make
       - !PipConfig
         dependencies: true
-      - !Py2Install
-        - sphinx-rtd-theme
-      # Seems like Alpine v3.4 has broken Sphinx package
-      # so install imagesize dependency manually
-      - !Py2Install [imagesize==0.7.1]
-      # To run doctests
       - !Py2Requirements requirements.txt
       - !Py2Requirements requirements_test.txt
+      - !Py2Requirements requirements_doc.txt
 
   py3-sphinx:
     setup:
-      - !Alpine v3.4
+      - !Alpine v3.5
       - !Install
-        - py-sphinx
         - make
       - !PipConfig
         dependencies: true
-      - !Py3Install
-        - sphinx-rtd-theme
-      # Seems like Alpine v3.4 has broken Sphinx package
-      # so install imagesize dependency manually
-      - !Py3Install [imagesize==0.7.1]
-      # To run doctests
       - !Py3Requirements requirements.txt
       - !Py3Requirements requirements_test.txt
+      - !Py3Requirements requirements_doc.txt
 
   bench:
     environ:
@@ -63,12 +51,12 @@ containers:
       - !Py3Install [coverage]
 
 commands:
-  py2-test: !Command
+  test-py2: !Command
     description: Run tests with Python2
     container: py2-test
     run: [py.test]
 
-  py3-test: !Command
+  test-py3: !Command
     description: Run tests with Python3
     container: py3-test
     run: [py.test]
@@ -95,17 +83,17 @@ commands:
     prerequisites: [doctest]
     run: [make, html]
   
-  py2-doctest: !Command
+  doctest-py2: !Command
     description: Run doctests
     container: py2-sphinx
     work-dir: docs
     run: [make, doctest]
   
-  py2-doc: !Command
+  doc-py2: !Command
     description: Build documentation
     container: py2-sphinx
     work-dir: docs
-    prerequisites: [doctest]
+    prerequisites: [py2-doctest]
     run: [make, html]
   
   bench: !Command
