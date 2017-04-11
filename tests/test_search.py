@@ -567,6 +567,16 @@ class SearchQueryTest(BaseTestCase):
         )
         self.assertEqual(collect_doc_classes(sq), {self.index.shirt})
 
+    def test_doc_type(self):
+        sq = (
+            SearchQuery(doc_cls=self.index.product, doc_type='test')
+            .filter(self.index.car.vendor == 'Tesla')
+        )
+        sq_ctx = sq.get_context()
+        self.assertEqual(sq_ctx.doc_type, 'test')
+        self.assertEqual(sq_ctx.doc_cls, self.index.product)
+        self.assertEqual(collect_doc_classes(sq), {self.index.car})
+
     def test_aggregations(self):
         f = DynamicDocument.fields
 

@@ -23,7 +23,7 @@ class SearchQuery(object):
     .. testsetup:: *
 
        import datetime
-   
+
        from elasticmagic import SearchQuery, DynamicDocument
 
        class PostDocument(DynamicDocument):
