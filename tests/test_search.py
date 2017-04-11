@@ -164,6 +164,16 @@ class SearchQueryTest(BaseTestCase):
             }
         )
         self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
+        sq = SearchQuery().sort(f._score)
+        self.assert_expression(
+            sq,
+            {
+                "sort": [
+                    "_score"
+                ]
+            }
+        )
+        self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
 
         sq = (
             SearchQuery()
@@ -176,6 +186,42 @@ class SearchQueryTest(BaseTestCase):
             .order_by(None)
         )
         self.assert_expression(sq, {})
+        self.assertEqual(collect_doc_classes(sq), set())
+
+        sq = SearchQuery().limit(100)
+        self.assert_expression(
+            sq,
+            {
+                "size": 100
+            }
+        )
+        self.assertEqual(collect_doc_classes(sq), set())
+
+        sq = SearchQuery().limit(100).size(20)
+        self.assert_expression(
+            sq,
+            {
+                "size": 20
+            }
+        )
+        self.assertEqual(collect_doc_classes(sq), set())
+
+        sq = SearchQuery().offset(40)
+        self.assert_expression(
+            sq,
+            {
+                "from": 40
+            }
+        )
+        self.assertEqual(collect_doc_classes(sq), set())
+
+        sq = SearchQuery().offset(40).from_(0)
+        self.assert_expression(
+            sq,
+            {
+                "from": 0
+            }
+        )
         self.assertEqual(collect_doc_classes(sq), set())
 
         sq = SearchQuery().source(f.name, f.company)
