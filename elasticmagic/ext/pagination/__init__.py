@@ -1,4 +1,6 @@
-import warnings
+import logging
+
+log = logging.getLogger(__name__)
 
 
 class SearchQueryWrapper(object):
@@ -36,14 +38,10 @@ class SearchQueryWrapper(object):
 
     @property
     def result(self):
-        '''Deprecated!!!
-        '''
-        warnings.warn('Field "result" is deprecated', DeprecationWarning)
+        log.warning('Field "result" is deprecated')
         return self.get_result()
 
     @property
     def results(self):
-        '''Deprecated!!!
-        '''
-        warnings.warn('Field "results" is deprecated', DeprecationWarning)
+        log.warning('Field "results" is deprecated')
         return self.get_result()
