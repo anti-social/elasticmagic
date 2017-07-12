@@ -23,7 +23,7 @@ class SearchQuery(object):
     .. testsetup:: *
 
        import datetime
-   
+
        from elasticmagic import SearchQuery, DynamicDocument
 
        class PostDocument(DynamicDocument):
@@ -238,8 +238,8 @@ class SearchQuery(object):
            assert search_query.to_dict() == {
                'aggregations': {
                    'stars': {'terms': {'field': 'stars', 'size': 50},
-                           'aggregations': {
-                               'profit': {'sum': {'field': 'profit'}}}}}}
+                       'aggregations': {
+                           'profit': {'sum': {'field': 'profit'}}}}}}
         """
         if len(aggs) == 1 and aggs[0] is None:
             if '_aggregations' in self.__dict__:

@@ -1,3 +1,24 @@
+"""
+.. testsetup:: min,sum,top-hits,stats
+
+   from mock import Mock
+
+   from elasticmagic import agg, Cluster, SearchQuery, DynamicDocument
+
+   class SaleDocument(DynamicDocument):
+       __doc_type__ = 'sale'
+
+   class GradeDocument(DynamicDocument):
+       __doc_type__ = 'sale'
+
+   def get_sq(aggs_raw_result):
+       cluster = Cluster(Mock(
+           search=Mock(
+               return_value={
+                   'hits': {'max_score': 1, 'total': 1, 'hits': []},
+                   'aggregations': aggs_raw_result})))
+       return cluster.search_query()
+"""
 from itertools import chain
 
 from .document import DynamicDocument
@@ -61,7 +82,7 @@ class SingleValueMetricsAggResult(AggResult):
 
 class SingleValueMetricsAgg(MetricsAgg):
     result_cls = SingleValueMetricsAggResult
-    
+
     def __init__(self, field=None, script=None, **kwargs):
         super(SingleValueMetricsAgg, self).__init__(field=field, script=script, **kwargs)
 
@@ -79,22 +100,82 @@ class MultiValueMetricsAgg(MetricsAgg):
     result_cls = MultiValueMetricsAggResult
 
     def __init__(self, field=None, script=None, **kwargs):
-        super(MultiValueMetricsAgg, self).__init__(field=field, script=script, **kwargs)
+        super(MultiValueMetricsAgg, self).__init__(
+            field=field, script=script, **kwargs
+        )
 
 
 class Min(SingleValueMetricsAgg):
+    """A single-value metric aggregation that returns the minimum value among
+    all extracted numeric values. See
+    `min agg <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-min-aggregation.html>`_.
+
+    .. testsetup:: min
+
+       search_query = get_sq({'min_price': {'value': 10.0}})
+
+    .. testcode:: min
+
+       search_query = search_query.aggs({
+           'min_price': agg.Min(SaleDocument.price)
+       })
+       assert search_query.to_dict() == {
+           'aggregations': {
+               'min_price': {'min': {'field': 'price'}}}}
+       min_price_agg = search_query.get_result().get_aggregation('min_price')
+       print(min_price_agg.value)
+       print(min_price_agg.value_as_string)
+
+    .. testoutput:: min
+
+       10.0
+       10.0
+    """
     __agg_name__ = 'min'
 
 
 class Max(SingleValueMetricsAgg):
+    """A single-value metric aggregation that returns the maximum value among
+    all extracted numeric values. See
+    `max agg <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-max-aggregation.html>`_.
+    """
     __agg_name__ = 'max'
 
 
 class Sum(SingleValueMetricsAgg):
+    """A single-value metric aggregation that sums up all extracted numeric
+    values. See
+    `sum agg <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-sum-aggregation.html>`_.
+
+    .. testsetup:: sum
+
+       search_query = get_sq({'prices': {'value': 450.0}})
+
+    .. testcode:: sum
+
+       search_query = search_query.aggs({
+           'prices': agg.Sum(SaleDocument.price)
+       })
+       assert search_query.to_dict() == {
+           'aggregations': {
+               'prices': {'sum': {'field': 'price'}}}}
+       prices_agg = search_query.get_result().get_aggregation('prices')
+       print(prices_agg.value)
+       print(prices_agg.value_as_string)
+
+    .. testoutput:: sum
+
+       450.0
+       450.0
+    """
     __agg_name__ = 'sum'
 
 
 class Avg(SingleValueMetricsAgg):
+    """A single-value metric aggregation that computes average of all extracted
+    numeric values. See
+    `avg agg <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-avg-aggregation.html>`_.
+    """
     __agg_name__ = 'avg'
 
 
@@ -141,6 +222,71 @@ class TopHitsResult(AggResult):
 
 
 class TopHits(MetricsAgg):
+    """A `top_hits` metric aggregation that groups result set by certain fields
+    via a bucket aggregator. See
+    `top_hits agg <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-avg-aggregation.html>`_.
+
+    .. testsetup:: top-hits
+
+       b1 = {
+           'key': 'hat',
+           'doc_count': 3,
+           'top_sales_hits': {'hits': {'total': 3, 'max_score': None, 'hits': [{
+               '_index': 'sales', '_type': 'sale', '_id': 'AVnNBmauCQpcRyxw6ChK',
+               '_source': {'date': '2015/03/01 00:00:00', 'price': 200}
+           }]}}
+       }
+       b2 = {
+           'key': 't-shirt',
+           'doc_count': 3,
+           'top_sales_hits': {'hits': {'total': 3, 'max_score': None, 'hits': [{
+               '_index': 'sales', '_type': 'sale', '_id': 'AVnNBmauCQpcRyxw6ChL',
+               '_source': {'date': '2015/03/01 00:00:00', 'price': 175}
+           }]}}
+       }
+       b3 = {
+           'key': 'bag',
+           'doc_count': 1,
+           'top_sales_hits': {'hits': {'total': 1, 'max_score': None, 'hits': [{
+               '_index': 'sales', '_type': 'sale', '_id': 'AVnNBmatCQpcRyxw6ChH',
+               '_source': {'date': '2015/01/01 00:00:00', 'price': 150}
+           }]}}
+       }
+       search_query = get_sq({'top_tags': {'buckets': [b1, b2, b3]}})
+
+    .. testcode:: top-hits
+
+       search_query = search_query.aggs({
+           'top_tags': agg.Terms(
+               SaleDocument.type, size=3,
+               aggs={'top_sales_hits': agg.TopHits(
+                   size=1,
+                   sort=SaleDocument.date.desc(),
+                   _source={'includes': [SaleDocument.date, SaleDocument.price]}
+               )}
+           )
+       })
+       assert search_query.to_dict() == {
+           'aggregations': {
+               'top_tags': {
+                   'terms': {'field': 'type', 'size': 3},
+                   'aggregations': {
+                       'top_sales_hits': {
+                           'top_hits': {
+                               'size': 1,
+                               'sort': {'date': 'desc'},
+                               '_source': {'includes': ['date', 'price']}}}}}}}
+       top_tags = search_query.get_result().get_aggregation('top_tags')
+       for tag_bucket in top_tags.buckets:
+           top_hit = tag_bucket.get_aggregation('top_sales_hits').hits[0]
+           print('{0.key} ({0.doc_count}) - {1.price}'.format(tag_bucket, top_hit))
+
+    .. testoutput:: top-hits
+
+       hat (3) - 200
+       t-shirt (3) - 175
+       bag (1) - 150
+    """
     __agg_name__ = 'top_hits'
 
     result_cls = TopHitsResult
@@ -169,6 +315,38 @@ class StatsResult(MultiValueMetricsAggResult):
 
 
 class Stats(MultiValueMetricsAgg):
+    """A multi-value metric aggregation that computes stats over all extracted
+    numeric values. See
+    `stats agg <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-stats-aggregation.html>`_.
+
+    .. testsetup:: stats
+
+       search_query = get_sq({'grades_stats': {
+           'count': 6, 'min': 60, 'max': 98, 'avg': 78.5, 'sum': 471}})
+
+    .. testcode:: stats
+
+       search_query = search_query.aggs({
+           'grades_stats': agg.Stats(GradeDocument.grade)
+       })
+       assert search_query.to_dict() == {
+           'aggregations': {
+               'grades_stats': {'stats': {'field': 'grade'}}}}
+       grades_stats = search_query.get_result().get_aggregation('grades_stats')
+       print('count:', grades_stats.count)
+       print('min:', grades_stats.min)
+       print('max:', grades_stats.max)
+       print('avg:', grades_stats.avg)
+       print('sum:', grades_stats.sum)
+
+    .. testoutput:: stats
+
+       count: 6
+       min: 60
+       max: 98
+       avg: 78.5
+       sum: 471
+    """
     __agg_name__ = 'stats'
 
     result_cls = StatsResult
@@ -186,6 +364,14 @@ class ExtendedStatsResult(StatsResult):
 
 
 class ExtendedStats(Stats):
+    """A multi-value metric aggregation that computes stats over all extracted
+    numeric values. See
+    `extended_stats agg <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-extendedstats-aggregation.html>`_.
+
+    This aggregation is an extended version of the :class:`Stats` aggregation.
+    There are some additional metrics:
+    `sum_of_squares`, `variance`, `std_deviation`.
+    """
     __agg_name__ = 'extended_stats'
 
     result_cls = ExtendedStatsResult

@@ -13,6 +13,7 @@ Contents:
 
    quick_start
    search_api
+   aggregations
 
 
 Indices and tables
