@@ -1,6 +1,7 @@
 """
 .. testsetup:: min,sum,top-hits,stats
 
+   from __future__ import print_function
    from mock import Mock
 
    from elasticmagic import agg, Cluster, SearchQuery, DynamicDocument
