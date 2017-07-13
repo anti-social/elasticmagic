@@ -1,5 +1,5 @@
 """
-.. testsetup:: min,sum,top-hits,stats
+.. testsetup:: min,sum,value-count,top-hits,stats
 
    from __future__ import print_function
    from mock import Mock
@@ -12,7 +12,7 @@
    class GradeDocument(DynamicDocument):
        __doc_type__ = 'sale'
 
-   def get_sq(aggs_raw_result):
+   def sq(aggs_raw_result):
        cluster = Cluster(Mock(
            search=Mock(
                return_value={
@@ -77,6 +77,7 @@ class BucketAgg(AggExpression):
 class SingleValueMetricsAggResult(AggResult):
     def __init__(self, agg_expr, raw_data):
         super(SingleValueMetricsAggResult, self).__init__(agg_expr)
+        # TODO: Do we really need to coerce to float?
         self.value = maybe_float(raw_data['value'])
         self.value_as_string = raw_data.get('value_as_string', force_unicode(raw_data['value']))
 
@@ -113,7 +114,7 @@ class Min(SingleValueMetricsAgg):
 
     .. testsetup:: min
 
-       search_query = get_sq({'min_price': {'value': 10.0}})
+       search_query = sq({'min_price': {'value': 10.0}})
 
     .. testcode:: min
 
@@ -150,7 +151,7 @@ class Sum(SingleValueMetricsAgg):
 
     .. testsetup:: sum
 
-       search_query = get_sq({'prices': {'value': 450.0}})
+       search_query = sq({'prices': {'value': 450.0}})
 
     .. testcode:: sum
 
@@ -178,6 +179,41 @@ class Avg(SingleValueMetricsAgg):
     `avg agg <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-avg-aggregation.html>`_.
     """
     __agg_name__ = 'avg'
+
+
+class ValueCount(SingleValueMetricsAgg):
+    """A single-value metric aggregation that counts the number of all extracted
+    values. See
+    `value_count agg <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-valuecount-aggregation.html>`_.
+
+    .. testsetup:: value-count
+
+       search_query = sq({'types_count': {'value': 7}})
+
+    .. testcode:: value-count
+
+       from elasticmagic import Script
+
+       search_query = search_query.aggs({
+           'types_count': agg.ValueCount(script=Script(
+               inline='doc[params.field].value',
+               params={'field': SaleDocument.type}
+           ))
+       })
+       assert search_query.to_dict() == {
+           'aggregations': {
+               'types_count': {
+                   'value_count': {
+                       'script': {
+                           'inline': 'doc[params.field].value',
+                           'params': {'field': 'type'}}}}}}
+       print(search_query.get_result().get_aggregation('types_count').value)
+
+    .. testoutput:: value-count
+
+       7.0
+    """
+    __agg_name__ = 'value_count'
 
 
 class TopHitsResult(AggResult):
@@ -253,7 +289,7 @@ class TopHits(MetricsAgg):
                '_source': {'date': '2015/01/01 00:00:00', 'price': 150}
            }]}}
        }
-       search_query = get_sq({'top_tags': {'buckets': [b1, b2, b3]}})
+       search_query = sq({'top_tags': {'buckets': [b1, b2, b3]}})
 
     .. testcode:: top-hits
 
@@ -322,7 +358,7 @@ class Stats(MultiValueMetricsAgg):
 
     .. testsetup:: stats
 
-       search_query = get_sq({'grades_stats': {
+       search_query = sq({'grades_stats': {
            'count': 6, 'min': 60, 'max': 98, 'avg': 78.5, 'sum': 471}})
 
     .. testcode:: stats
