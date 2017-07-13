@@ -1,5 +1,5 @@
 """
-.. testsetup:: min,sum,value-count,top-hits,stats
+.. testsetup:: min,sum,value-count,top-hits,stats,percentiles,percentile-ranks
 
    from __future__ import print_function
    from mock import Mock
@@ -11,6 +11,9 @@
 
    class GradeDocument(DynamicDocument):
        __doc_type__ = 'sale'
+
+   class PageLoadDoc(DynamicDocument):
+       __doc_type__ = 'load_page'
 
    def sq(aggs_raw_result):
        cluster = Cluster(Mock(
@@ -352,7 +355,7 @@ class StatsResult(MultiValueMetricsAggResult):
 
 
 class Stats(MultiValueMetricsAgg):
-    """A multi-value metric aggregation that computes stats over all extracted
+    """A multi-value metrics aggregation that computes stats over all extracted
     numeric values. See
     `stats agg <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-stats-aggregation.html>`_.
 
@@ -401,7 +404,7 @@ class ExtendedStatsResult(StatsResult):
 
 
 class ExtendedStats(Stats):
-    """A multi-value metric aggregation that computes stats over all extracted
+    """A multi-value metrics aggregation that computes stats over all extracted
     numeric values. See
     `extended_stats agg <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-extendedstats-aggregation.html>`_.
 
@@ -420,8 +423,10 @@ class ExtendedStats(Stats):
 class BasePercentilesAggResult(MultiValueMetricsAggResult):
     def __init__(self, *args, **kwargs):
         super(BasePercentilesAggResult, self).__init__(*args, **kwargs)
+        # TODO: Add support for keyed response
         values = []
         for k, v in self.values.items():
+            # TODO: Do we need try-catch there?
             try:
                 values.append((float(k), maybe_float(v)))
             except ValueError:
@@ -437,6 +442,53 @@ class PercentilesAggResult(BasePercentilesAggResult):
 
 
 class Percentiles(MultiValueMetricsAgg):
+    """A multi-value metrics aggregation that calculates percentiles over all
+    extracted numeric values. See
+    `percentiles agg <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-percentile-aggregation.html>`_.
+
+    .. note::
+
+       Percentiles are usually calculated approximately. Elasticsearch
+       calculates them using
+       `TDigest <https://github.com/tdunning/t-digest/blob/master/docs/t-digest-paper/histo.pdf>`_
+       algotighm.
+
+    .. testsetup:: percentiles
+
+       search_query = sq({'load_time_outlier': {'values': {
+           '1.0': 15,
+           '5.0': 20,
+           '25.0': 23,
+           '50.0': 25,
+           '75.0': 29,
+           '95.0': 60,
+           '99.0': 150,
+       }}})
+
+    .. testcode:: percentiles
+
+       search_query = search_query.aggs(
+           load_time_outlier=agg.Percentiles(field=PageLoadDoc.load_time)
+       )
+       assert search_query.to_dict() == {
+           'aggregations': {
+               'load_time_outlier': {
+                   'percentiles': {'field': 'load_time'}}}}
+       load_time_agg = search_query.get_result().get_aggregation('load_time_outlier')
+       for p, v in load_time_agg.values[:-1]:
+           print('{:<4} - {}'.format(p, v))
+       print('99 percentile is: {}'.format(load_time_agg.get_value(99)))
+
+    .. testoutput:: percentiles
+
+       1.0  - 15.0
+       5.0  - 20.0
+       25.0 - 23.0
+       50.0 - 25.0
+       75.0 - 29.0
+       95.0 - 60.0
+       99 percentile is: 150.0
+    """
     __agg_name__ = 'percentiles'
 
     result_cls = PercentilesAggResult
@@ -455,6 +507,42 @@ class PercentileRanksAggResult(BasePercentilesAggResult):
 
 
 class PercentileRanks(MultiValueMetricsAgg):
+    """A multi-value metrics aggregation that calculates percentile ranks over
+    all extracted numeric values. See
+    `percentile_ranks agg <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-percentile-rank-aggregation.html>`_.
+
+    .. testsetup:: percentile-ranks
+
+       search_query = sq({'load_time_outlier': {'values': {
+           '15': 92,
+           '30': 100,
+       }}})
+
+    .. testcode:: percentile-ranks
+
+       search_query = search_query.aggs(
+           load_time_outlier=agg.PercentileRanks(
+               field=PageLoadDoc.load_time,
+               values=[15, 30],
+           )
+       )
+       assert search_query.to_dict() == {
+           'aggregations': {
+               'load_time_outlier': {
+                   'percentile_ranks': {
+                       'field': 'load_time',
+                       'values': [15, 30]}}}}
+       load_time_agg = search_query.get_result().get_aggregation('load_time_outlier')
+       for v, p in load_time_agg.values:
+           print('{:<4} - {}'.format(v, p))
+       print('{}% of values are below 15'.format(load_time_agg.get_percent(15)))
+
+    .. testoutput:: percentile-ranks
+
+       15.0 - 92.0
+       30.0 - 100.0
+       92.0% of values are below 15
+    """
     __agg_name__ = 'percentile_ranks'
 
     result_cls = PercentileRanksAggResult
