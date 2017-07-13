@@ -93,7 +93,7 @@ commands:
     description: Build documentation
     container: py2-sphinx
     work-dir: docs
-    prerequisites: [py2-doctest]
+    prerequisites: [doctest-py2]
     run: [make, html]
   
   bench: !Command
