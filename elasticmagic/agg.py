@@ -554,6 +554,10 @@ class PercentileRanks(MultiValueMetricsAgg):
 
 
 class Cardinality(SingleValueMetricsAgg):
+    """A single-value metrics aggregation that calculates an approximate count
+    of distinct values. See
+    `cardinality agg <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cardinality-aggregation.html>`_.
+    """
     __agg_name__ = 'cardinality'
 
     def __init__(self, field=None, script=None, precision_threshold=None, rehash=None, **kwargs):
