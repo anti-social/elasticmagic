@@ -782,6 +782,28 @@ def test_range_datetime_filter(index, client):
         }
 
     sq = index.search_query()
+    sq = qf.apply(sq, {
+        'dt__gte': [datetime.date(2017, 8, 9)],
+        'dt__lte': [datetime.datetime(2017, 8, 9)]
+    })
+    assert sq.to_dict() == \
+        {
+            "aggregations": {
+                "qf.dt.enabled": {"filter": {"exists": {"field": "presentation_date"}}},
+                "qf.dt.min": {"min": {"field": "presentation_date"}},
+                "qf.dt.max": {"max": {"field": "presentation_date"}}
+            },
+            "post_filter": {
+                "range": {
+                    "presentation_date": {
+                        "gte": datetime.date(2017, 8, 9),
+                        "lte": datetime.datetime(2017, 8, 9),
+                    }
+                }
+            }
+        }
+
+    sq = index.search_query()
     sq = qf.apply(sq, {'dt__gte': ['2017-08-08'], 'dt__lte': ['2017-08-08']})
     assert sq.to_dict() == \
         {

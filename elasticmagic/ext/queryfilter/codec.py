@@ -46,6 +46,8 @@ def to_long(value, type=None):
 
 
 def to_date(value, type=None):
+    if isinstance(value, (datetime.datetime, datetime.date)):
+        return value
     type = type or Date()
     now = datetime.datetime.now() \
         .replace(hour=0, minute=0, second=0, microsecond=0)
