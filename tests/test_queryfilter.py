@@ -822,6 +822,25 @@ def test_range_datetime_filter(index, client):
             }
         }
 
+    sq = index.search_query()
+    sq = qf.apply(sq, {'dt': ['2017-08-08']})
+    assert sq.to_dict() == \
+        {
+            "aggregations": {
+                "qf.dt.enabled": {"filter": {"exists": {"field": "presentation_date"}}},
+                "qf.dt.min": {"min": {"field": "presentation_date"}},
+                "qf.dt.max": {"max": {"field": "presentation_date"}}
+            },
+            "post_filter": {
+                "range": {
+                    "presentation_date": {
+                        "gte": datetime.date(2017, 8, 8),
+                        "lte": datetime.date(2017, 8, 8),
+                    }
+                }
+            }
+        }
+
 
 def test_simple_query_filter(index):
     class CarQueryFilter(QueryFilter):

@@ -416,11 +416,11 @@ class RangeFilter(FieldFilter):
         return '{}.{}.enabled'.format(self.qf._name, self.name)
 
     def _get_from_value(self, params):
-        from_values = params.get('gte')
+        from_values = params.get('gte') or params.get('exact')
         return from_values[0][0] if from_values else None
 
     def _get_to_value(self, params):
-        to_values = params.get('lte')
+        to_values = params.get('lte') or params.get('exact')
         return to_values[0][0] if to_values else None
 
     def _apply_filter(self, search_query, params):
