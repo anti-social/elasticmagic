@@ -1,7 +1,8 @@
+import datetime
 from mock import Mock, MagicMock
 
 from elasticmagic import agg, Document, Field, Match
-from elasticmagic.types import Integer, Float, List, Nested, String
+from elasticmagic.types import Integer, Float, List, Nested, String, Date
 from elasticmagic.ext.queryfilter import FacetFilter
 from elasticmagic.ext.queryfilter import FacetQueryFilter
 from elasticmagic.ext.queryfilter import FacetQueryValue
@@ -749,6 +750,55 @@ def test_range_filter_dynamic_document(index, client):
     assert disp_filter.max_value == 3.0
     assert disp_filter.from_value is None
     assert disp_filter.to_value is None
+
+
+def test_range_datetime_filter(index, client):
+    class CarDocument(Document):
+        __doc_type__ = 'car'
+
+        presentation_date = Field(Date)
+
+    class CarQueryFilter(QueryFilter):
+        dt = RangeFilter(CarDocument.presentation_date)
+
+    qf = CarQueryFilter()
+
+    sq = index.search_query()
+    sq = qf.apply(sq, {'dt__gte': ['2017-08-08 00:00:00']})
+    assert sq.to_dict() == \
+        {
+            "aggregations": {
+                "qf.dt.enabled": {"filter": {"exists": {"field": "presentation_date"}}},
+                "qf.dt.min": {"min": {"field": "presentation_date"}},
+                "qf.dt.max": {"max": {"field": "presentation_date"}}
+            },
+            "post_filter": {
+                "range": {
+                    "presentation_date": {
+                        "gte": datetime.datetime(2017, 8, 8),
+                    }
+                }
+            }
+        }
+
+    sq = index.search_query()
+    sq = qf.apply(sq, {'dt__gte': ['2017-08-08'], 'dt__lte': ['2017-08-08']})
+    assert sq.to_dict() == \
+        {
+            "aggregations": {
+                "qf.dt.enabled": {"filter": {"exists": {"field": "presentation_date"}}},
+                "qf.dt.min": {"min": {"field": "presentation_date"}},
+                "qf.dt.max": {"max": {"field": "presentation_date"}}
+            },
+            "post_filter": {
+                "range": {
+                    "presentation_date": {
+                        "gte": datetime.date(2017, 8, 8),
+                        "lte": datetime.date(2017, 8, 8),
+                    }
+                }
+            }
+        }
 
 
 def test_simple_query_filter(index):

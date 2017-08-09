@@ -1,10 +1,16 @@
+import datetime
 import math
 from itertools import starmap
 from functools import partial
 from collections import defaultdict
 
-from elasticmagic.types import Float, Integer, Long, instantiate
+import dateutil.parser
+
+from elasticmagic.types import Date, Float, Integer, Long, instantiate
 from elasticmagic.compat import force_unicode, zip_longest
+
+
+TIME_ATTRS = {'hour', 'minute', 'second', 'microsecond', 'tzinfo'}
 
 
 def to_float(value, type=None):
@@ -39,10 +45,41 @@ def to_long(value, type=None):
     )
 
 
+def to_date(value, type=None):
+    type = type or Date()
+    now = datetime.datetime.now() \
+        .replace(hour=0, minute=0, second=0, microsecond=0)
+    faked_dt = dateutil.parser.parse(value, default=FakeDatetime(now))
+    if TIME_ATTRS.intersection(faked_dt.replaced):
+        return faked_dt
+    else:
+        # if time was not specified return date object
+        # thus range date filters will work correctly
+        return now.date().replace(**faked_dt.replaced)
+
+
 def wrap_list(v):
     if not isinstance(v, (list, tuple)):
         return [v]
     return v
+
+
+class FakeDatetime(datetime.datetime):
+    def __new__(cls, dt):
+        return datetime.datetime.__new__(
+            cls,
+            dt.year, dt.month, dt.day,
+            dt.hour, dt.minute, dt.second, dt.microsecond, dt.tzinfo,
+        )
+
+    def __init__(self, dt):
+        self.replaced = {}
+
+    def replace(self, **kwargs):
+        dt = super(FakeDatetime, self).replace(**kwargs)
+        fake_dt = FakeDatetime(dt)
+        fake_dt.replaced.update(kwargs)
+        return fake_dt
 
 
 class BaseCodec(object):
@@ -73,6 +110,7 @@ class SimpleCodec(BaseCodec):
         Float: lambda type: partial(to_float, type=type),
         Integer: lambda type: partial(to_int, type=type),
         Long: lambda type: partial(to_long, type=type),
+        Date: lambda type: partial(to_date, type=type),
     }
 
     def _normalize_params(self, params):
