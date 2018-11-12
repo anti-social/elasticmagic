@@ -1,8 +1,7 @@
-import fnmatch
-
 from .types import Type, String, Integer, Float, Date, ValidationError
 from .compiler import DefaultCompiler
-from .attribute import AttributedField, DynamicAttributedField, _attributed_field_factory
+from .attribute import AttributedField, DynamicAttributedField
+from .attribute import _attributed_field_factory
 from .expression import Field, MappingField
 from .datastructures import OrderedAttributes
 from .util import cached_property
@@ -51,7 +50,8 @@ class DocumentMeta(type):
             setattr(cls, attr_name, field)
 
         for dyn_field in cls.__dynamic_fields__:
-            cls._dynamic_fields[dyn_field.get_name()] = AttributedField(cls, dyn_field.get_name(), dyn_field)
+            cls._dynamic_fields[dyn_field.get_name()] = AttributedField(
+                cls, dyn_field.get_name(), dyn_field)
 
         return cls
 
@@ -65,7 +65,8 @@ class DocumentMeta(type):
     def __setattr__(cls, name, value):
         if isinstance(value, Field):
             is_mapping = (
-                isinstance(value, MappingField) or name in Document.mapping_fields
+                isinstance(value, MappingField) or
+                name in Document.mapping_fields
             )
             if is_mapping:
                 field = value.clone(cls=MappingField)
@@ -141,23 +142,23 @@ class Document(with_metaclass(DocumentMeta)):
         self._index = self._type = self._id = self._score = None
         self._hit_fields = None
         self._highlight = None
-        self._matched_queries = None
         if _hit:
             self._score = _hit.get('_score')
             for attr_field in self._mapping_fields:
-                setattr(self, attr_field._attr_name, _hit.get(attr_field._field._name))
+                setattr(self, attr_field._attr_name,
+                        _hit.get(attr_field._field._name))
             if _hit.get('_source'):
                 for hit_key, hit_value in _hit['_source'].items():
-                    setattr(self, *self._process_source_key_value(hit_key, hit_value))
+                    setattr(self,
+                            *self._process_source_key_value(hit_key, hit_value))
             if _hit.get('fields'):
                 # we cannot construct document from fields
-                # in next example we cannot decide which tag has name and which has not:
+                # in next example we cannot decide
+                # which tag has name and which has not:
                 # {"tags.id": [1, 2], "tags.name": ["Test"]}
                 self._hit_fields = self._process_fields(_hit['fields'])
             if _hit.get('highlight'):
                 self._highlight = _hit['highlight']
-            if _hit.get('matched_queries'):
-                self._matched_queries = _hit['matched_queries']
 
         for fkey, fvalue in kwargs.items():
             setattr(self, fkey, fvalue)
@@ -208,10 +209,17 @@ class Document(with_metaclass(DocumentMeta)):
             attr_field = self.__class__.fields.get(key)
             if attr_field:
                 if value is None or value == '' or value == []:
-                    if validate and attr_field.get_field()._mapping_options.get('required'):
-                        raise ValidationError("'{}' is required".format(attr_field.get_attr_name()))
+                    if (
+                            validate and
+                            attr_field.get_field()
+                            ._mapping_options.get('required')
+                    ):
+                        raise ValidationError("'{}' is required".format(
+                            attr_field.get_attr_name()
+                        ))
                     continue
-                value = attr_field.get_type().from_python(value, validate=validate)
+                value = attr_field.get_type() \
+                                  .from_python(value, validate=validate)
                 res[attr_field._field._name] = value
 
         for attr_field in self._fields.values():
@@ -220,22 +228,21 @@ class Document(with_metaclass(DocumentMeta)):
                     and attr_field.get_field()._mapping_options.get('required')
                     and attr_field.get_field().get_name() not in res
             ):
-                raise ValidationError("'{}' is required".format(attr_field.get_attr_name()))
+                raise ValidationError(
+                    "'{}' is required".format(attr_field.get_attr_name())
+                )
 
         return res
 
     def get_highlight(self):
         return self._highlight or {}
 
-    def get_matched_queries(self):
-        return self._matched_queries or []
-
     def get_hit_fields(self):
         return self._hit_fields or {}
 
     @classmethod
     def to_mapping(cls, ordered=False, compiler=None):
-        mapping_compiler = (compiler or DefaultCompiler()).get_mapping_compiler()
+        mapping_compiler = (compiler or DefaultCompiler()).compiled_mapping
         return mapping_compiler(cls, ordered=ordered).params
 
     @cached_property
@@ -247,9 +254,11 @@ class Document(with_metaclass(DocumentMeta)):
 
 class DynamicDocumentMeta(DocumentMeta):
     def _get_dynamic_defaults(cls):
-        dynamic_defaults = super(DynamicDocumentMeta, cls)._get_dynamic_defaults()
+        dynamic_defaults = \
+            super(DynamicDocumentMeta, cls)._get_dynamic_defaults()
         if '*' not in dynamic_defaults:
-            dynamic_defaults['*'] = _attributed_field_factory(DynamicAttributedField, cls, Field('*'))
+            dynamic_defaults['*'] = _attributed_field_factory(
+                DynamicAttributedField, cls, Field('*'))
         return dynamic_defaults
 
     def __getattr__(cls, name):
@@ -258,7 +267,9 @@ class DynamicDocumentMeta(DocumentMeta):
 
 class DynamicDocument(with_metaclass(DynamicDocumentMeta, Document)):
     def _process_source_key_value(self, key, value):
-        key, value = super(DynamicDocument, self)._process_source_key_value(key, value)
+        key, value = (
+            super(DynamicDocument, self)._process_source_key_value(key, value)
+        )
         if isinstance(value, dict):
             return key, DynamicDocument(**value)
         return key, value

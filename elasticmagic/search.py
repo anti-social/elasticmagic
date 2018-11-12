@@ -1,12 +1,11 @@
-import collections
 import warnings
+import collections
 
 from .compat import zip
-from .util import _with_clone, cached_property, merge_params, collect_doc_classes
+from .util import _with_clone
+from .util import cached_property, merge_params, collect_doc_classes
 from .compiler import DefaultCompiler
-from .expression import (
-    Params, Filtered, Bool, FunctionScore, Source, Highlight,
-)
+from .expression import Params, Source, Highlight, Rescore
 
 
 __all__ = ['SearchQuery']
@@ -47,9 +46,11 @@ class SearchQuery(object):
     _boost_score_params = Params()
     _limit = None
     _offset = None
-    _rescorers = ()
+    _min_score = None
+    _rescores = ()
     _suggest = Params()
     _highlight = Params()
+    _script_fields = Params()
 
     _cluster = None
     _index = None
@@ -65,10 +66,10 @@ class SearchQuery(object):
             self, q=None,
             cluster=None, index=None, doc_cls=None, doc_type=None,
             routing=None, preference=None, timeout=None, search_type=None,
-            request_cache=None, terminate_after=None, scroll=None,
+            query_cache=None, terminate_after=None, scroll=None,
             _compiler=None, **kwargs
     ):
-        self._compiler = _compiler or DefaultCompiler().get_query_compiler()
+        self._compiler = _compiler or DefaultCompiler().compiled_query
 
         if q is not None:
             self._q = q
@@ -86,7 +87,7 @@ class SearchQuery(object):
             preference=preference,
             timeout=timeout,
             search_type=search_type,
-            request_cache=request_cache,
+            query_cache=query_cache,
             terminate_after=terminate_after,
             scroll=scroll,
             **kwargs
@@ -94,16 +95,66 @@ class SearchQuery(object):
         if search_params:
             self._search_params = search_params
 
-    def to_dict(self):
-        return self._compiler(self).params
-
     def clone(self):
-        """Clones current search query."""
         cls = self.__class__
         q = cls.__new__(cls)
         q.__dict__ = {k: v for k, v in self.__dict__.items()
                       if not isinstance(getattr(cls, k, None), cached_property)}
         return q
+
+    def to_dict(self, compiler=None):
+        return (compiler or self._compiler)(self).params
+
+    @_with_clone
+    def source(self, *args, **kwargs):
+        """Controls which fields of the document ``_source`` field to retrieve.
+
+        .. _fields_arg:
+
+        :param \*fields: list of fields which should be returned by \
+        elasticsearch. Can be one of the following types:
+
+           - field expression, for example: ``PostDocument.title``
+           - ``str`` means field name or glob pattern. For example: ``"title"``,
+             ``"user.*"``
+           - ``False`` disables retrieving source
+           - ``True`` enables retrieving all source document
+           - ``None`` cancels source filtering applied before
+
+        :param include: list of fields to include
+
+        :param exclude: list of fields to exclude
+
+        Example:
+
+        .. testcode:: source
+
+           search_query = SearchQuery().source(PostDocument.title, 'user.*')
+
+        .. testcode:: source
+
+           assert search_query.to_dict() == {'_source': ['title', 'user.*']}
+
+        See `source filtering <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-source-filtering.html>`_
+        for more information.
+        """
+        if len(args) == 1 and args[0] is None:
+            if '_source' in self.__dict__:
+                del self._source
+        elif len(args) == 1 and isinstance(args[0], bool):
+            self._source = Source(args[0], **kwargs)
+        else:
+            self._source = Source(args, **kwargs)
+
+    @_with_clone
+    def fields(self, *args):
+        if len(args) == 1 and args[0] is None:
+            if '_fields' in self.__dict__:
+                del self._fields
+        elif len(args) == 1 and isinstance(args[0], bool):
+            self._fields = args[0]
+        else:
+            self._fields = args
 
     @_with_clone
     def query(self, q):
@@ -174,9 +225,14 @@ class SearchQuery(object):
         All parameters have the same meaning as for
         :meth:`.filter` method.
         """
-        meta = kwargs.pop('meta', None)
-        self._post_filters = self._post_filters + filters
-        self._post_filters_meta = self._post_filters_meta + (meta,) * len(filters)
+        if len(filters) == 1 and filters[0] is None:
+            if '_post_filters' in self.__dict__:
+                del self._post_filters
+        else:
+            meta = kwargs.pop('meta', None)
+            self._post_filters = self._post_filters + filters
+            self._post_filters_meta = \
+                self._post_filters_meta + (meta,) * len(filters)
 
     @_with_clone
     def order_by(self, *orders):
@@ -210,12 +266,8 @@ class SearchQuery(object):
         else:
             self._order_by = self._order_by + orders
 
-    def sort(self, *orders):
-        """Alias for the :meth:`.order_by` method."""
-        return self.order_by(*orders)
-
     @_with_clone
-    def aggregations(self, *aggs, **kwargs):
+    def aggregations(self, *args, **kwargs):
         """Adds `aggregations <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations.html>`_
         to the search query.
 
@@ -241,18 +293,16 @@ class SearchQuery(object):
                        'aggregations': {
                            'profit': {'sum': {'field': 'profit'}}}}}}
         """
-        if len(aggs) == 1 and aggs[0] is None:
+        if len(args) == 1 and args[0] is None:
             if '_aggregations' in self.__dict__:
                 del self._aggregations
         else:
-            self._aggregations = merge_params(self._aggregations, aggs, kwargs)
+            self._aggregations = merge_params(self._aggregations, args, kwargs)
 
-    def aggs(self, *aggs, **kwargs):
-        """Shortcut for the :meth:`.aggregations` method."""
-        return self.aggregations(*aggs, **kwargs)
+    aggs = aggregations
 
     @_with_clone
-    def function_score(self, *functions, **kwargs):
+    def function_score(self, *args, **kwargs):
         """Adds `function scores <https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-function-score-query.html>`_
         to the search query.
 
@@ -277,16 +327,18 @@ class SearchQuery(object):
                             'filter': {'term': {'created_date': 'now/d'}}},
                            {'field_value_factor': {'field': 'popularity', 'factor': 1.2, 'modifier': 'sqrt'}}]}}}
         """
-        if functions == (None,):
+
+        if args == (None,):
             if '_function_score' in self.__dict__:
                 del self._function_score
                 del self._function_score_params
         else:
-            self._function_score = self._function_score + functions
-            self._function_score_params = Params(dict(self._function_score_params), **kwargs)
+            self._function_score = self._function_score + args
+            self._function_score_params = Params(
+                dict(self._function_score_params), **kwargs)
 
     @_with_clone
-    def boost_score(self, *functions, **kwargs):
+    def boost_score(self, *args, **kwargs):
         """Adds one more level of the function_score query with default
         sum modes. It is especially useful for complex ordering scenarios.
 
@@ -329,52 +381,18 @@ class SearchQuery(object):
                        'boost_mode': 'sum',
                        'score_mode': 'sum'}}}
         """
-        if functions == (None,):
+        if args == (None,):
             if '_boost_score' in self.__dict__:
                 del self._boost_score
                 del self._boost_score_params
         else:
-            self._boost_score = self._boost_score + functions
-            self._boost_score_params = Params(dict(self._boost_score_params), **kwargs)
+            self._boost_score = self._boost_score + args
+            self._boost_score_params = Params(
+                dict(self._boost_score_params), **kwargs)
 
     @_with_clone
-    def rescore(self, *rescorers):
-        """Adds `rescorers <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-rescore.html>`_
-        to the search query. It usually uses for precisely tuning search results.
-
-        :param \*rescorers: list of the rescorers. ``None`` cleans previously \
-        added rescorers.
-
-        .. testcode::
-
-           from elasticmagic import QueryRescorer
-
-           search_query = SearchQuery(PostDocument.title.match('the quick brown fox')).rescore(
-               QueryRescorer(
-                   PostDocument.title.match('the quick brown fox', type='phrase', slop=2),
-                   window_size=500,
-                   query_weight=0.7,
-                   rescore_query_weight=1.2))
-
-        .. testcode::
-
-           assert search_query.to_dict() == {
-               'query': {'match': {'title': 'the quick brown fox'}},
-               'rescore': [{
-                   'window_size': 500,
-                   'query': {
-                       'rescore_query': {
-                           'match': {'title': {'query': 'the quick brown fox',
-                                              'type': 'phrase',
-                                              'slop': 2}}},
-                       'query_weight': 0.7,
-                       'rescore_query_weight': 1.2}}]}
-        """
-        if rescorers == (None,):
-            if '_rescorers' in self.__dict__:
-                del self._rescorers
-            return
-        self._rescorers = self._rescorers + rescorers
+    def script_fields(self, **kwargs):
+        self._script_fields = Params(kwargs)
 
     @_with_clone
     def limit(self, limit):
@@ -384,9 +402,7 @@ class SearchQuery(object):
         """
         self._limit = limit
 
-    def size(self, limit):
-        """Alias for the :meth:`.limit` method."""
-        return self.limit(limit)
+    size = limit
 
     @_with_clone
     def offset(self, offset):
@@ -396,69 +412,28 @@ class SearchQuery(object):
         """
         self._offset = offset
 
-    def from_(self, offset):
-        """Alias for the :meth:`.offset` method."""
-        return self.offset(offset)
+    from_ = offset
 
     @_with_clone
-    def source(self, *fields, **kwargs):
-        """Controls which fields of the document ``_source`` field to retrieve.
-
-        .. _fields_arg:
-
-        :param \*fields: list of fields which should be returned by \
-        elasticsearch. Can be one of the following types:
-
-           - field expression, for example: ``PostDocument.title``
-           - ``str`` means field name or glob pattern. For example: ``"title"``,
-             ``"user.*"``
-           - ``False`` disables retrieving source
-           - ``True`` enables retrieving all source document
-           - ``None`` cancels source filtering applied before
-
-        :param include: list of fields to include
-
-        :param exclude: list of fields to exclude
-
-        Example:
-
-        .. testcode:: source
-
-           search_query = SearchQuery().source(PostDocument.title, 'user.*')
-
-        .. testcode:: source
-
-           assert search_query.to_dict() == {'_source': ['title', 'user.*']}
-
-        See `source filtering <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-source-filtering.html>`_
-        for more information.
-        """
-        if len(fields) == 1 and fields[0] is None:
-            if '_source' in self.__dict__:
-                del self._source
-        elif len(fields) == 1 and isinstance(fields[0], bool):
-            self._source = Source(fields[0], **kwargs)
-        else:
-            self._source = Source(fields, **kwargs)
+    def min_score(self, min_score):
+        self._min_score = min_score
 
     @_with_clone
-    def fields(self, *fields):
-        """Controls which stored fields to retrieve.
+    def rescore(self, rescorer, window_size=None):
+        if rescorer is None:
+            if '_rescores' in self.__dict__:
+                del self._rescores
+            return
+        rescore = Rescore(rescorer, window_size=window_size)
+        self._rescores = self._rescores + (rescore,)
 
-        :param \*fields: see :ref:`fields <fields_arg>`
-
-        See `fields <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-stored-fields.html>`_
-        parameter of the request and
-        `store <https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-store.html>`_
-        mapping field option.
-        """
-        if len(fields) == 1 and fields[0] is None:
-            if '_fields' in self.__dict__:
-                del self._fields
-        elif len(fields) == 1 and isinstance(fields[0], bool):
-            self._fields = fields[0]
+    @_with_clone
+    def suggest(self, *args, **kwargs):
+        if args == (None,):
+            if'_suggest' in self.__dict__:
+                del self._suggest
         else:
-            self._fields = fields
+            self._suggest = merge_params(self._suggest, args, kwargs)
 
     @_with_clone
     def highlight(
@@ -486,10 +461,14 @@ class SearchQuery(object):
         """
         self._highlight = Highlight(
             fields=fields, type=type, pre_tags=pre_tags, post_tags=post_tags,
-            fragment_size=fragment_size, number_of_fragments=number_of_fragments, order=order,
-            encoder=encoder, require_field_match=require_field_match, boundary_max_scan=boundary_max_scan,
-            highlight_query=highlight_query, matched_fields=matched_fields, fragment_offset=fragment_offset,
-            no_match_size=no_match_size, phrase_limit=phrase_limit,
+            fragment_size=fragment_size,
+            number_of_fragments=number_of_fragments,
+            order=order, encoder=encoder,
+            require_field_match=require_field_match,
+            boundary_max_scan=boundary_max_scan,
+            highlight_query=highlight_query, matched_fields=matched_fields,
+            fragment_offset=fragment_offset, no_match_size=no_match_size,
+            phrase_limit=phrase_limit,
             **kwargs
         )
 
@@ -537,8 +516,8 @@ class SearchQuery(object):
     def with_search_type(self, search_type):
         return self.with_search_params(search_type=search_type)
 
-    def with_request_cache(self, request_cache):
-        return self.with_search_params(request_cache=request_cache)
+    def with_query_cache(self, query_cache):
+        return self.with_search_params(query_cache=query_cache)
 
     def with_terminate_after(self, terminate_after):
         return self.with_search_params(terminate_after=terminate_after)
@@ -570,7 +549,7 @@ class SearchQuery(object):
                     self._post_filters,
                     tuple(self._aggregations.values()),
                     self._order_by,
-                    self._rescorers,
+                    self._rescores,
                     self._highlight,
                 ]
             )
@@ -591,7 +570,7 @@ class SearchQuery(object):
     def _get_doc_type(self, doc_cls=None):
         doc_cls = doc_cls or self._get_doc_cls()
         if isinstance(doc_cls, collections.Iterable):
-            return ','.join(d.__doc_type__ for d in doc_cls)
+            return ','.join(set(d.__doc_type__ for d in doc_cls))
         elif self._doc_type:
             return self._doc_type
         elif doc_cls:
@@ -601,7 +580,7 @@ class SearchQuery(object):
         return SearchQueryContext(self, compiler or self._compiler)
 
     @cached_property
-    def _result(self):
+    def result(self):
         doc_cls = self._get_doc_cls()
         doc_type = self._get_doc_type(doc_cls)
         return (self._index or self._cluster).search(
@@ -610,22 +589,13 @@ class SearchQuery(object):
             **(self._search_params or {})
         )
 
-    def get_result(self):
+    @property
+    def results(self):
         """Executes current query and returns processed :class:`SearchResult`
         object. Caches result so subsequence calls with the same search query
         will return cached value.
         """
-        return self._result
-
-    @property
-    def result(self):
-        warnings.warn('Field "result" is deprecated', DeprecationWarning)
-        return self.get_result()
-
-    @property
-    def results(self):
-        warnings.warn('Field "results" is deprecated', DeprecationWarning)
-        return self.get_result()
+        return self.result
 
     def count(self):
         """Executes current query and returns number of documents matched the
@@ -658,19 +628,16 @@ class SearchQuery(object):
 
     def __iter__(self):
         if self._iter_instances:
-            return iter(
-                doc.instance
-                for doc in self.get_result().hits
-                if doc.instance
-            )
-        return iter(self.get_result())
+            return iter(doc.instance for doc in self.result.hits
+                        if doc.instance)
+        return iter(self.result)
 
     def __getitem__(self, k):
         if not isinstance(k, (slice, int)):
             raise TypeError
 
         if 'results' in self.__dict__:
-            docs = self.get_result().hits[k]
+            docs = self.result.hits[k]
         else:
             if isinstance(k, slice):
                 start, stop = k.start, k.stop
@@ -684,7 +651,7 @@ class SearchQuery(object):
                         clone._limit = stop - start
                 return clone
             else:
-                docs = self.get_result().hits[k]
+                docs = self.result.hits[k]
         if self._iter_instances:
             return [doc.instance for doc in docs if doc.instance]
         return docs
@@ -709,7 +676,8 @@ class SearchQueryContext(object):
         self.boost_score_params = search_query._boost_score_params
         self.limit = search_query._limit
         self.offset = search_query._offset
-        self.rescorers = search_query._rescorers
+        self.min_score = search_query._min_score
+        self.rescores = search_query._rescores
         self.suggest = search_query._suggest
         self.highlight = search_query._highlight
 
@@ -717,6 +685,7 @@ class SearchQueryContext(object):
         self.index = search_query._index
         self.doc_cls = search_query._doc_cls
         self.doc_type = search_query._doc_type
+        self.script_fields = search_query._script_fields
 
         self.search_params = search_query._search_params
 
@@ -724,10 +693,12 @@ class SearchQueryContext(object):
         self.iter_instances = search_query._iter_instances
 
     def get_query(self, wrap_function_score=True):
-        return self.compiler.get_query(self, wrap_function_score=wrap_function_score)
+        return self.compiler.get_query(
+            self, wrap_function_score=wrap_function_score)
 
     def get_filtered_query(self, wrap_function_score=True):
-        return self.compiler.get_filtered_query(self, wrap_function_score=wrap_function_score)
+        return self.compiler.get_filtered_query(
+            self, wrap_function_score=wrap_function_score)
 
     def iter_filters_with_meta(self):
         return zip(self.filters, self.filters_meta)

@@ -2,7 +2,6 @@ import collections
 
 from elasticsearch import ElasticsearchException
 
-from .agg import BucketAgg
 from .compat import string_types
 from .document import DynamicDocument
 

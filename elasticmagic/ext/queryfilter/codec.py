@@ -116,11 +116,11 @@ class SimpleCodec(BaseCodec):
     }
 
     def _normalize_params(self, params):
-        if hasattr(params, 'dict_of_lists'):
-            # Webob's MultiDict
+        if hasattr(params, 'getall'):
+            # Webob
             return params.dict_of_lists()
-        if hasattr(params, 'lists'):
-            # Django's QueryDict
+        if hasattr(params, 'getlist'):
+            # Django
             return dict(params.lists())
         if isinstance(params, (list, tuple)):
             # list, tuple
@@ -132,8 +132,8 @@ class SimpleCodec(BaseCodec):
             # dict
             return params
 
-        raise TypeError("'params' must be Webob's MultiDict, "
-                        "Django's QueryDict, list, tuple or dict")
+        raise TypeError("'params' must be Webob MultiDict, "
+                        "Django QueryDict, list, tuple or dict")
 
     def decode_value(self, value, typelist=None):
         typelist = [instantiate(t) for t in wrap_list(typelist or [])]
@@ -180,38 +180,20 @@ class SimpleCodec(BaseCodec):
 
         return decoded_params
 
-    def _encode_value(self, value, type):
+    def _encode_value(self, value):
         if value is None:
             return self.NULL_VAL
         if value is True:
             return self.TRUE_VAL
         if value is False:
             return self.FALSE_VAL
-        if type:
-            value = type.from_python(value, validate=True)
         return force_unicode(value)
 
     def encode_value(self, value, typelist=None):
-        typelist = [instantiate(t) for t in wrap_list(typelist or [])]
-        return self.VALUES_SEP.join(
-            self._encode_value(v, t)
-            for v, t in zip_longest(wrap_list(value), typelist)
-        )
+        return self.VALUES_SEP.join(self._encode_value(v) for v in wrap_list(value))
 
     def encode(self, values, types=None):
-        params = {}
-        for name, ops in values.items():
-            for op, vals in ops.items():
-                if op == self.DEFAULT_OP:
-                    key = name
-                else:
-                    key = '{}__{}'.format(name, op)
-                if types:
-                    typelist = types.get(name)
-                else:
-                    typelist = None
-                params[key] = [
-                    self.encode_value(v, typelist=typelist)
-                    for v in vals
-                ]
-        return params
+        params = defaultdict(list)
+        for name, value in values:
+            params[name].append(self.encode_value(value))
+        return dict(params)

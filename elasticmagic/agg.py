@@ -728,8 +728,14 @@ class SignificantTerms(Terms):
 class Histogram(MultiBucketAgg):
     __agg_name__ = 'histogram'
 
-    def __init__(self, field, interval=None, aggs=None, **kwargs):
-        super(Histogram, self).__init__(field=field, interval=interval, aggs=aggs, **kwargs)
+    def __init__(self, field, interval=None, aggs=None, min_doc_count=1, **kwargs):
+        super(Histogram, self).__init__(
+            field=field, interval=interval, min_doc_count=min_doc_count,
+            aggs=aggs, **kwargs)
+
+
+class DateHistogram(Histogram):
+    __agg_name__ = 'date_histogram'
 
 
 class RangeBucket(Bucket):
@@ -822,3 +828,80 @@ class Sampler(SingleBucketAgg):
             shard_size=shard_size, field=field, script=script, execution_hint=execution_hint,
             **kwargs
         )
+
+
+class BucketScript(SingleValueMetricsAgg):
+    __agg_name__ = 'bucket_script'
+
+    def __init__(
+        self,
+        buckets_path,
+        script,
+        gap_policy=None,
+        format=None,
+        **kwargs
+    ):
+        super(BucketScript, self).__init__(
+            script=script,
+            buckets_path=buckets_path,
+            gap_policy=gap_policy,
+            format=format,
+            **kwargs
+        )
+
+
+class AvgBucket(SingleValueMetricsAgg):
+    __agg_name__ = 'avg_bucket'
+
+    def __init__(
+        self,
+        buckets_path,
+        gap_policy=None,
+        format=None,
+        **kwargs
+    ):
+        super(AvgBucket, self).__init__(
+            buckets_path=buckets_path,
+            gap_policy=gap_policy,
+            format=format,
+            **kwargs)
+
+
+class PercentilesBucket(MultiValueMetricsAgg):
+    __agg_name__ = 'percentiles_bucket'
+
+    result_cls = PercentilesAggResult
+
+    def __init__(
+        self,
+        buckets_path,
+        gap_policy=None,
+        format=None,
+        percents=None,
+        **kwargs
+    ):
+        super(PercentilesBucket, self).__init__(
+            buckets_path=buckets_path,
+            gap_policy=gap_policy,
+            format=format,
+            percents=percents,
+            **kwargs)
+
+
+class ScriptedMetric(SingleValueMetricsAgg):
+    __agg_name__ = 'scripted_metric'
+
+    def __init__(
+        self,
+        map_script,
+        init_script=None,
+        combine_script=None,
+        reduce_script=None,
+        **kwargs
+    ):
+        super(ScriptedMetric, self).__init__(
+            map_script=map_script,
+            init_script=init_script,
+            combine_script=combine_script,
+            reduce_script=reduce_script,
+            **kwargs)

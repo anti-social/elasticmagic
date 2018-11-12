@@ -2,7 +2,7 @@ from __future__ import absolute_import
 import inspect
 import operator
 import collections
-from itertools import chain, count
+from itertools import count
 
 from .util import clean_params, collect_doc_classes
 from .types import instantiate, Type
@@ -16,13 +16,11 @@ class Expression(object):
     def compile(self, compiler=None):
         from .compiler import DefaultCompiler
 
-        expression_compiler = (compiler or DefaultCompiler()).get_expression_compiler()
-        return expression_compiler(self)
+        compiler = compiler or DefaultCompiler()
+        return compiler.compiled_expression(self)
 
-    def to_elastic(self, compiler=None):
+    def to_dict(self, compiler=None):
         return self.compile(compiler=compiler).params
-
-    to_dict = to_elastic
 
 
 class Literal(object):
@@ -60,7 +58,6 @@ class Params(Expression, collections.Mapping):
 
     def __contains__(self, key):
         return key in self._params
-
 
 
 class ParamsExpression(Expression):
@@ -119,9 +116,13 @@ class Term(FieldQueryExpression):
 class Terms(FieldExpression):
     __visit_name__ = 'terms'
 
-    def __init__(self, field, terms, minimum_should_match=None, boost=None, **kwargs):
+    def __init__(
+            self, field, terms, minimum_should_match=None, boost=None,
+            **kwargs
+    ):
         super(Terms, self).__init__(
-            field, minimum_should_match=minimum_should_match, boost=boost, **kwargs
+            field, minimum_should_match=minimum_should_match, boost=boost,
+            **kwargs
         )
         self.terms = list(terms)
 
@@ -129,12 +130,14 @@ class Terms(FieldExpression):
 class Match(FieldQueryExpression):
     __query_name__ = 'match'
 
-    def __init__(self, field, query,
-                 type=None, analyzer=None, boost=None,
-                 operator=None, minimum_should_match=None,
-                 fuzziness=None, prefix_length=None, max_expansions=None,
-                 zero_terms_query=None, cutoff_frequency=None, lenient=None,
-                 **kwargs):
+    def __init__(
+            self, field, query,
+            type=None, analyzer=None, boost=None,
+            operator=None, minimum_should_match=None,
+            fuzziness=None, prefix_length=None, max_expansions=None,
+            zero_terms_query=None, cutoff_frequency=None, lenient=None,
+            **kwargs
+    ):
         super(Match, self).__init__(
             field, query,
             type=type, analyzer=analyzer, boost=boost,
@@ -157,9 +160,11 @@ class MultiMatch(QueryExpression):
     ):
         super(MultiMatch, self).__init__(
             type=type, analyzer=analyzer, boost=boost, operator=operator,
-            minimum_should_match=minimum_should_match, fuzziness=fuzziness, prefix_length=prefix_length,
-            max_expansions=max_expansions, rewrite=rewrite, zero_terms_query=zero_terms_query,
-            cutoff_frequency=cutoff_frequency, tie_breaker=tie_breaker, **kwargs
+            minimum_should_match=minimum_should_match, fuzziness=fuzziness,
+            prefix_length=prefix_length, max_expansions=max_expansions,
+            rewrite=rewrite, zero_terms_query=zero_terms_query,
+            cutoff_frequency=cutoff_frequency, tie_breaker=tie_breaker,
+            **kwargs
         )
         self.query = query
         self.fields = fields
@@ -211,7 +216,10 @@ class Bool(QueryExpression):
 class Boosting(QueryExpression):
     __query_name__ = 'boosting'
 
-    def __init__(self, positive=None, negative=None, negative_boost=None, boost=None, **kwargs):
+    def __init__(
+            self, positive=None, negative=None, negative_boost=None, boost=None,
+            **kwargs
+    ):
         super(Boosting, self).__init__(
             positive=positive, negative=negative,
             negative_boost=negative_boost, boost=boost, **kwargs
@@ -229,9 +237,12 @@ class Common(FieldQueryExpression):
     ):
         super(Common, self).__init__(
             field, query,
-            cutoff_frequency=cutoff_frequency, minimum_should_match=minimum_should_match,
-            high_freq_operator=high_freq_operator, low_freq_operator=low_freq_operator,
-            boost=boost, analyzer=analyzer, disable_coord=disable_coord, **kwargs
+            cutoff_frequency=cutoff_frequency,
+            minimum_should_match=minimum_should_match,
+            high_freq_operator=high_freq_operator,
+            low_freq_operator=low_freq_operator,
+            boost=boost, analyzer=analyzer, disable_coord=disable_coord,
+            **kwargs
         )
 
 
@@ -239,7 +250,8 @@ class ConstantScore(QueryExpression):
     __query_name__ = 'constant_score'
 
     def __init__(self, query=None, filter=None, boost=None, **kwargs):
-        super(ConstantScore, self).__init__(filter=filter, query=query, boost=boost, **kwargs)
+        super(ConstantScore, self).__init__(
+            filter=filter, query=query, boost=boost, **kwargs)
 
 
 class FunctionScore(QueryExpression):
@@ -248,14 +260,17 @@ class FunctionScore(QueryExpression):
     def __init__(
             self, query=None, filter=None, boost=None,
             script_score=None, boost_factor=None, random_score=None,
-            field_value_factor=None, linear=None, exp=None, gauss=None, functions=None,
-            max_boost=None, score_mode=None, boost_mode=None, **kwargs
+            field_value_factor=None, linear=None, exp=None, gauss=None,
+            functions=None, max_boost=None, score_mode=None, boost_mode=None,
+            **kwargs
     ):
         super(FunctionScore, self).__init__(
             query=query, filter=filter, boost=boost,
-            script_score=script_score, boost_factor=boost_factor, random_score=random_score,
-            field_value_factor=field_value_factor, linear=linear, exp=exp, gauss=gauss, functions=functions,
-            max_boost=max_boost, score_mode=score_mode, boost_mode=boost_mode, **kwargs
+            script_score=script_score, boost_factor=boost_factor,
+            random_score=random_score, field_value_factor=field_value_factor,
+            linear=linear, exp=exp, gauss=gauss, functions=functions,
+            max_boost=max_boost, score_mode=score_mode, boost_mode=boost_mode,
+            **kwargs
         )
 
 
@@ -272,7 +287,8 @@ class Filtered(QueryExpression):
     __query_name__ = 'filtered'
 
     def __init__(self, filter=None, query=None, strategy=None, **kwargs):
-        super(Filtered, self).__init__(filter=filter, query=query, strategy=strategy, **kwargs)
+        super(Filtered, self).__init__(
+            filter=filter, query=query, strategy=strategy, **kwargs)
 
 
 class Ids(QueryExpression):
@@ -291,11 +307,13 @@ class Range(FieldExpression):
                  _name=None, _cache=None, _cache_key=None, **kwargs):
         super(Range, self).__init__(
             field, gte=gte, gt=gt, lte=lte, lt=lt,
-            from_=from_, to=to, include_lower=include_lower, include_upper=include_upper,
-            boost=boost, time_zone=time_zone, format=format,
+            from_=from_, to=to, include_lower=include_lower,
+            include_upper=include_upper, boost=boost, time_zone=time_zone,
+            format=format,
         )
         self.range_params = Params(
-            execution=execution, _name=_name, _cache=_cache, _cache_key=_cache_key, **kwargs
+            execution=execution, _name=_name, _cache=_cache,
+            _cache_key=_cache_key, **kwargs
         )
 
 
@@ -337,7 +355,7 @@ class BooleanExpression(QueryExpression):
         self.operator = operator
         self.expressions = expressions
         return self
-        
+
     def _collect_doc_classes(self):
         return set().union(
             super(BooleanExpression, self)._collect_doc_classes(),
@@ -379,7 +397,7 @@ class Exists(QueryExpression):
 
 
 class Missing(QueryExpression):
-    __query_name__ = 'missing'
+    __visit_name__ = 'missing'
 
     def __init__(self, field, **kwargs):
         super(Missing, self).__init__(field=field, **kwargs)
@@ -456,7 +474,7 @@ class FieldOperators(object):
     def in_(self, terms, **kwargs):
         return Terms(self, terms, **kwargs)
 
-    def not_in(self, terms, **kwargs):
+    def not_in_(self, terms, **kwargs):
         return Bool.must_not(Terms(self, terms, **kwargs))
 
     def match(self, query, **kwargs):
@@ -497,11 +515,20 @@ class FieldOperators(object):
             **kwargs
     ):
         return HighlightedField(
-            self, type=type, pre_tags=pre_tags, post_tags=post_tags,
-            fragment_size=fragment_size, number_of_fragments=number_of_fragments, order=order,
-            encoder=encoder, require_field_match=require_field_match, boundary_max_scan=boundary_max_scan,
-            highlight_query=highlight_query, matched_fields=matched_fields, fragment_offset=fragment_offset,
-            no_match_size=no_match_size, phrase_limit=phrase_limit,
+            self, type=type,
+            pre_tags=pre_tags,
+            post_tags=post_tags,
+            fragment_size=fragment_size,
+            number_of_fragments=number_of_fragments,
+            order=order,
+            encoder=encoder,
+            require_field_match=require_field_match,
+            boundary_max_scan=boundary_max_scan,
+            highlight_query=highlight_query,
+            matched_fields=matched_fields,
+            fragment_offset=fragment_offset,
+            no_match_size=no_match_size,
+            phrase_limit=phrase_limit,
             **kwargs
         )
 
@@ -524,7 +551,9 @@ class Field(Expression, FieldOperators):
             ):
                 self._type = args[0]
             else:
-                raise TypeError('Argument must be string or field type: %s found' % args[0].__class__.__name__)
+                raise TypeError(
+                    'Argument must be string or field type: {} found'.format(
+                        args[0].__class__.__name__))
         elif len(args) == 2:
             self._name, self._type = args
         elif len(args) >= 3:
@@ -541,7 +570,10 @@ class Field(Expression, FieldOperators):
     def clone(self, cls=None):
         cls = cls or self.__class__
         assert issubclass(cls, Field)
-        return cls(self._name, self._type, fields=self._fields, **self._mapping_options)
+        return cls(
+            self._name, self._type, fields=self._fields,
+            **self._mapping_options
+        )
 
     def get_name(self):
         return self._name
@@ -558,7 +590,7 @@ class Field(Expression, FieldOperators):
     def to_mapping(self, compiler=None):
         from .compiler import DefaultCompiler
 
-        mapping_compiler = (compiler or DefaultCompiler()).get_mapping_compiler()
+        mapping_compiler = (compiler or DefaultCompiler()).compiled_mapping
         return mapping_compiler(self).params
 
 
@@ -595,7 +627,8 @@ class SpanFirst(QueryExpression):
     __query_name__ = 'span_first'
 
     def __init__(self, match, end, boost=None, **kwargs):
-        super(SpanFirst, self).__init__(match=match, end=end, boost=boost, **kwargs)
+        super(SpanFirst, self).__init__(
+            match=match, end=end, boost=boost, **kwargs)
 
 
 class SpanMulti(QueryExpression):
@@ -608,20 +641,26 @@ class SpanMulti(QueryExpression):
 class SpanNear(QueryExpression):
     __query_name__ = 'span_near'
 
-    def __init__(self, clauses, slop=None, in_order=None, collect_payloads=None, **kwargs):
-        super(SpanNear, self).__init__(
-            clauses=clauses, slop=slop,
-            in_order=in_order, collect_payloads=collect_payloads,
+    def __init__(
+            self, clauses, slop=None, in_order=None, collect_payloads=None,
             **kwargs
+    ):
+        super(SpanNear, self).__init__(
+            clauses=clauses, slop=slop, in_order=in_order,
+            collect_payloads=collect_payloads, **kwargs
         )
 
 
 class SpanNot(QueryExpression):
     __query_name__ = 'span_not'
 
-    def __init__(self, include, exclude, dist=None, pre=None, post=None, boost=None, **kwargs):
+    def __init__(
+            self, include, exclude, dist=None, pre=None, post=None, boost=None,
+            **kwargs
+    ):
         super(SpanNot, self).__init__(
-            include=include, exclude=exclude, dist=dist, pre=pre, post=post, boost=boost, **kwargs
+            include=include, exclude=exclude, dist=dist, pre=pre, post=post,
+            boost=boost, **kwargs
         )
 
 
@@ -629,7 +668,7 @@ class SpanOr(QueryExpression):
     __query_name__ = 'span_or'
 
     def __init__(self, clauses, boost=None, **kwargs):
-        super(SpanOr, self).__init__(clauses=clauses, boost=boost, **kwargs )
+        super(SpanOr, self).__init__(clauses=clauses, boost=boost, **kwargs)
 
 
 class SpanTerm(Term):
@@ -643,6 +682,21 @@ class Nested(QueryExpression):
         super(Nested, self).__init__(
             path=path, query=query, score_mode=score_mode, **kwargs
         )
+
+
+class ParentId(QueryExpression):
+    __visit_name__ = 'parent_id'
+
+    def __init__(self, child_type, parent_id, **kwargs):
+        super(ParentId, self).__init__(**kwargs)
+        self.child_type = child_type
+        self.parent_id = parent_id
+
+    def _collect_doc_classes(self):
+        if hasattr(self.child_type, '__doc_type__'):
+            return {self.child_type}
+
+        return set()
 
 
 class HasParent(QueryExpression):
@@ -696,13 +750,27 @@ class Source(Expression):
 class QueryRescorer(ParamsExpression):
     __visit_name__ = 'query_rescorer'
 
-    def __init__(self, rescore_query, window_size=None, query_weight=None, rescore_query_weight=None, score_mode=None, **kwargs):
-        self.window_size = window_size
+    def __init__(
+            self, rescore_query, query_weight=None, rescore_query_weight=None,
+            score_mode=None, **kwargs
+    ):
         super(QueryRescorer, self).__init__(
             rescore_query=rescore_query, query_weight=query_weight,
             rescore_query_weight=rescore_query_weight, score_mode=score_mode,
             **kwargs
         )
+
+
+class Rescore(Expression):
+    __visit_name__ = 'rescore'
+
+    def __init__(self, rescorer, window_size=None,
+                 ):
+        self.rescorer = rescorer
+        self.window_size = window_size
+
+    def _collect_doc_classes(self):
+        return collect_doc_classes(self.rescorer)
 
 
 class Highlight(Expression):

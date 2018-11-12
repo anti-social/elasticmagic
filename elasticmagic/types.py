@@ -53,6 +53,14 @@ class String(Type):
         return text_type(value)
 
 
+class Keyword(String):
+    __visit_name__ = 'keyword'
+
+
+class Text(String):
+    __visit_name__ = 'text'
+
+
 class _Int(Type):
     def to_python(self, value):
         if value is None:
