@@ -1,8 +1,6 @@
-import collections
-
 from elasticsearch import ElasticsearchException
 
-from .compiler import DefaultCompiler
+from .compiler import DefaultCompiler, ESVersion, get_compiler_by_es_version
 from .util import clean_params
 from .index import Index
 from .search import SearchQuery
@@ -25,17 +23,33 @@ class Cluster(object):
     def __init__(
             self, client,
             multi_search_raise_on_error=True, compiler=None,
-            index_cls=None
+            index_cls=None, sniff_elastic_version=False,
     ):
         self._client = client
         self._multi_search_raise_on_error = multi_search_raise_on_error
         self._compiler = compiler or DefaultCompiler()
         self._index_cls = index_cls or Index
+        self._sniff_elastic_version = sniff_elastic_version
 
         self._index_cache = {}
+        self._es_version = None
 
     def __getitem__(self, index_name):
         return self.get_index(index_name)
+
+    def get_es_version(self):
+        if not self._es_version:
+            version_str = self._client.info()['version']['number']
+            version_str, _, snapshot = version_str.partition('-')
+            major, minor, patch = map(int, version_str.split('.'))
+            self._es_version = ESVersion(major, minor, patch)
+        return self._es_version
+
+    def _get_compiler(self):
+        if self._sniff_elastic_version:
+            return get_compiler_by_es_version(self.get_es_version())
+        else:
+            return self._compiler
 
     def get_index(self, name):
         if isinstance(name, tuple):
@@ -50,7 +64,7 @@ class Cluster(object):
 
     def search_query(self, *args, **kwargs):
         kwargs['cluster'] = self
-        kwargs.setdefault('_compiler', self._compiler.get_query_compiler())
+        kwargs.setdefault('_compiler', self._compiler.compiled_query)
         return SearchQuery(*args, **kwargs)
 
     query = search_query
@@ -111,6 +125,7 @@ class Cluster(object):
             timeout=None, search_type=None, query_cache=None,
             terminate_after=None, scroll=None, **kwargs
     ):
+
         params = clean_params(
             dict({
                 'index': index, 'doc_type': doc_type, 
@@ -120,13 +135,19 @@ class Cluster(object):
                 'scroll': scroll,
             }, **kwargs)
         )
-        raw_result = self._client.search(body=q.to_dict(), **params)
+        query_compiler = self._get_compiler().compiled_query
+        raw_result = self._client.search(
+            body=q.to_dict(compiler=query_compiler), **params
+        )
         return SearchResult(
             raw_result, q._aggregations,
             doc_cls=q._get_doc_cls(), instance_mapper=q._instance_mapper,
         )
 
-    def count(self, q, index=None, doc_type=None, routing=None, preference=None, **kwargs):
+    def count(
+            self, q, index=None, doc_type=None, routing=None, preference=None,
+            **kwargs
+    ):
         body = {'query': q.to_dict()} if q else None
         params = clean_params({
             'index': index,
@@ -138,7 +159,10 @@ class Cluster(object):
             self._client.count(body=body, **params)
         )
 
-    def exists(self, q, index=None, doc_type=None, refresh=None, routing=None, **kwargs):
+    def exists(
+            self, q, index=None, doc_type=None, refresh=None, routing=None,
+            **kwargs
+    ):
         body = {'query': q.to_dict()} if q else None
         params = clean_params({
             'index': index, 
@@ -150,12 +174,22 @@ class Cluster(object):
             self._client.search_exists(body=body, **params)
         )
 
-    def scroll(self, scroll_id, scroll, doc_cls=None, instance_mapper=None, **kwargs):
+    def scroll(
+            self, scroll_id, scroll, doc_cls=None, instance_mapper=None,
+            **kwargs
+    ):
         return SearchResult(
-            self._client.scroll(scroll_id=scroll_id, scroll=scroll, **clean_params(kwargs)),
+            self._client.scroll(
+                scroll_id=scroll_id, scroll=scroll, **clean_params(kwargs)
+            ),
             doc_cls=doc_cls,
             instance_mapper=instance_mapper,
         )
+
+    def clear_scroll(self, scroll_id, **kwargs):
+        if isinstance(scroll_id, (list, tuple)):
+            scroll_id = ','.join(scroll_id)
+        return self._client.clear_scroll(body=scroll_id)
 
     def multi_search(self, queries, index=None, doc_type=None, 
                      routing=None, preference=None, search_type=None,
@@ -167,6 +201,7 @@ class Cluster(object):
             'preference': preference,
             'search_type': search_type
         }, **kwargs)
+        query_compiler = self._get_compiler().compiled_query
         body = []
         for q in queries:
             query_header = {}
@@ -176,7 +211,7 @@ class Cluster(object):
             if doc_type:
                 query_header['type'] = doc_type
             query_header.update(q._search_params)
-            body += [query_header, q.to_dict()]
+            body += [query_header, q.to_dict(compiler=query_compiler)]
 
         raw_results = self._client.msearch(body=body, **params)['responses']
         errors = []
@@ -186,7 +221,7 @@ class Cluster(object):
                 doc_cls=q._get_doc_cls(),
                 instance_mapper=q._instance_mapper
             )
-            q.__dict__['_result'] = result
+            q.__dict__['result'] = result
             if result.error:
                 errors.append(result.error)
 
@@ -202,13 +237,16 @@ class Cluster(object):
                 error_msg = '{} queries were failed'.format(len(errors))
             raise MultiSearchError(error_msg, errors)
 
-        return [q._result for q in queries]
+        return [q.result for q in queries]
 
     msearch = multi_search
 
-    def put_mapping(self, doc_cls_or_mapping, index, doc_type=None, allow_no_indices=None,
-                    expand_wildcards=None, ignore_conflicts=None, ignore_unavailable=None,
-                    master_timeout=None, timeout=None, **kwargs):
+    def put_mapping(
+            self, doc_cls_or_mapping, index, doc_type=None,
+            allow_no_indices=None, expand_wildcards=None,
+            ignore_conflicts=None, ignore_unavailable=None,
+            master_timeout=None, timeout=None, **kwargs
+    ):
         if issubclass(doc_cls_or_mapping, Document):
             mapping = doc_cls_or_mapping.to_mapping()
         else:
@@ -252,7 +290,8 @@ class Cluster(object):
             'version_type': version_type,
         }, **kwargs)
         return DeleteResult(
-            self._client.delete(id=doc_id, index=index, doc_type=doc_type, **params)
+            self._client.delete(
+                id=doc_id, index=index, doc_type=doc_type, **params)
         )
 
     def delete_by_query(self, q, index=None, doc_type=None,
@@ -267,7 +306,10 @@ class Cluster(object):
             'routing': routing,
         }, **kwargs)
         return DeleteByQueryResult(
-            self._client.delete_by_query(body=Params(query=q).to_dict(), **params)
+            self._client.delete_by_query(
+                body=Params(query=q).to_dict(),
+                **params
+            )
         )
 
     def bulk(self, actions, index=None, doc_type=None, refresh=None, 
@@ -293,5 +335,9 @@ class Cluster(object):
         return RefreshResult(self._client.indices.refresh(**params))
 
     def flush(self, index=None, **kwargs):
+        params = clean_params({'index': index}, **kwargs)
+        return FlushResult(self._client.indices.flush(**params))
+
+    def flush_synced(self, index=None, **kwargs):
         params = clean_params({'index': index}, **kwargs)
         return FlushResult(self._client.indices.flush(**params))

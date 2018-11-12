@@ -1,4 +1,3 @@
-from .util import cached_property
 from .expression import Expression, Field, FieldOperators
 from .datastructures import OrderedAttributes
 
