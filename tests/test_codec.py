@@ -30,12 +30,16 @@ def test_simple_codec_decode():
             }
         }
     # Webob's MultiDict
+    data = {'country': ['ru', 'ua', 'null']}
     assert \
         codec.decode(
             Mock(
                 spec=['dict_of_lists'],
                 dict_of_lists=Mock(
-                    return_value={'country': ['ru', 'ua', 'null']}
+                    return_value=data
+                ),
+                getall=Mock(
+                    return_value=data
                 )
             )
         ) == \
@@ -49,8 +53,9 @@ def test_simple_codec_decode():
         codec.decode(
             Mock(
                 spec=['lists'],
+                getlist=Mock(),
                 lists=Mock(
-                    return_value=[('country', ['ru', 'ua', 'null'])]
+                    return_value=data
                 )
             )
         ) == \
@@ -128,6 +133,7 @@ def test_simple_codec_decode():
         {}
     with pytest.raises(TypeError):
         codec.decode('')
+
 
 def test_simple_codec_encode():
     codec = SimpleCodec()

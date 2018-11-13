@@ -142,13 +142,36 @@ class QueryFilter(with_metaclass(QueryFilterMeta)):
         return search_query
 
     def process_result(self, result):
+        filter_results = {}
         for f in self._filters:
-            f._process_result(result, self._params)
+            filter_results[f.name] = f._process_result(
+               result, self._params)
+        return QueryFilterResult(filter_results)
 
     process_results = process_result
 
     def get_filter(self, name):
         return getattr(self, name, None)
+
+
+class QueryFilterResult(object):
+    def __init__(self, filters):
+        self._filters = filters
+        for filter_name, filter_result in self._filters.items():
+            setattr(self, filter_name, filter_result)
+
+    @property
+    def filters(self):
+        return self._filters
+
+    def get_filter(self, name):
+        return self._filters.get(name)
+
+
+class BaseFilterResult(object):
+    def __init__(self, name, alias):
+        self.name = name
+        self.alias = alias
 
 
 class BaseFilter(object):
@@ -184,7 +207,7 @@ class BaseFilter(object):
         return search_query
 
     def _process_result(self, result, params):
-        pass
+        return BaseFilterResult(self.name, self.alias, None)
 
 
 class FieldFilter(BaseFilter):
@@ -321,8 +344,14 @@ class FacetFilter(SimpleFilter):
         else:
             terms_agg = result.get_aggregation(self._agg_name)
 
+        facet_result = FacetFilterResult(self.name, self.alias)
         processed_values = set()
         for bucket in terms_agg.buckets:
+            # FIXME: values can be a list of string but bucket.key may not
+            facet_result.add_value(FacetValueResult(
+                bucket, bucket.key in values, bool(values),
+                get_title=self._get_title,
+            ))
             if bucket.key in values:
                 self.qf._set_selected(self.name, bucket.key)
             self.qf._set_value_data(self.name, bucket.key, {'bucket': bucket})
@@ -339,6 +368,11 @@ class FacetFilter(SimpleFilter):
                 self.qf._set_selected(self.name, fake_bucket.key)
                 self.qf._set_value_data(self.name, fake_bucket.key, {'bucket': fake_bucket})
                 self.add_value(FacetValue(fake_bucket.key).bind(self))
+                facet_result.add_value(FacetValueResult(
+                    fake_bucket, True, True, get_title=self._get_title,
+                ))
+
+        return facet_result
 
     def add_value(self, fv):
         self.all_values.append(fv)
@@ -350,6 +384,76 @@ class FacetFilter(SimpleFilter):
 
     def get_value(self, value):
         return self.values_map.get(value)
+
+
+class FacetFilterResult(BaseFilterResult):
+    def __init__(self, name, alias):
+        super(FacetFilterResult, self).__init__(name, alias)
+        self.values = []
+        self.selected_values = []
+        self.all_values = []
+        self.values_map = {}
+
+    def add_value(self, fv):
+        self.all_values.append(fv)
+        self.values_map[fv.value] = fv
+        if fv.selected:
+            self.selected_values.append(fv)
+        else:
+            self.values.append(fv)
+
+    def get_value(self, value):
+        return self.values_map.get(value)
+
+
+class FacetValueResult(object):
+    def __init__(self, bucket, selected,
+                 filter_has_selected_values, get_title=None):
+        self.bucket = bucket
+        self.selected = selected
+        self._filter_has_selected_values = filter_has_selected_values
+        self._get_title = get_title
+
+    @property
+    def value(self):
+        return self.bucket.key
+
+    @property
+    def count(self):
+        return self.bucket.doc_count
+
+    @property
+    def count_text(self):
+        if self.count is None:
+            return ''
+        if not self.selected and self._filter_has_selected_values:
+            return '+{}'.format(self.count)
+        return '{}'.format(self.count)
+
+    @property
+    def instance(self):
+        bucket = self.bucket
+        if bucket:
+            return self.bucket.instance
+
+    @property
+    def filter_name(self):
+        return self.filter.name
+
+    @property
+    def filter_value(self):
+        return self.filter.qf._codec.encode_value(self.value)
+
+    @property
+    def title(self):
+        if self._get_title:
+            return self._get_title(self)
+        if self.instance:
+            return text_type(self.instance)
+        return text_type(self.value)
+
+    def __unicode__(self):
+        return self.title
 
 
 class BinaryFilter(BaseFilter):
@@ -557,6 +661,30 @@ class RangeFilter(FieldFilter):
         if self._compute_min_max:
             self.min = base_agg.get_aggregation(self._min_agg_name).value
             self.max = base_agg.get_aggregation(self._max_agg_name).value
+        return RangeFilterResult(
+            self.from_value, self.to_value,
+            enabled=self.enabled, min_value=self.min, max_value=self.max
+        )
+
+
+class RangeFilterResult(object):
+    def __init__(
+            self, from_value, to_value,
+            enabled=None, min_value=None, max_value=None
+    ):
+        self.from_value = from_value
+        self.to_value = to_value
+        self.enabled = enabled
+        self.min_value = min_value
+        self.max_value = max_value
+
+    @property
+    def min(self):
+        return self.min_value
+
+    @property
+    def max(self):
+        return self.max_value
 
 
 class SimpleQueryValue(BaseFilterValue):
@@ -735,6 +863,84 @@ class FacetQueryFilter(SimpleQueryFilter):
             if fv.value in values:
                 self.qf._set_selected(self.name, fv.value)
             self.qf._set_value_data(self.name, fv.value, {'agg': filt_agg})
+        facet_result = FacetQueryFilterResult()
+        has_selected_values = any(
+            map(lambda fv: fv.value in values, self._values)
+        )
+        for fv in self._values:
+            filt_agg = filters_agg.get_aggregation(
+                self._make_agg_name(fv.value)
+            )
+            facet_result.add_value(FacetQueryValueResult(
+                fv.value, filt_agg, fv.value in values, has_selected_values
+            ))
+        return facet_result
+
+
+class FacetQueryFilterResult(object):
+    def __init__(self):
+        self._values = []
+        self._values_map = {}
+
+    def add_value(self, fv):
+        self._values.append(fv)
+        self._values_map[fv.value] = fv
+
+    def get_value(self, value):
+        return self._values_map.get(value)
+
+    @property
+    def all_values(self):
+        return self._values
+
+    @property
+    def selected_values(self):
+        return [fv for fv in self._values if fv.selected]
+
+    @property
+    def values(self):
+        return [fv for fv in self._values if not fv.selected]
+
+
+class FacetQueryValueResult(object):
+    def __init__(self, value, agg, selected, filter_has_selected_values):
+        self.value = value
+        self.agg = agg
+        self.selected = selected
+        self._filter_has_selected_values = filter_has_selected_values
+
+    @property
+    def count(self):
+        agg = self.agg
+        if agg:
+            return self.agg.doc_count
+
+    @property
+    def count_text(self):
+        if self.count is None:
+            return ''
+        if not self.selected and self._filter_has_selected_values:
+            return '+{}'.format(self.count)
+        return '{}'.format(self.count)
+
+    @property
+    def filter_name(self):
+        return self.filter.name
+
+    @property
+    def filter_value(self):
+        return self.value
+
+    @property
+    def is_default(self):
+        return self.value == self.filter.default
+
+    @property
+    def title(self):
+        return text_type(self.opts.get('title', self.value))
+
+    def __unicode__(self):
+        return self.title
 
 
 class OrderingValue(BaseFilterValue):
@@ -760,6 +966,7 @@ class OrderingFilter(BaseFilter):
         super(OrderingFilter, self).__init__(name, alias=kwargs.pop('alias', None))
         self.values = [fv.bind(self) for fv in values]
         self.default_value = self.get_value(kwargs.get('default')) or self.values[0]
+        self._values_map = {fv.value: fv for fv in self.values}
         self.selected_value = None
 
     def get_value(self, value):
@@ -782,6 +989,55 @@ class OrderingFilter(BaseFilter):
         self.selected_value = ordering_value
         self.qf._set_selected(self.name, ordering_value.value)
         return ordering_value._apply(search_query)
+
+    def _get_selected_value(self, values):
+        if values and values[0][0] in self._values_map:
+            return self._values_map[values[0][0]]
+        return self.default_value
+
+    def _process_result(self, result, params):
+        values = params.get(self.alias, {}).get('exact')
+        selected_fv = self._get_selected_value(values)
+
+        ordering_result = OrderingFilterResult()
+
+        for fv in self.values:
+            ordering_result.add_value(
+                OrderingValueResult(fv.value,
+                                    fv is selected_fv,
+                                    fv is self.default_value)
+            )
+        return ordering_result
+
+
+class OrderingFilterResult(object):
+    def __init__(self):
+        self.values = []
+        self._values_map = {}
+        self.default_value = None
+        self.selected_value = None
+
+    def add_value(self, value):
+        self.values.append(value)
+        self._values_map[value.value] = value
+        if value.selected:
+            self.selected_value = value
+        if value.is_default:
+            self.default_value = value
+
+    def get_value(self, value):
+        return self._values_map.get(value)
+
+
+class OrderingValueResult(object):
+    def __init__(self, value, selected, is_default, title=None):
+        self.value = value
+        self.selected = selected
+        self.is_default = is_default
+        self.title = title
+
+    def __unicode__(self):
+        return unicode(self.title)
 
 
 class PageFilter(BaseFilter):
@@ -855,6 +1111,37 @@ class PageFilter(BaseFilter):
         self.pages = int(ceil(self.total / float(self.per_page)))
         self.has_prev = self.page > 1
         self.has_next = self.page < self.pages
+        return PageFilterResult(
+            result.total, result.hits,
+            per_page_param=self.per_page_param,
+            per_page_values=self.per_page_values,
+            max_items=self.max_items,
+            page=self.page,
+            per_page=self.per_page,
+            offset=self.offset,
+            limit=self.limit,
+        )
+
+
+class PageFilterResult(object):
+    def __init__(
+            self, total, hits,
+            per_page_param, per_page_values, max_items,
+            page, per_page, offset, limit
+    ):
+        self.total = total
+        self.items = hits
+        self.per_page_param = per_page_param
+        self.per_page_values = per_page_values
+        self.max_items = max_items
+        self.page = page
+        self.per_page = per_page
+        self.offset = offset
+        self.limit = limit
+        self.pages = int(ceil(total / float(per_page)))
+        self.has_prev = self.page > 1
+        self.has_next = self.page < self.pages
+
 
 
 class GroupedPageFilter(PageFilter):
@@ -1100,7 +1387,7 @@ class NestedFacetFilter(BaseFilter):
 
         expressions = [self.key_expression]
         if self._conj_operator == QueryFilter.CONJ_AND:
-            expressions.append(*(self.value_field == v for v in values))
+            expressions.extend([self.value_field == v for v in values])
         else:
             expressions.append(self.value_field.in_(values))
 
@@ -1183,12 +1470,17 @@ class NestedFacetFilter(BaseFilter):
                 .get_aggregation(self._filter_value_agg_name)
             )
 
+        facet_result = FacetFilterResult(self.name, self.alias)
         processed_values = set()
         for bucket in terms_agg.buckets:
             if bucket.key in values:
                 self.qf._set_selected(self.name, bucket.key)
             self.qf._set_value_data(self.name, bucket.key, {'bucket': bucket})
             self.add_value(FacetValue(bucket.key, _filter=self))
+            facet_result.add_value(FacetValueResult(
+                bucket, bucket.key in values, bool(values),
+                get_title=self._get_title,
+            ))
             processed_values.add(bucket.key)
 
         for v in values:
@@ -1201,6 +1493,11 @@ class NestedFacetFilter(BaseFilter):
                 self.qf._set_selected(self.name, fake_bucket.key)
                 self.qf._set_value_data(self.name, fake_bucket.key, {'bucket': fake_bucket})
                 self.add_value(FacetValue(fake_bucket.key).bind(self))
+                facet_result.add_value(FacetValueResult(
+                    fake_bucket, True, True, get_title=self._get_title,
+                ))
+
+        return facet_result
 
     def add_value(self, fv):
         self.all_values.append(fv)
@@ -1368,3 +1665,10 @@ class NestedRangeFilter(BaseFilter):
             )
             self.min = base_agg.get_aggregation(self._min_agg_name).value
             self.max = base_agg.get_aggregation(self._max_agg_name).value
+        return RangeFilterResult(
+            self.from_value, self.to_value,
+            enabled=self.enabled,
+            min_value=self.min,
+            max_value=self.max,
+        )
+

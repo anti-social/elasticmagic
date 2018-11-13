@@ -99,9 +99,9 @@ class ExpressionTestCase(BaseTestCase):
         self.assert_expression(
             Missing(f.tags, _cache=True),
             {
-                "missing": {
-                    "field": "tags",
-                    "_cache": True
+                'bool': {
+                    'must_not': [
+                        {'exists': {'_cache': True, 'field': 'tags'}}]
                 }
             }
         )
@@ -719,7 +719,7 @@ class ExpressionTestCase(BaseTestCase):
         self.assert_expression(
             Field('presence') == None,
             {
-                "missing": {"field": "presence"}
+                 'bool': {'must_not': [{'exists': {'field': 'presence'}}]}
             }
         )
         self.assert_expression(
@@ -787,7 +787,7 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
         self.assert_expression(
-            Field('status').not_in([0, 5, 10]),
+            Field('status').not_in_([0, 5, 10]),
             {
                 "bool": {
                     "must_not": [{
@@ -797,7 +797,7 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
         self.assert_expression(
-            Field('status').not_in(iter([0, 5, 10])),
+            Field('status').not_in_(iter([0, 5, 10])),
             {
                 "bool": {
                     "must_not": [{

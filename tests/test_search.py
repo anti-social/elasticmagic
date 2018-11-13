@@ -41,8 +41,8 @@ class SearchQueryTest(BaseTestCase):
             sq,
             {
                 "query": {
-                    "filtered": {
-                        "query": {
+                    "bool": {
+                        "must": {
                             "term": {"user": "kimchy"}
                         },
                         "filter": {
@@ -112,8 +112,8 @@ class SearchQueryTest(BaseTestCase):
             sq,
             {
                 "query": {
-                    "filtered": {
-                        "query": {
+                    "bool": {
+                        "must": {
                             "term": {"user": "kimchy"}
                         },
                         "filter": {
@@ -255,7 +255,7 @@ class SearchQueryTest(BaseTestCase):
         self.assert_expression(
             sq,
             {
-                "fields": ["name", "company"]
+                "stored_fields": ["name", "company"]
             }
         )
         self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
@@ -267,7 +267,7 @@ class SearchQueryTest(BaseTestCase):
         self.assert_expression(
             sq,
             {
-                "fields": '*'
+                "stored_fields": '*'
             }
         )
         self.assertEqual(collect_doc_classes(sq), set())
@@ -288,9 +288,7 @@ class SearchQueryTest(BaseTestCase):
         )
         self.assert_expression(
             sq,
-            {
-                "fields": []
-            }
+            {}
         )
         self.assertEqual(collect_doc_classes(sq), set())
 
@@ -327,8 +325,8 @@ class SearchQueryTest(BaseTestCase):
             sq,
             {
                 "query": {
-                    "filtered": {
-                        "query": {
+                    "bool": {
+                        "must": {
                             "function_score": {
                                 "query": {
                                     "multi_match": {
@@ -376,8 +374,8 @@ class SearchQueryTest(BaseTestCase):
             sq,
             {
                 "query": {
-                    "filtered": {
-                        "query": {
+                    "bool": {
+                        "must": {
                             "function_score": {
                                 "functions": [
                                     {
@@ -425,8 +423,8 @@ class SearchQueryTest(BaseTestCase):
             sq,
             {
                 "query": {
-                    "filtered": {
-                        "query": {
+                    "bool": {
+                        "must": {
                             "function_score": {
                                 "query": {
                                     "function_score": {
@@ -495,7 +493,6 @@ class SearchQueryTest(BaseTestCase):
             {
                 "rescore": [
                     {
-                        "window_size": 100,
                         "query": {
                             "rescore_query": {
                                 "match": {
@@ -507,13 +504,15 @@ class SearchQueryTest(BaseTestCase):
                                 }
                             },
                             "query_weight": 0.7,
-                            "rescore_query_weight": 1.2
+                            "rescore_query_weight": 1.2,
+                            "window_size": 100,
                         }
                     },
                     {
-                        "window_size": 10,
+
                         "query": {
                             "score_mode": "multiply",
+                            "window_size": 10,
                             "rescore_query": {
                                 "function_score": {
                                     "script_score": {
@@ -549,7 +548,7 @@ class SearchQueryTest(BaseTestCase):
             sq,
             {
                 "query": {
-                    "filtered": {
+                    "bool": {
                         "filter": {
                             "term": {"brand": "gucci"}
                         }
@@ -744,7 +743,7 @@ class SearchQueryTest(BaseTestCase):
             doc_type='car',
             body={
                 "query": {
-                    "filtered": {
+                    "bool": {
                         "filter": {
                             "term": {"status": 1}
                         }
@@ -779,7 +778,7 @@ class SearchQueryTest(BaseTestCase):
             doc_type='car',
             body={
                 "query": {
-                    "filtered": {
+                    "bool": {
                         "filter": {
                             "term": {"status": 1}
                         }
@@ -857,7 +856,7 @@ class SearchQueryTest(BaseTestCase):
             .with_instance_mapper(obj_mapper)
         )
         self.assertEqual(collect_doc_classes(sq), {CarDocument})
-        results = sq.get_result()
+        results = sq.result
         self.assertEquals(len(results), 2)
 
         self.client.search.assert_called_with(
@@ -865,8 +864,8 @@ class SearchQueryTest(BaseTestCase):
             doc_type='car',
             body={
                 'query': {
-                    'filtered': {
-                        'query': {
+                    'bool': {
+                        'must': {
                             'match': {'seller.name.first': 'Alex'}
                         },
                         'filter': {
@@ -878,8 +877,8 @@ class SearchQueryTest(BaseTestCase):
             search_type='dfs_query_then_fetch',
         )
 
-        self.assertEqual(len(sq.get_result().hits), 2)
-        doc = sq.get_result().hits[0]
+        self.assertEqual(len(sq.result.hits), 2)
+        doc = sq.result.hits[0]
         self.assertIsInstance(doc, CarDocument)
         self.assertEqual(doc._id, '31888815')
         self.assertEqual(doc._type, 'car')
@@ -890,7 +889,7 @@ class SearchQueryTest(BaseTestCase):
         self.assertEqual(doc.year, 2004)
         self.assertEqual(doc.instance.id, 31888815)
         self.assertEqual(doc.instance.name, '31888815:31888815')
-        doc = sq.get_result().hits[1]
+        doc = sq.result.hits[1]
         self.assertIsInstance(doc, CarDocument)
         self.assertEqual(doc._id, '987321')
         self.assertEqual(doc._type, 'car')
@@ -961,29 +960,29 @@ class SearchQueryTest(BaseTestCase):
                 'took': 25
             }
         )
-        results = sq.get_result()
+        results = sq.result
         self.assertEquals(len(results), 2)
 
         self.client.search.assert_called_with(
             index='test',
-            doc_type='seller,customer',
+            doc_type='customer,seller',
             body={
                 'query': {
-                    'filtered': {
-                        'query': {
+                    'bool': {
+                        'must': {
                             'match': {'name.first': 'Alex'}
                         },
                         'filter': {
                             'range': {'birthday': {'gte': datetime.date(1960, 1, 1)}}
                         }
-                    }
+                    },
                 },
                 'size': 2
-            },
+            }
         )
 
-        self.assertEqual(len(sq.get_result().hits), 2)
-        doc = sq.get_result().hits[0]
+        self.assertEqual(len(sq.result.hits), 2)
+        doc = sq.result.hits[0]
         self.assertIsInstance(doc, self.index.customer)
         self.assertEqual(doc._id, '3')
         self.assertEqual(doc._type, 'customer')
@@ -993,7 +992,7 @@ class SearchQueryTest(BaseTestCase):
         self.assertEqual(doc.name.last, 'Exler')
         self.assertEqual(doc.birthday, '1966-10-04')
         self.assertEqual(doc.instance, '3:3')
-        doc = sq.get_result().hits[1]
+        doc = sq.result.hits[1]
         self.assertIsInstance(doc, self.index.seller)
         self.assertEqual(doc._id, '21')
         self.assertEqual(doc._type, 'seller')
@@ -1022,7 +1021,7 @@ class SearchQueryTest(BaseTestCase):
             self.index.search_query(search_type='scan', scroll='1m')
             .limit(1000)
         )
-        result = sq.get_result()
+        result = sq.result
 
         self.client.search.assert_called_with(
             index='test',
@@ -1056,8 +1055,8 @@ class SearchQueryTest(BaseTestCase):
             doc_type='car',
             body={
                 "query": {
-                    "filtered": {
-                        "query": {
+                    "bool": {
+                        "must": {
                             "term": {"vendor": "Focus"}
                         },
                         "filter": {
