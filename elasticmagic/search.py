@@ -202,7 +202,7 @@ class SearchQuery(object):
         .. testcode:: filter
 
            assert search_query.to_dict() == {
-               'query': {'filtered': {'filter': {'bool': {'must': [
+               'query': {'bool': {'filter': {'bool': {'must': [
                    {'term': {'status': 'published'}},
                    {'range': {'publish_date': {'gte': datetime.date(2015, 1, 1)}}}]}}}}}
 

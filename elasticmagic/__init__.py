@@ -13,5 +13,6 @@ from .search import SearchQuery
 from .types import ValidationError
 from .version import __version__
 from .function import (
-    Weight, Factor, ScriptScore, RandomScore, Gauss, Exp, Linear, Script
+    Weight, Factor, ScriptScore, RandomScore, Gauss, Exp, Linear, Script,
+    FieldValueFactor,
 )
