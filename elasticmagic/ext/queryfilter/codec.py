@@ -180,20 +180,38 @@ class SimpleCodec(BaseCodec):
 
         return decoded_params
 
-    def _encode_value(self, value):
+    def _encode_value(self, value, type=None):
         if value is None:
             return self.NULL_VAL
         if value is True:
             return self.TRUE_VAL
         if value is False:
             return self.FALSE_VAL
+        if type:
+            value = type.from_python(value, validate=True)
         return force_unicode(value)
 
     def encode_value(self, value, typelist=None):
-        return self.VALUES_SEP.join(self._encode_value(v) for v in wrap_list(value))
+        typelist = [instantiate(t) for t in wrap_list(typelist or [])]
+        return self.VALUES_SEP.join(
+            self._encode_value(v, t)
+            for v, t in zip_longest(wrap_list(value), typelist)
+        )
 
     def encode(self, values, types=None):
-        params = defaultdict(list)
-        for name, value in values:
-            params[name].append(self.encode_value(value))
-        return dict(params)
+        params = {}
+        for name, ops in values.items():
+            for op, vals in ops.items():
+                if op == self.DEFAULT_OP:
+                    key = name
+                else:
+                    key = '{}__{}'.format(name, op)
+                if types:
+                    typelist = types.get(name)
+                else:
+                    typelist = None
+                params[key] = [
+                    self.encode_value(v, typelist=typelist)
+                    for v in vals
+                ]
+        return params

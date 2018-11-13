@@ -142,6 +142,7 @@ class Document(with_metaclass(DocumentMeta)):
         self._index = self._type = self._id = self._score = None
         self._hit_fields = None
         self._highlight = None
+        self._matched_queries = None
         if _hit:
             self._score = _hit.get('_score')
             for attr_field in self._mapping_fields:
@@ -159,6 +160,8 @@ class Document(with_metaclass(DocumentMeta)):
                 self._hit_fields = self._process_fields(_hit['fields'])
             if _hit.get('highlight'):
                 self._highlight = _hit['highlight']
+            if _hit.get('matched_queries'):
+                self._matched_queries = _hit['matched_queries']
 
         for fkey, fvalue in kwargs.items():
             setattr(self, fkey, fvalue)
@@ -210,9 +213,8 @@ class Document(with_metaclass(DocumentMeta)):
             if attr_field:
                 if value is None or value == '' or value == []:
                     if (
-                            validate and
-                            attr_field.get_field()
-                            ._mapping_options.get('required')
+                        validate and
+                        attr_field.get_field()._mapping_options.get('required')
                     ):
                         raise ValidationError("'{}' is required".format(
                             attr_field.get_attr_name()
@@ -224,9 +226,9 @@ class Document(with_metaclass(DocumentMeta)):
 
         for attr_field in self._fields.values():
             if (
-                    validate
-                    and attr_field.get_field()._mapping_options.get('required')
-                    and attr_field.get_field().get_name() not in res
+                validate
+                and attr_field.get_field()._mapping_options.get('required')
+                and attr_field.get_field().get_name() not in res
             ):
                 raise ValidationError(
                     "'{}' is required".format(attr_field.get_attr_name())
@@ -236,6 +238,9 @@ class Document(with_metaclass(DocumentMeta)):
 
     def get_highlight(self):
         return self._highlight or {}
+
+    def get_matched_queries(self):
+        return self._matched_queries or []
 
     def get_hit_fields(self):
         return self._hit_fields or {}

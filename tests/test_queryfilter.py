@@ -17,8 +17,6 @@ from elasticmagic.ext.queryfilter import SimpleFilter
 from elasticmagic.ext.queryfilter import SimpleQueryFilter
 from elasticmagic.ext.queryfilter import SimpleQueryValue
 
-from .fixtures import client, index
-
 
 class CarType(object):
     def __init__(self, id, title):
@@ -58,13 +56,7 @@ def test_simple_filter(index):
     assert sq.to_dict() == \
         {
             "query": {
-                "filtered": {
-                    "filter": {
-                        "term": {
-                            "model": "vrx"
-                        }
-                    }
-                }
+                'bool': {'filter': {'term': {'model': u'vrx'}}}
             }
         }
 
@@ -77,8 +69,8 @@ def test_simple_filter(index):
     assert sq.to_dict() == \
         {
             "query": {
-                "filtered": {
-                    "query": {
+                "bool": {
+                    "must": {
                         "match": {"name": "test"}
                     },
                     "filter": {
@@ -111,7 +103,7 @@ def test_simple_filter_with_and_conjunction(index):
     assert sq.to_dict() == \
         {
             "query": {
-                "filtered": {
+                "bool": {
                     "filter": {
                         "term": {
                             "label": "greedy"
@@ -126,7 +118,7 @@ def test_simple_filter_with_and_conjunction(index):
     assert sq.to_dict() == \
         {
             "query": {
-                "filtered": {
+                "bool": {
                     "filter": {
                         "bool": {
                             "must": [
@@ -240,8 +232,8 @@ def test_facet_filter(index, client):
     assert sq.to_dict() == \
         {
             "query": {
-                "filtered": {
-                    "query": {
+                "bool": {
+                    "must": {
                         "match": {"name": "test"}
                     },
                     "filter": {
@@ -360,8 +352,7 @@ def test_facet_filter(index, client):
         }
     )
 
-    qf_result = qf.process_results(sq.get_result())
-
+    qf_result = qf.process_results(sq.result)
     type_filter = qf_result.type
     assert len(type_filter.selected_values) == 3
     assert len(type_filter.values) == 1
@@ -663,7 +654,7 @@ def test_range_filter(index, client):
             }
         }
     )
-    qf_result = qf.process_result(sq.get_result())
+    qf_result = qf.process_result(sq.result)
 
     price_filter = qf_result.price
     assert price_filter.enabled is True
@@ -736,7 +727,7 @@ def test_range_filter_dynamic_document(index, client):
             }
         }
     )
-    qf_result = qf.process_results(sq.get_result())
+    qf_result = qf.process_results(sq.result)
 
     price_filter = qf_result.price
     assert price_filter.enabled == True
@@ -892,7 +883,7 @@ def test_simple_query_filter(index):
     assert sq.to_dict() == \
         {
             "query": {
-                "filtered": {
+                "bool": {
                     "filter": {
                         "term": {"state": "new"}
                     }
@@ -909,7 +900,7 @@ def test_simple_query_filter(index):
     assert sq.to_dict() == \
         {
             "query": {
-                "filtered": {
+                "bool": {
                     "filter": {
                         "bool": {
                             "must": [
@@ -964,7 +955,7 @@ def test_simple_query_filter_with_and_conjunction(index):
     assert sq.to_dict() == \
         {
             "query": {
-                "filtered": {
+                "bool": {
                     "filter": {
                         "bool": {
                             "must": [
@@ -1101,7 +1092,7 @@ def test_facet_query_filter(index, client):
             }
         }
     )
-    qf_res = qf.process_results(sq.get_result())
+    qf_res = qf.process_results(sq.result)
     assert len(qf_res.is_new.all_values) == 1
     assert len(qf_res.is_new.selected_values) == 1
     assert len(qf_res.is_new.values) == 0
@@ -1264,7 +1255,7 @@ def test_facet_query_filter(index, client):
             }
         }
     )
-    qf_res = qf.process_results(sq.get_result())
+    qf_res = qf.process_results(sq.result)
     assert len(qf_res.is_new.all_values) == 1
     assert len(qf_res.is_new.selected_values) == 0
     assert len(qf_res.is_new.values) == 1
@@ -1490,7 +1481,7 @@ def test_page(index, client):
             }
         }
     )
-    qf_res = qf.process_results(sq.get_result())
+    qf_res = qf.process_results(sq.result)
     assert qf_res.page.offset == 20
     assert qf_res.page.limit == 10
     assert qf_res.page.total == 105
@@ -1539,7 +1530,7 @@ def test_nested_facet_filter(index, client):
     f.qf = Mock(_name='qf')
     assert f._apply_filter(index.search_query(), {}).to_dict() == {}
     assert \
-        f._apply_agg(index.search_query(), {}).to_dict() == \
+        f._apply_agg(index.search_query()).to_dict() == \
         {
             "aggregations": {
                 "qf.size": {
@@ -1716,7 +1707,7 @@ def test_nested_facet_filter_func(index, client):
     )
     sq = index.search_query()
     sq = qf.apply(sq, {})
-    qf_res = qf.process_result(sq.get_result())
+    qf_res = qf.process_result(sq.result)
     size_res = qf_res.size
     assert len(size_res.values) == 4
     assert len(size_res.all_values) == 4
@@ -1869,7 +1860,7 @@ def test_nested_facet_filter_func(index, client):
                 }
             }
         }
-    qf_res = qf.process_result(sq.get_result())
+    qf_res = qf.process_result(sq.result)
     size_res = qf_res.size
     assert len(size_res.values) == 3
     assert len(size_res.all_values) == 5
@@ -1928,7 +1919,7 @@ def test_nested_range_filter(index, client):
         f._apply_filter(index.search_query(), {}).to_dict() == \
         {}
     assert \
-        f._apply_agg(index.search_query(), {}).to_dict() == \
+        f._apply_agg(index.search_query()).to_dict() == \
         {
             "aggregations": {
                 "qf.test.enabled": {
@@ -1991,6 +1982,7 @@ def test_nested_range_filter(index, client):
                 }
             }
         }
+
 
 def test_nested_range_filter_func(index, client):
     class AttributeDoc(Document):
@@ -2066,7 +2058,7 @@ def test_nested_range_filter_func(index, client):
     )
     sq = index.search_query()
     sq = qf.apply(sq, {})
-    qf_res = qf.process_result(sq.get_result())
+    qf_res = qf.process_result(sq.result)
     diag = qf_res.diagonal
     assert diag.enabled is True
     assert diag.min_value == 17

@@ -618,7 +618,13 @@ class AggregationTest(BaseTestCase):
                             "price_avg": {"avg": {"field": "price"}},
                             "price_min": {"min": {"field": "price"}},
                             "price_max": {"max": {"field": "price"}},
-                            "price_hist": {"histogram": {"field": "price", "interval": 50}},
+                            "price_hist": {
+                                "histogram": {
+                                    "field": "price",
+                                    "interval": 50,
+                                    'min_doc_count': 1
+                                }
+                            },
                         }
                     },
                     "price_avg": {"avg": {"field": "price"}}
