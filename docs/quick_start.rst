@@ -186,7 +186,7 @@ Let's build a histogram by price:
        .limit(0)
    )
 
-   for bucket in search_query.get_result().get_aggregation('prices').buckets:
+   for bucket in search_query.result.get_aggregation('prices').buckets:
        print('{} ({})'.format(bucket.key, bucket.doc_count))
 
 .. testoutput:: python
