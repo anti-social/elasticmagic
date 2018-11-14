@@ -1,3 +1,5 @@
+import logging
+
 import operator
 import functools
 from contextlib import contextmanager
@@ -12,6 +14,14 @@ from elasticmagic.types import Integer, instantiate
 
 from .codec import SimpleCodec
 
+
+log = logging.getLogger(__name__)
+
+log.warning(
+    "Query filter mutation in _process_result is dangerous and will be"
+    " removed, see https://github.com/anti-social/elasticmagic/issues/33"
+    " for further discussion."
+)
 
 first = operator.itemgetter(0)
 is_not_none = functools.partial(operator.is_not, None)
@@ -73,6 +83,10 @@ class QueryFilter(with_metaclass(QueryFilterMeta)):
         self.reset()
 
     def __call__(self, query, params):
+        log.warning(
+            "Context manager behaviour is deprecated and will be removed"
+            " see https://github.com/anti-social/elasticmagic/issues/32"
+        )
 
         @contextmanager
         def apply_filter_ctx():

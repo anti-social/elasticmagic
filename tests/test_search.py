@@ -12,7 +12,7 @@ from elasticmagic.util import collect_doc_classes
 from elasticmagic.types import String, Integer, Float, Object
 from elasticmagic.expression import Field
 
-from .base import BaseTestCase
+from .base import BaseTestCase, OrderTolerantString
 
 
 class SearchQueryTest(BaseTestCase):
@@ -965,7 +965,7 @@ class SearchQueryTest(BaseTestCase):
 
         self.client.search.assert_called_with(
             index='test',
-            doc_type='customer,seller',
+            doc_type=OrderTolerantString('customer,seller', ','),
             body={
                 'query': {
                     'bool': {
