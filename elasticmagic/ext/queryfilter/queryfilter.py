@@ -221,7 +221,7 @@ class BaseFilter(object):
         return search_query
 
     def _process_result(self, result, params):
-        return BaseFilterResult(self.name, self.alias, None)
+        pass
 
 
 class FieldFilter(BaseFilter):
