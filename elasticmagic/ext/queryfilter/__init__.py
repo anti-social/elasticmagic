@@ -4,3 +4,4 @@ from .queryfilter import SimpleFilter, SimpleQueryFilter, SimpleQueryValue
 from .queryfilter import OrderingFilter, OrderingValue
 from .queryfilter import PageFilter
 from .queryfilter import NestedFacetFilter, NestedRangeFilter
+from .histogram import HistogramQueryFilter

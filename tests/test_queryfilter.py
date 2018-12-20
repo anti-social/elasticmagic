@@ -6,6 +6,7 @@ from elasticmagic.types import Integer, Float, List, Nested, String, Date
 from elasticmagic.ext.queryfilter import FacetFilter
 from elasticmagic.ext.queryfilter import FacetQueryFilter
 from elasticmagic.ext.queryfilter import FacetQueryValue
+from elasticmagic.ext.queryfilter import HistogramQueryFilter
 from elasticmagic.ext.queryfilter import NestedFacetFilter
 from elasticmagic.ext.queryfilter import NestedRangeFilter
 from elasticmagic.ext.queryfilter import OrderingFilter
@@ -2075,3 +2076,69 @@ def test_nested_range_filter_func(index, client):
     assert weight.enabled is None
     assert weight.min_value == 2.5
     assert weight.max_value == 38.0
+
+
+def test_histogram_query_filter(index, client):
+    class CarDoc(Document):
+        __doc_type__ = 'car'
+
+        price = Field(Float)
+
+    class PriceHistQueryFilter(QueryFilter):
+        price_hist = HistogramQueryFilter(CarDoc.price, 1000)
+
+    qf = PriceHistQueryFilter()
+
+    client.search = MagicMock(
+        return_value={
+            "hits": {
+                "hits": [],
+                "max_score": 1,
+                "total": 11
+            },
+            "aggregations": {
+                "qf.price_hist" : {
+                    "buckets": [
+                        {
+                            "key": 10000.0,
+                            "doc_count": 1
+                        },
+                        {
+                            "key": 12000.0,
+                            "doc_count": 5
+                        },
+                        {
+                            "key": 13000.0,
+                            "doc_count": 2
+                        },
+                        {
+                            "key": 20000.0,
+                            "doc_count": 3
+                        }
+                    ]
+                }
+            }
+        }
+    )
+    sq = index.search_query()
+    sq = qf.apply(sq, {})
+    qf_res = qf.process_result(sq.get_result())
+    prices = qf_res.price_hist
+    assert prices.interval == 1000
+    assert len(prices.columns) == 4
+    c = prices.columns[0]
+    assert c.key == 10000.0
+    assert c.doc_count == 1
+    c = prices.columns[1]
+    assert c.key == 12000.0
+    assert c.doc_count == 5
+    c = prices.columns[2]
+    assert c.key == 13000.0
+    assert c.doc_count == 2
+    c = prices.columns[3]
+    assert c.key == 20000.0
+    assert c.doc_count == 3
+
+    sq = index.search_query()
+    sq = qf.apply(sq, {'price_hist': ['10000']})
+    assert sq.to_dict() == {}
