@@ -1,5 +1,6 @@
 import collections
 import warnings
+from abc import ABC
 
 from .compat import zip
 from .util import _with_clone, cached_property, merge_params, collect_doc_classes
@@ -9,10 +10,10 @@ from .expression import (
 )
 
 
-__all__ = ['SearchQuery']
+__all__ = ['BaseSearchQuery', 'SearchQuery']
 
 
-class SearchQuery(object):
+class BaseSearchQuery(ABC):
     """Elasticsearch search query construction object.
 
     :class:`.SearchQuery` object is usually instantiated by calling
@@ -96,6 +97,7 @@ class SearchQuery(object):
 
     def to_dict(self):
         return self._compiler(self).params
+
 
     def clone(self):
         """Clones current search query."""
@@ -600,6 +602,8 @@ class SearchQuery(object):
     def get_context(self, compiler=None):
         return SearchQueryContext(self, compiler or self._compiler)
 
+
+class SearchQuery(BaseSearchQuery):
     @cached_property
     def _result(self):
         doc_cls = self._get_doc_cls()
@@ -619,12 +623,18 @@ class SearchQuery(object):
 
     @property
     def result(self):
-        warnings.warn('Field "result" is deprecated', DeprecationWarning)
+        warnings.warn(
+            'Field `result` is deprecated, use `get_result` method instead',
+            DeprecationWarning
+        )
         return self.get_result()
 
     @property
     def results(self):
-        warnings.warn('Field "results" is deprecated', DeprecationWarning)
+        warnings.warn(
+            'Field `results` is deprecated, use `get_result` method instead',
+            DeprecationWarning
+        )
         return self.get_result()
 
     def count(self):

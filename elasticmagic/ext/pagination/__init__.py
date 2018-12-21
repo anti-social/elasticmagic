@@ -13,7 +13,7 @@ class SearchQueryWrapper(object):
 
     def __getitem__(self, range):
         if not isinstance(range, slice):
-            raise ValueError('__getitem__ without slicing not supported')
+            raise ValueError('__getitem__ without slicing is not supported')
         self.sliced_query = self.query[range]
         self.items = list(self.sliced_query)
         self.count = self.sliced_query.get_result().total
@@ -36,14 +36,20 @@ class SearchQueryWrapper(object):
 
     @property
     def result(self):
-        '''Deprecated!!!
-        '''
-        warnings.warn('Field "result" is deprecated', DeprecationWarning)
+        """Deprecated!!!
+        """
+        warnings.warn(
+            'Field `result` is deprecated, use `get_result` method instead',
+            DeprecationWarning
+        )
         return self.get_result()
 
     @property
     def results(self):
-        '''Deprecated!!!
-        '''
-        warnings.warn('Field "results" is deprecated', DeprecationWarning)
+        """Deprecated!!!
+        """
+        warnings.warn(
+            'Field `results` is deprecated, use `get_result` method instead',
+            DeprecationWarning
+        )
         return self.get_result()
