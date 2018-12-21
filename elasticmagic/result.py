@@ -153,3 +153,10 @@ class RefreshResult(Result):
 
 class FlushResult(Result):
     pass
+
+
+class ClearScrollResult(Result):
+    def __init__(self, raw_result):
+        super(ClearScrollResult, self).__init__(raw_result)
+        self.succeeded = raw_result['succeeded']
+        self.num_freed = raw_result['num_freed']

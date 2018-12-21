@@ -23,6 +23,9 @@ setup(
     install_requires=parse_requirements("requirements.txt"),
     extras_require={
         "geo": parse_requirements("requirements_geo.txt"),
+        "async": [
+            "elasticsearch-py-async",
+        ],
     },
     classifiers=[
         "Development Status :: 3 - Alpha",

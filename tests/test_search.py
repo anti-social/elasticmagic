@@ -753,19 +753,23 @@ class SearchQueryTest(BaseTestCase):
         )
 
     def test_exists(self):
-        self.client.search_exists.return_value = {"exists" : True}
+        self.client.search.return_value = {
+            "hits": {"total": 1, "max_score": 1.0, "hits": []}
+        }
         self.assertEqual(
-            SearchQuery(index=self.index, doc_cls=self.index.car).exists(refresh=True),
+            SearchQuery(index=self.index, doc_cls=self.index.car).exists(),
             True
         )
-        self.client.search_exists.assert_called_with(
+        self.client.search.assert_called_with(
             index='test',
             doc_type='car',
-            body=None,
-            refresh=True
+            body={'size': 0},
+            terminate_after=1,
         )
 
-        self.client.search_exists.return_value = {"exists" : False}
+        self.client.search.return_value = {
+            "hits": {"total": 0, "max_score": 0.0, "hits": []}
+        }
         self.assertEqual(
             SearchQuery(index=self.index)
             .filter(self.index.car.status == 1)
@@ -773,10 +777,11 @@ class SearchQueryTest(BaseTestCase):
             .exists(),
             False
         )
-        self.client.search_exists.assert_called_with(
+        self.client.search.assert_called_with(
             index='test',
             doc_type='car',
             body={
+                "size": 0,
                 "query": {
                     "bool": {
                         "filter": {
@@ -784,7 +789,8 @@ class SearchQueryTest(BaseTestCase):
                         }
                     }
                 }
-            }
+            },
+            terminate_after=1,
         )
 
     def test_search(self):
@@ -856,8 +862,8 @@ class SearchQueryTest(BaseTestCase):
             .with_instance_mapper(obj_mapper)
         )
         self.assertEqual(collect_doc_classes(sq), {CarDocument})
-        results = sq.result
-        self.assertEquals(len(results), 2)
+        results = sq.get_result()
+        self.assertEqual(len(results), 2)
 
         self.client.search.assert_called_with(
             index='test',
@@ -877,8 +883,8 @@ class SearchQueryTest(BaseTestCase):
             search_type='dfs_query_then_fetch',
         )
 
-        self.assertEqual(len(sq.result.hits), 2)
-        doc = sq.result.hits[0]
+        self.assertEqual(len(sq.get_result().hits), 2)
+        doc = sq.get_result().hits[0]
         self.assertIsInstance(doc, CarDocument)
         self.assertEqual(doc._id, '31888815')
         self.assertEqual(doc._type, 'car')
@@ -889,7 +895,7 @@ class SearchQueryTest(BaseTestCase):
         self.assertEqual(doc.year, 2004)
         self.assertEqual(doc.instance.id, 31888815)
         self.assertEqual(doc.instance.name, '31888815:31888815')
-        doc = sq.result.hits[1]
+        doc = sq.get_result().hits[1]
         self.assertIsInstance(doc, CarDocument)
         self.assertEqual(doc._id, '987321')
         self.assertEqual(doc._type, 'car')
@@ -960,8 +966,8 @@ class SearchQueryTest(BaseTestCase):
                 'took': 25
             }
         )
-        results = sq.result
-        self.assertEquals(len(results), 2)
+        results = sq.get_result()
+        self.assertEqual(len(results), 2)
 
         self.client.search.assert_called_with(
             index='test',
@@ -981,8 +987,8 @@ class SearchQueryTest(BaseTestCase):
             }
         )
 
-        self.assertEqual(len(sq.result.hits), 2)
-        doc = sq.result.hits[0]
+        self.assertEqual(len(sq.get_result().hits), 2)
+        doc = sq.get_result().hits[0]
         self.assertIsInstance(doc, self.index.customer)
         self.assertEqual(doc._id, '3')
         self.assertEqual(doc._type, 'customer')
@@ -992,7 +998,7 @@ class SearchQueryTest(BaseTestCase):
         self.assertEqual(doc.name.last, 'Exler')
         self.assertEqual(doc.birthday, '1966-10-04')
         self.assertEqual(doc.instance, '3:3')
-        doc = sq.result.hits[1]
+        doc = sq.get_result().hits[1]
         self.assertIsInstance(doc, self.index.seller)
         self.assertEqual(doc._id, '21')
         self.assertEqual(doc._type, 'seller')
@@ -1021,7 +1027,7 @@ class SearchQueryTest(BaseTestCase):
             self.index.search_query(search_type='scan', scroll='1m')
             .limit(1000)
         )
-        result = sq.result
+        result = sq.get_result()
 
         self.client.search.assert_called_with(
             index='test',

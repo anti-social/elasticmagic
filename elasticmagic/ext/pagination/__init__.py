@@ -1,3 +1,6 @@
+import warnings
+
+
 class SearchQueryWrapper(object):
     """Elasticsearch returns total count with response.
     So we can get documents and count with one request.
@@ -10,10 +13,10 @@ class SearchQueryWrapper(object):
 
     def __getitem__(self, range):
         if not isinstance(range, slice):
-            raise ValueError('__getitem__ without slicing not supported')
-        self.sliced_query = self.query[range]
+            raise ValueError('__getitem__ without slicing is not supported')
+        self.sliced_query = self.query.slice(range.start, range.stop)
         self.items = list(self.sliced_query)
-        self.count = self.sliced_query.result.total
+        self.count = self.sliced_query.get_result().total
         return self.items
 
     def __iter__(self):
@@ -26,12 +29,27 @@ class SearchQueryWrapper(object):
             raise ValueError('Slice first')
         return self.count
 
-    @property
-    def result(self):
+    def get_result(self):
         if self.sliced_query is None:
             raise ValueError('Slice first')
-        return self.sliced_query.result
+        return self.sliced_query.get_result()
+
+    @property
+    def result(self):
+        """Deprecated!!!
+        """
+        warnings.warn(
+            'Field `result` is deprecated, use `get_result` method instead',
+            DeprecationWarning
+        )
+        return self.get_result()
 
     @property
     def results(self):
-        return self.result
+        """Deprecated!!!
+        """
+        warnings.warn(
+            'Field `results` is deprecated, use `get_result` method instead',
+            DeprecationWarning
+        )
+        return self.get_result()

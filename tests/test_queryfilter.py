@@ -2,6 +2,7 @@ import datetime
 from mock import Mock, MagicMock
 
 from elasticmagic import agg, Document, Field, Match
+from elasticmagic.compat import text_type
 from elasticmagic.types import Integer, Float, List, Nested, String, Date
 from elasticmagic.ext.queryfilter import FacetFilter
 from elasticmagic.ext.queryfilter import FacetQueryFilter
@@ -143,7 +144,7 @@ def test_facet_filter(index, client):
     def get_title(v):
         if v.instance:
             return v.instance.title
-        return unicode(v.value)
+        return text_type(v.value)
 
     class CarQueryFilter(QueryFilter):
         type = FacetFilter(
@@ -352,7 +353,7 @@ def test_facet_filter(index, client):
         }
     )
 
-    qf_result = qf.process_results(sq.result)
+    qf_result = qf.process_results(sq.get_result())
     type_filter = qf_result.type
     assert len(type_filter.selected_values) == 3
     assert len(type_filter.values) == 1
@@ -654,7 +655,7 @@ def test_range_filter(index, client):
             }
         }
     )
-    qf_result = qf.process_result(sq.result)
+    qf_result = qf.process_result(sq.get_result())
 
     price_filter = qf_result.price
     assert price_filter.enabled is True
@@ -727,7 +728,7 @@ def test_range_filter_dynamic_document(index, client):
             }
         }
     )
-    qf_result = qf.process_results(sq.result)
+    qf_result = qf.process_results(sq.get_result())
 
     price_filter = qf_result.price
     assert price_filter.enabled == True
@@ -1092,7 +1093,7 @@ def test_facet_query_filter(index, client):
             }
         }
     )
-    qf_res = qf.process_results(sq.result)
+    qf_res = qf.process_results(sq.get_result())
     assert len(qf_res.is_new.all_values) == 1
     assert len(qf_res.is_new.selected_values) == 1
     assert len(qf_res.is_new.values) == 0
@@ -1255,7 +1256,7 @@ def test_facet_query_filter(index, client):
             }
         }
     )
-    qf_res = qf.process_results(sq.result)
+    qf_res = qf.process_results(sq.get_result())
     assert len(qf_res.is_new.all_values) == 1
     assert len(qf_res.is_new.selected_values) == 0
     assert len(qf_res.is_new.values) == 1
@@ -1481,7 +1482,7 @@ def test_page(index, client):
             }
         }
     )
-    qf_res = qf.process_results(sq.result)
+    qf_res = qf.process_results(sq.get_result())
     assert qf_res.page.offset == 20
     assert qf_res.page.limit == 10
     assert qf_res.page.total == 105
@@ -1707,7 +1708,7 @@ def test_nested_facet_filter_func(index, client):
     )
     sq = index.search_query()
     sq = qf.apply(sq, {})
-    qf_res = qf.process_result(sq.result)
+    qf_res = qf.process_result(sq.get_result())
     size_res = qf_res.size
     assert len(size_res.values) == 4
     assert len(size_res.all_values) == 4
@@ -1860,7 +1861,7 @@ def test_nested_facet_filter_func(index, client):
                 }
             }
         }
-    qf_res = qf.process_result(sq.result)
+    qf_res = qf.process_result(sq.get_result())
     size_res = qf_res.size
     assert len(size_res.values) == 3
     assert len(size_res.all_values) == 5
@@ -2058,7 +2059,7 @@ def test_nested_range_filter_func(index, client):
     )
     sq = index.search_query()
     sq = qf.apply(sq, {})
-    qf_res = qf.process_result(sq.result)
+    qf_res = qf.process_result(sq.get_result())
     diag = qf_res.diagonal
     assert diag.enabled is True
     assert diag.min_value == 17

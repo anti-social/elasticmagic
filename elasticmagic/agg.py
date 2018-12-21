@@ -127,7 +127,7 @@ class Min(SingleValueMetricsAgg):
        assert search_query.to_dict() == {
            'aggregations': {
                'min_price': {'min': {'field': 'price'}}}}
-       min_price_agg = search_query.result.get_aggregation('min_price')
+       min_price_agg = search_query.get_result().get_aggregation('min_price')
        print(min_price_agg.value)
        print(min_price_agg.value_as_string)
 
@@ -164,7 +164,7 @@ class Sum(SingleValueMetricsAgg):
        assert search_query.to_dict() == {
            'aggregations': {
                'prices': {'sum': {'field': 'price'}}}}
-       prices_agg = search_query.result.get_aggregation('prices')
+       prices_agg = search_query.get_result().get_aggregation('prices')
        print(prices_agg.value)
        print(prices_agg.value_as_string)
 
@@ -210,7 +210,7 @@ class ValueCount(SingleValueMetricsAgg):
                        'script': {
                            'inline': 'doc[params.field].value',
                            'params': {'field': 'type'}}}}}}
-       print(search_query.result.get_aggregation('types_count').value)
+       print(search_query.get_result().get_aggregation('types_count').value)
 
     .. testoutput:: value-count
 
@@ -316,7 +316,7 @@ class TopHits(MetricsAgg):
                                'size': 1,
                                'sort': {'date': 'desc'},
                                '_source': {'includes': ['date', 'price']}}}}}}}
-       top_tags = search_query.result.get_aggregation('top_tags')
+       top_tags = search_query.get_result().get_aggregation('top_tags')
        for tag_bucket in top_tags.buckets:
            top_hit = tag_bucket.get_aggregation('top_sales_hits').hits[0]
            print('{0.key} ({0.doc_count}) - {1.price}'.format(tag_bucket, top_hit))
@@ -372,7 +372,7 @@ class Stats(MultiValueMetricsAgg):
        assert search_query.to_dict() == {
            'aggregations': {
                'grades_stats': {'stats': {'field': 'grade'}}}}
-       grades_stats = search_query.result.get_aggregation('grades_stats')
+       grades_stats = search_query.get_result().get_aggregation('grades_stats')
        print('count:', grades_stats.count)
        print('min:', grades_stats.min)
        print('max:', grades_stats.max)
@@ -474,7 +474,7 @@ class Percentiles(MultiValueMetricsAgg):
            'aggregations': {
                'load_time_outlier': {
                    'percentiles': {'field': 'load_time'}}}}
-       load_time_agg = search_query.result.get_aggregation('load_time_outlier')
+       load_time_agg = search_query.get_result().get_aggregation('load_time_outlier')
        for p, v in load_time_agg.values[:-1]:
            print('{:<4} - {}'.format(p, v))
        print('99 percentile is: {}'.format(load_time_agg.get_value(99)))
@@ -532,7 +532,7 @@ class PercentileRanks(MultiValueMetricsAgg):
                    'percentile_ranks': {
                        'field': 'load_time',
                        'values': [15, 30]}}}}
-       load_time_agg = search_query.result.get_aggregation('load_time_outlier')
+       load_time_agg = search_query.get_result().get_aggregation('load_time_outlier')
        for v, p in load_time_agg.values:
            print('{:<4} - {}'.format(v, p))
        print('{}% of values are below 15'.format(load_time_agg.get_percent(15)))
