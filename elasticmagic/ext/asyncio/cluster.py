@@ -126,7 +126,9 @@ class AsyncCluster(BaseCluster):
             timeout=None, consistency=None, replication=None, **kwargs
     ):
         params = api.bulk_params(locals())
-        return api.bulk_result(self._client.bulk(**params))
+        return api.bulk_result(
+            await self._client.bulk(**params)
+        )
 
     async def refresh(self, index=None, **kwargs):
         params = api.refresh_params(locals())
