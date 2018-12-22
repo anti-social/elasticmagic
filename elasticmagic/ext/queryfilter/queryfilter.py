@@ -17,12 +17,6 @@ from .codec import SimpleCodec
 
 log = logging.getLogger(__name__)
 
-log.warning(
-    "Query filter mutation in _process_result is dangerous and will be"
-    " removed, see https://github.com/anti-social/elasticmagic/issues/33"
-    " for further discussion."
-)
-
 first = operator.itemgetter(0)
 is_not_none = functools.partial(operator.is_not, None)
 
@@ -81,20 +75,6 @@ class QueryFilter(with_metaclass(QueryFilterMeta)):
                     self.add_filter(unbound_filter.bind(filter_name))
 
         self.reset()
-
-    def __call__(self, query, params):
-        log.warning(
-            "Context manager behaviour is deprecated and will be removed"
-            " see https://github.com/anti-social/elasticmagic/issues/32"
-        )
-
-        @contextmanager
-        def apply_filter_ctx():
-            applied_query = self.apply(query, params)
-            self.process_result(applied_query.result)
-            yield self
-
-        return apply_filter_ctx()
 
     def get_name(self):
         return self._name
@@ -366,10 +346,6 @@ class FacetFilter(SimpleFilter):
                 bucket, bucket.key in values, bool(values),
                 get_title=self._get_title,
             ))
-            if bucket.key in values:
-                self.qf._set_selected(self.name, bucket.key)
-            self.qf._set_value_data(self.name, bucket.key, {'bucket': bucket})
-            self.add_value(FacetValue(bucket.key, _filter=self))
             processed_values.add(bucket.key)
 
         for v in values:
@@ -379,22 +355,11 @@ class FacetFilter(SimpleFilter):
                     fake_agg_data, terms_agg.expr.aggs(None), terms_agg
                 )
                 terms_agg.add_bucket(fake_bucket)
-                self.qf._set_selected(self.name, fake_bucket.key)
-                self.qf._set_value_data(self.name, fake_bucket.key, {'bucket': fake_bucket})
-                self.add_value(FacetValue(fake_bucket.key).bind(self))
                 facet_result.add_value(FacetValueResult(
                     fake_bucket, True, True, get_title=self._get_title,
                 ))
 
         return facet_result
-
-    def add_value(self, fv):
-        self.all_values.append(fv)
-        self.values_map[fv.value] = fv
-        if fv.selected:
-            self.selected_values.append(fv)
-        else:
-            self.values.append(fv)
 
     def get_value(self, value):
         return self.values_map.get(value)
@@ -673,11 +638,13 @@ class RangeFilter(FieldFilter):
         if self._compute_enabled:
             self.enabled = bool(result.get_aggregation(self._enabled_agg_name).doc_count)
         if self._compute_min_max:
-            self.min = base_agg.get_aggregation(self._min_agg_name).value
-            self.max = base_agg.get_aggregation(self._max_agg_name).value
+            min = base_agg.get_aggregation(self._min_agg_name).value
+            max = base_agg.get_aggregation(self._max_agg_name).value
+        else:
+            min = max = None
         return RangeFilterResult(
             self.from_value, self.to_value,
-            enabled=self.enabled, min_value=self.min, max_value=self.max
+            enabled=self.enabled, min_value=min, max_value=max
         )
 
 
@@ -872,11 +839,6 @@ class FacetQueryFilter(SimpleQueryFilter):
             filters_agg = result.get_aggregation(self._filter_agg_name)
         else:
             filters_agg = result
-        for fv in self.values:
-            filt_agg = filters_agg.get_aggregation(self._make_agg_name(fv.value))
-            if fv.value in values:
-                self.qf._set_selected(self.name, fv.value)
-            self.qf._set_value_data(self.name, fv.value, {'agg': filt_agg})
         facet_result = FacetQueryFilterResult()
         has_selected_values = any(
             map(lambda fv: fv.value in values, self._values)
@@ -1141,7 +1103,7 @@ class PageFilterResult(object):
     def __init__(
             self, total, hits,
             per_page_param, per_page_values, max_items,
-            page, per_page, offset, limit
+            page, per_page, offset=None, limit=None
     ):
         self.total = total
         self.items = hits
@@ -1155,7 +1117,6 @@ class PageFilterResult(object):
         self.pages = int(ceil(total / float(per_page)))
         self.has_prev = self.page > 1
         self.has_next = self.page < self.pages
-
 
 
 class GroupedPageFilter(PageFilter):
@@ -1333,18 +1294,22 @@ class GroupedPageFilter(PageFilter):
             return filter_agg.get_aggregation(self._agg_name)
         return result.get_aggregation(self._agg_name)
 
-    def _process_pagination_agg(self, pagination_agg):
-        self.total = len(pagination_agg.buckets)
-        self.pages = int(ceil(self.total / float(self.per_page)))
-        self.has_prev = self.page > 1
-        self.has_next = self.page < self.pages
-
     def _process_result(self, result, params):
         pagination_agg = self._get_pagination_agg_result(result)
         if pagination_agg:
-            self._process_pagination_agg(pagination_agg)
+            total = len(pagination_agg.buckets)
+        else:
+            total = 0
+
         groups_agg = self._get_groups_agg_result(result)
-        self.items = groups_agg.buckets
+        items = groups_agg.buckets
+        return PageFilterResult(
+            total=total, hits=items, page=self.page,
+            per_page_param=self.per_page_param,
+            per_page=self.per_page,
+            per_page_values=self.per_page_values,
+            max_items=self.max_items,
+        )
 
 
 class NestedFacetFilter(BaseFilter):
@@ -1487,10 +1452,6 @@ class NestedFacetFilter(BaseFilter):
         facet_result = FacetFilterResult(self.name, self.alias)
         processed_values = set()
         for bucket in terms_agg.buckets:
-            if bucket.key in values:
-                self.qf._set_selected(self.name, bucket.key)
-            self.qf._set_value_data(self.name, bucket.key, {'bucket': bucket})
-            self.add_value(FacetValue(bucket.key, _filter=self))
             facet_result.add_value(FacetValueResult(
                 bucket, bucket.key in values, bool(values),
                 get_title=self._get_title,
@@ -1504,9 +1465,6 @@ class NestedFacetFilter(BaseFilter):
                     fake_agg_data, terms_agg.expr.aggs(None), terms_agg
                 )
                 terms_agg.add_bucket(fake_bucket)
-                self.qf._set_selected(self.name, fake_bucket.key)
-                self.qf._set_value_data(self.name, fake_bucket.key, {'bucket': fake_bucket})
-                self.add_value(FacetValue(fake_bucket.key).bind(self))
                 facet_result.add_value(FacetValueResult(
                     fake_bucket, True, True, get_title=self._get_title,
                 ))
@@ -1677,12 +1635,14 @@ class NestedRangeFilter(BaseFilter):
                 .get_aggregation(self._enabled_agg_name_stat)
                 .get_aggregation(self._filter_key_agg_name)
             )
-            self.min = base_agg.get_aggregation(self._min_agg_name).value
-            self.max = base_agg.get_aggregation(self._max_agg_name).value
+            min = base_agg.get_aggregation(self._min_agg_name).value
+            max = base_agg.get_aggregation(self._max_agg_name).value
+        else:
+            min = max = None
         return RangeFilterResult(
             self.from_value, self.to_value,
             enabled=self.enabled,
-            min_value=self.min,
-            max_value=self.max,
+            min_value=min,
+            max_value=max,
         )
 
