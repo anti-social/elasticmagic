@@ -1,5 +1,6 @@
 import asyncio
 import gc
+import os
 import uuid
 import warnings
 
@@ -9,13 +10,13 @@ import pytest
 
 from elasticmagic import Document, Field
 from elasticmagic.ext.asyncio.cluster import AsyncCluster
-from elasticmagic.types import String
+from elasticmagic.types import Text
 
 
 class Car(Document):
     __doc_type__ = 'car'
 
-    name = Field(String())
+    name = Field(Text())
 
 
 @pytest.yield_fixture
@@ -45,7 +46,8 @@ def event_loop(request):
 
 @pytest.fixture
 async def es_client(event_loop):
-    es_client = AsyncElasticsearch(['localhost:9200'], event_loop=event_loop)
+    es_url = os.environ.get('ES_URL', 'localhost:9200')
+    es_client = AsyncElasticsearch([es_url], event_loop=event_loop)
     yield es_client
     await es_client.transport.close()
 

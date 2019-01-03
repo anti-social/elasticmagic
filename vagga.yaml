@@ -21,12 +21,7 @@ containers:
       - !Py3Requirements requirements.txt
       - !Py3Requirements requirements_geo.txt
       - !Py3Requirements requirements_test.txt
-      - !Py3Install
-        # - aiohttp==2.3.10
-        - aiohttp==3.4.4
-        - elasticsearch==6.3.1
-        - elasticsearch-async==6.2.0
-        - pytest-asyncio
+      - !Py3Requirements requirements_async.txt
 
   py2-sphinx:
     setup:

@@ -1,26 +1,51 @@
+dist: xenial
+
 sudo: false
 
 language: python
+
+services:
+- docker
 
 python:
 - "2.7"
 - "3.4"
 - "3.5"
 - "3.6"
-- "pypy"
+- "3.7"
+- "pypy2.7-6.0"
+- "pypy3.5-6.0"
 
 cache:
   directories:
   - $HOME/.cache/pip
 before_cache:
-  - rm -f $HOME/.cache/pip/log/debug.log
+- rm -f $HOME/.cache/pip/log/debug.log
 
 install:
 - pip install tox-travis
 - pip install codecov
 
+before_script:
+- docker pull docker.elastic.co/elasticsearch/elasticsearch:5.6.14
+- |
+  docker run -d \
+    -p 127.0.0.1:9200:9200 \
+    -p 127.0.0.1:9300:9300 \
+    -e "discovery.type=single-node" \
+    -e "xpack.security.enabled=false" \
+    docker.elastic.co/elasticsearch/elasticsearch:5.6.14
+- docker ps -a
+
 script:
-- tox -- -v --cov
+- tox -- -v --cov=elasticmagic --cov-append
+- |
+  case $TRAVIS_PYTHON_VERSION in
+    3.6|3.7)
+      tox -e integ,integ-async -- -v --cov=elasticmagic --cov-append ;;
+    *)
+      tox -e integ -- -v --cov=elasticmagic --cov-append ;;
+  esac
 - tox -e doctest
 
 after_success:

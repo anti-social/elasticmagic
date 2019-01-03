@@ -18,7 +18,8 @@ class Car(Document):
 def es_client():
     es_client = Elasticsearch(['localhost:9200'])
     yield es_client
-    es_client.transport.close()
+    if hasattr(es_client.transport, 'close'):
+        es_client.transport.close()
 
 
 @pytest.fixture
