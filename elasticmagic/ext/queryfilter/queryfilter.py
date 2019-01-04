@@ -1,8 +1,6 @@
-import logging
-
-import operator
 import functools
-from contextlib import contextmanager
+import logging
+import operator
 from math import ceil
 from itertools import chain
 
@@ -17,7 +15,6 @@ from .codec import SimpleCodec
 
 log = logging.getLogger(__name__)
 
-first = operator.itemgetter(0)
 is_not_none = functools.partial(operator.is_not, None)
 
 
@@ -241,7 +238,6 @@ class SimpleFilter(FieldFilter):
 
     def _get_values_from_params(self, params):
         values = params.get('exact', [])
-        values = map(first, values)
         if not self._allow_null:
             values = filter(is_not_none, values)
         return list(values)
@@ -431,8 +427,10 @@ class FacetValueResult(object):
             return text_type(self.instance)
         return text_type(self.value)
 
-    def __unicode__(self):
-        return self.title
+    def __str__(self):
+        return text_type(self.title)
+
+    __unicode__ = __str__
 
 
 class BinaryFilter(BaseFilter):
@@ -446,12 +444,12 @@ class BinaryFilter(BaseFilter):
     def _parameters_condition(self, params):
         if self.p_key is None:
             return params.get(
-                self.name, {'exact': [[None]]}
-            ).get('exact', [[None]])[0][0] == u"true"
+                self.name, {'exact': [None]}
+            ).get('exact', [None])[0] == u"true"
         else:
             return params.get(
-                self.p_key, {'exact': [[None]]}
-            ).get('exact', [[None]])[0][0] == self.p_value
+                self.p_key, {'exact': [None]}
+            ).get('exact', [None])[0] == self.p_value
 
     def _reset(self):
         self.selected = False
@@ -484,6 +482,7 @@ class BinaryFilter(BaseFilter):
                 self.count = aggregation.doc_count
 
 
+# TODO Remove this
 class Facet(FacetFilter):
     """
     Non-filtering version of facet filter
@@ -535,7 +534,7 @@ class FacetValue(BaseFilterValue):
         return text_type(self.value)
 
     def __str__(self):
-        return self.title
+        return text_type(self.title)
 
     __unicode__ = __str__
 
@@ -579,18 +578,18 @@ class RangeFilter(FieldFilter):
     def _get_from_value(self, params):
         from_values = params.get('gte')
         if from_values:
-            return from_values[0][0]
+            return from_values[0]
         from_values = params.get('exact')
         if from_values:
-            return from_values[0][0]
+            return from_values[0]
 
     def _get_to_value(self, params):
         to_values = params.get('lte')
         if to_values:
-            return to_values[0][0]
+            return to_values[0]
         to_values = params.get('exact')
         if to_values:
-            return to_values[-1][0]
+            return to_values[-1]
 
     def _apply_filter(self, search_query, params):
         params = params.get(self.alias) or {}
@@ -701,14 +700,13 @@ class SimpleQueryFilter(BaseFilter):
         values = params.get(self.alias, {}).get('exact')
         if not values:
             if self.default:
-                values = [[self.default]]
+                values = [self.default]
         if not values:
             return None
 
         expressions = []
         for v in values:
-            w = v[0]
-            filter_value = self.get_value(w)
+            filter_value = self.get_value(v)
             if filter_value and not isinstance(filter_value.expr, MatchAll):
                 expressions.append(filter_value.expr)
 
@@ -768,10 +766,10 @@ class FacetQueryValue(BaseFilterValue):
 
     @property
     def title(self):
-        return text_type(self.opts.get('title', self.value))
+        return self.opts.get('title', self.value)
 
     def __str__(self):
-        return self.title
+        return text_type(self.title)
 
     __unicode__ = __str__
 
@@ -814,12 +812,15 @@ class FacetQueryFilter(SimpleQueryFilter):
         if self._conj_operator == QueryFilter.CONJ_OR:
             exclude_tags.add(self.name)
         filters = self._get_agg_filters(
-            search_query.get_context().iter_post_filters_with_meta(), exclude_tags
+            search_query.get_context().iter_post_filters_with_meta(),
+            exclude_tags
         )
 
         filter_aggs = {}
         for fv in self.values:
-            filter_aggs[self._make_agg_name(fv.value)] = agg.Filter(fv.expr, **self.agg_kwargs)
+            filter_aggs[self._make_agg_name(fv.value)] = agg.Filter(
+                fv.expr, **self.agg_kwargs
+            )
 
         if filters:
             aggs = {
@@ -834,7 +835,6 @@ class FacetQueryFilter(SimpleQueryFilter):
 
     def _process_result(self, result, params):
         values = params.get(self.alias, {}).get('exact', [])
-        values = list(chain(*values))
         if result.get_aggregation(self._filter_agg_name):
             filters_agg = result.get_aggregation(self._filter_agg_name)
         else:
@@ -913,10 +913,12 @@ class FacetQueryValueResult(object):
 
     @property
     def title(self):
-        return text_type(self.opts.get('title', self.value))
+        return self.opts.get('title', self.value)
 
-    def __unicode__(self):
-        return self.title
+    def __str__(self):
+        return text_type(self.title)
+
+    __unicode__ = __str__
 
 
 class OrderingValue(BaseFilterValue):
@@ -958,7 +960,7 @@ class OrderingFilter(BaseFilter):
 
         ordering_value = None
         if values:
-            ordering_value = self.get_value(values[0][0])
+            ordering_value = self.get_value(values[0])
         if not ordering_value:
             ordering_value = self.default_value
 
@@ -967,8 +969,8 @@ class OrderingFilter(BaseFilter):
         return ordering_value._apply(search_query)
 
     def _get_selected_value(self, values):
-        if values and values[0][0] in self._values_map:
-            return self._values_map[values[0][0]]
+        if values and values[0] in self._values_map:
+            return self._values_map[values[0]]
         return self.default_value
 
     def _process_result(self, result, params):
@@ -1012,8 +1014,10 @@ class OrderingValueResult(object):
         self.is_default = is_default
         self.title = title
 
-    def __unicode__(self):
-        return unicode(self.title)
+    def __str__(self):
+        return text_type(self.title)
+
+    __unicode__ = __str__
 
 
 class PageFilter(BaseFilter):
@@ -1051,7 +1055,7 @@ class PageFilter(BaseFilter):
     def _get_per_page(self, params):
         per_page_from_param = params.get(self.per_page_param, {}).get('exact')
         if per_page_from_param:
-            per_page = per_page_from_param[0][0]
+            per_page = per_page_from_param[0]
         else:
             per_page = self.per_page_values[0]
         if per_page not in self.per_page_values:
@@ -1061,7 +1065,7 @@ class PageFilter(BaseFilter):
     def _get_page(self, params):
         page_num = params.get(self.alias, {}).get('exact')
         if page_num:
-            return page_num[0][0]
+            return page_num[0]
         return 1
 
     def _apply_filter(self, search_query, params):
@@ -1348,7 +1352,7 @@ class NestedFacetFilter(BaseFilter):
     @staticmethod
     def _get_values_from_params(params):
         values = params.get('exact', [])
-        return list(filter(is_not_none, map(first, values)))
+        return list(filter(is_not_none, values))
 
     def _get_expression(self, params):
         values = self._get_values_from_params(params.get(self.alias, {}))
@@ -1546,12 +1550,12 @@ class NestedRangeFilter(BaseFilter):
     @staticmethod
     def _get_from_value(params):
         from_values = params.get('gte')
-        return from_values[0][0] if from_values else None
+        return from_values[0] if from_values else None
 
     @staticmethod
     def _get_to_value(params):
         to_values = params.get('lte')
-        return to_values[0][0] if to_values else None
+        return to_values[0] if to_values else None
 
     def _apply_filter(self, search_query, params):
         params = params.get(self.alias) or {}

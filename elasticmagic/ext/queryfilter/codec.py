@@ -1,29 +1,26 @@
 import datetime
 import math
-from itertools import starmap
 from functools import partial
 from collections import defaultdict
 
-import dateutil.parser
-
 from elasticmagic.types import Date, Float, Integer, Long, instantiate
-from elasticmagic.compat import force_unicode, zip_longest
+from elasticmagic.compat import force_unicode
 
 
 TIME_ATTRS = {'hour', 'minute', 'second', 'microsecond', 'tzinfo'}
 
 
-def to_float(value, type=None):
-    type = type or Float()
-    v = type.to_python_single(value)
+def to_float(value, es_type=None):
+    es_type = es_type or Float()
+    v = es_type.to_python_single(value)
     if math.isnan(v) or math.isinf(v):
         raise ValueError('NaN or Inf is not supported')
     return v
 
 
-def to_int(value, type=None):
-    type = type or Integer()
-    v = type.to_python_single(value)
+def to_int(value, es_type=None):
+    es_type = es_type or Integer()
+    v = es_type.to_python_single(value)
     if Integer.MIN_VALUE < v < Integer.MAX_VALUE:
         return v
     raise ValueError(
@@ -33,9 +30,9 @@ def to_int(value, type=None):
     )
 
 
-def to_long(value, type=None):
-    type = type or Long()
-    v = type.to_python_single(value)
+def to_long(value, es_type=None):
+    es_type = es_type or Long()
+    v = es_type.to_python_single(value)
     if Long.MIN_VALUE < v < Long.MAX_VALUE:
         return v
     raise ValueError(
@@ -45,43 +42,17 @@ def to_long(value, type=None):
     )
 
 
-def to_date(value, type=None):
+def to_date(value, es_type=None):
     if isinstance(value, (datetime.datetime, datetime.date)):
         return value
-    type = type or Date()
-    now = datetime.datetime.now() \
-        .replace(hour=0, minute=0, second=0, microsecond=0)
-    faked_dt = dateutil.parser.parse(value, default=FakeDatetime(now))
-    if TIME_ATTRS.intersection(faked_dt.replaced):
-        return faked_dt
-    else:
-        # if time was not specified return date object
-        # thus range date filters will work correctly
-        return now.date().replace(**faked_dt.replaced)
+    es_type = es_type or Date()
+    return es_type.to_python_single(value)
 
 
 def wrap_list(v):
     if not isinstance(v, (list, tuple)):
         return [v]
     return v
-
-
-class FakeDatetime(datetime.datetime):
-    def __new__(cls, dt):
-        return datetime.datetime.__new__(
-            cls,
-            dt.year, dt.month, dt.day,
-            dt.hour, dt.minute, dt.second, dt.microsecond, dt.tzinfo,
-        )
-
-    def __init__(self, dt):
-        self.replaced = {}
-
-    def replace(self, **kwargs):
-        dt = super(FakeDatetime, self).replace(**kwargs)
-        fake_dt = FakeDatetime(dt)
-        fake_dt.replaced.update(kwargs)
-        return fake_dt
 
 
 class BaseCodec(object):
@@ -100,7 +71,6 @@ class BaseCodec(object):
 
 class SimpleCodec(BaseCodec):
     OP_SEP = '__'
-    VALUES_SEP = ':'
 
     NULL_VAL = 'null'
     TRUE_VAL = 'true'
@@ -109,13 +79,14 @@ class SimpleCodec(BaseCodec):
     DEFAULT_OP = 'exact'
 
     PROCESSOR_FACTORIES = {
-        Float: lambda type: partial(to_float, type=type),
-        Integer: lambda type: partial(to_int, type=type),
-        Long: lambda type: partial(to_long, type=type),
-        Date: lambda type: partial(to_date, type=type),
+        Float: lambda t: partial(to_float, es_type=t),
+        Integer: lambda t: partial(to_int, es_type=t),
+        Long: lambda t: partial(to_long, es_type=t),
+        Date: lambda t: partial(to_date, es_type=t),
     }
 
-    def _normalize_params(self, params):
+    @staticmethod
+    def _normalize_params(params):
         if hasattr(params, 'getall'):
             # Webob
             return params.dict_of_lists()
@@ -135,32 +106,24 @@ class SimpleCodec(BaseCodec):
         raise TypeError("'params' must be Webob MultiDict, "
                         "Django QueryDict, list, tuple or dict")
 
-    def decode_value(self, value, typelist=None):
-        typelist = [instantiate(t) for t in wrap_list(typelist or [])]
-        raw_values = force_unicode(value).split(self.VALUES_SEP)
+    def decode_value(self, value, es_type=None):
+        es_type = instantiate(es_type)
 
-        decoded_values = []
-        for v, type in zip_longest(raw_values, typelist):
-            if type is None:
-                to_python = force_unicode
+        if es_type is None:
+            to_python = force_unicode
+        else:
+            to_python_factory = self.PROCESSOR_FACTORIES.get(
+                es_type.__class__
+            )
+            if to_python_factory:
+                to_python = to_python_factory(es_type)
             else:
-                to_python_factory = self.PROCESSOR_FACTORIES.get(type.__class__)
-                if to_python_factory:
-                    to_python = to_python_factory(type)
-                else:
-                    to_python = type.to_python_single
-            if v is None:
-                continue
+                to_python = es_type.to_python_single
 
-            if v == self.NULL_VAL:
-                decoded_values.append(None)
-            else:
-                try:
-                    decoded_values.append(to_python(v))
-                except ValueError:
-                    break
-
-        return decoded_values
+        if value is None or value == self.NULL_VAL:
+            return None
+        else:
+            return to_python(value)
 
     def decode(self, params, types=None):
         params = self._normalize_params(params)
@@ -171,32 +134,33 @@ class SimpleCodec(BaseCodec):
             if not op:
                 op = self.DEFAULT_OP
             for w in wrap_list(v):
-                decoded_values = self.decode_value(w, types.get(name))
-                if decoded_values:
+                try:
+                    decoded_value = self.decode_value(
+                        w, es_type=types.get(name)
+                    )
                     decoded_params \
                         .setdefault(name, {}) \
                         .setdefault(op, []) \
-                        .append(decoded_values)
+                        .append(decoded_value)
+                except ValueError:
+                    pass
 
         return decoded_params
 
-    def _encode_value(self, value, type=None):
+    def _encode_value(self, value, es_type=None):
         if value is None:
             return self.NULL_VAL
         if value is True:
             return self.TRUE_VAL
         if value is False:
             return self.FALSE_VAL
-        if type:
-            value = type.from_python(value, validate=True)
+        if es_type:
+            value = es_type.from_python(value, validate=True)
         return force_unicode(value)
 
-    def encode_value(self, value, typelist=None):
-        typelist = [instantiate(t) for t in wrap_list(typelist or [])]
-        return self.VALUES_SEP.join(
-            self._encode_value(v, t)
-            for v, t in zip_longest(wrap_list(value), typelist)
-        )
+    def encode_value(self, value, es_type=None):
+        es_type = instantiate(es_type)
+        return self._encode_value(value, es_type)
 
     def encode(self, values, types=None):
         params = {}
@@ -207,11 +171,11 @@ class SimpleCodec(BaseCodec):
                 else:
                     key = '{}__{}'.format(name, op)
                 if types:
-                    typelist = types.get(name)
+                    es_type = types.get(name)
                 else:
-                    typelist = None
+                    es_type = None
                 params[key] = [
-                    self.encode_value(v, typelist=typelist)
+                    self.encode_value(v, es_type=es_type)
                     for v in vals
                 ]
         return params

@@ -1,5 +1,3 @@
-import unittest
-
 from mock import Mock
 
 import pytest
@@ -26,7 +24,7 @@ def test_simple_codec_decode():
         codec.decode({'country': ['ru', 'ua', 'null']}) == \
         {
             'country': {
-                'exact': [['ru'], ['ua'], [None]],
+                'exact': ['ru', 'ua', None],
             }
         }
     # Webob's MultiDict
@@ -45,7 +43,7 @@ def test_simple_codec_decode():
         ) == \
         {
             'country': {
-                'exact': [['ru'], ['ua'], [None]],
+                'exact': ['ru', 'ua', None],
             }
         }
     # Django's QueryDict
@@ -61,45 +59,45 @@ def test_simple_codec_decode():
         ) == \
         {
             'country': {
-                'exact': [['ru'], ['ua'], [None]],
+                'exact': ['ru', 'ua', None],
             }
         }
     assert \
         codec.decode({'country': ['ru', 'ua', 'null']}) == \
         {
             'country': {
-                'exact': [['ru'], ['ua'], [None]],
+                'exact': ['ru', 'ua', None],
             }
         }
     assert \
-        codec.decode({'category': ['5', '6:a', 'b:c', 'null']},
-                     {'category': [Integer]}) == \
+        codec.decode({'category': ['5', '6', 'a', 'null']},
+                     {'category': Integer}) == \
         {
             'category': {
-                'exact': [[5], [6, 'a'], [None]]
+                'exact': [5, 6, None]
             }
         }
     assert \
-        codec.decode({'category': ['5']},
-                     {'category': [Integer, Boolean]}) == \
+        codec.decode({'is_available': ['true', 'false', '', 'null']},
+                     {'is_available': Boolean}) == \
         {
-            'category': {
-                'exact': [[5]]
+            'is_available': {
+                'exact': [True, False, False, None]
             }
         }
     assert \
-        codec.decode({'manu': ['1:nokia:true', '2:samsung:false']},
-                     {'manu': [Integer, None, Boolean]}) == \
+        codec.decode({'manu': ['nokia', 'samsung']},
+                     {'manu': None}) == \
         {
             'manu': {
-                'exact': [[1, 'nokia', True], [2, 'samsung', False]],
+                'exact': ['nokia', 'samsung'],
             }
         }
     assert \
         codec.decode({'is_active': ['true']}, {'is_active': Boolean}) == \
         {
             'is_active': {
-                'exact': [[True]],
+                'exact': [True],
             }
         }
     assert \
@@ -109,27 +107,27 @@ def test_simple_codec_decode():
         ) == \
         {
             'price': {
-                'gte': [[100.1], [101.0]],
-                'lte': [[200.0]],
+                'gte': [100.1, 101.0],
+                'lte': [200.0],
             }
         }
     assert \
-        codec.decode({'price__lte': '123a:bc'}, {'price': [Float]}) == \
+        codec.decode({'price__lte': '123a:bc'}, {'price': Float}) == \
         {}
     assert \
         codec.decode({'price__gte': 'Inf', 'price__lte': 'NaN'},
-                     {'price': [Float]}) == \
+                     {'price': Float}) == \
         {}
     assert \
-        codec.decode({'size': '{}'.format(2 ** 31)}, {'size': [Integer]}) == \
+        codec.decode({'size': '{}'.format(2 ** 31)}, {'size': Integer}) == \
         {}
     assert \
-        codec.decode({'size': '{}'.format(2 ** 31)}, {'size': [Long]}) == \
+        codec.decode({'size': '{}'.format(2 ** 31)}, {'size': Long}) == \
         {
-            'size': {'exact': [[2147483648]]}
+            'size': {'exact': [2147483648]}
         }
     assert \
-        codec.decode({'size': '{}'.format(2 ** 63)}, {'size': [Long]}) == \
+        codec.decode({'size': '{}'.format(2 ** 63)}, {'size': Long}) == \
         {}
     with pytest.raises(TypeError):
         codec.decode('')
@@ -148,7 +146,7 @@ def test_simple_codec_encode():
         codec.encode(
             {
                 'country': {
-                    'exact': [['ru'], ['ua'], [None]],
+                    'exact': ['ru', 'ua', None],
                 }
             }
         ) == \
@@ -157,8 +155,8 @@ def test_simple_codec_encode():
         codec.encode(
             {
                 'price': {
-                    'gte': [[100.1], [101.0]],
-                    'lte': [[200.0]],
+                    'gte': [100.1, 101.0],
+                    'lte': [200.0],
                 }
             }
         ) == \
@@ -170,8 +168,8 @@ def test_simple_codec_encode():
         codec.encode(
             {
                 'price': {
-                    'gte': [[100.1], [101.0]],
-                    'lte': [[200.0]],
+                    'gte': [100.1, 101.0],
+                    'lte': [200.0],
                 }
             },
             {'price': Integer}
