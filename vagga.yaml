@@ -117,7 +117,7 @@ commands:
         container: py3-test
         run: |
           ./scripts/wait_es.sh localhost:9200
-          eval py.test tests_integ/asyncio/test_search.py $VAGGACLI_PYTEST_OPTIONS
+          eval py.test tests_integ/asyncio $VAGGACLI_PYTEST_OPTIONS
 
   _py2-cov: !Command
     container: py2-test

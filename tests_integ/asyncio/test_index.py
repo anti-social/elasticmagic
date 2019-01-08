@@ -21,7 +21,7 @@ async def test_get(es_index, docs):
 
 
 @pytest.mark.asyncio
-async def test_multi_add(es_index, docs):
+async def test_multi_get(es_index, docs):
     fetched_docs = await es_index.multi_get(docs)
 
     doc = fetched_docs[0]
