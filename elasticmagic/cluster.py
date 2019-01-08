@@ -1,12 +1,48 @@
 from abc import ABCMeta, abstractmethod
 
-from . import api
+from elasticsearch import ElasticsearchException
+
 from .compat import with_metaclass
-from .compiler import DefaultCompiler, ESVersion, get_compiler_by_es_version
+from .compiler import (
+    DefaultCompiler,
+    ESVersion,
+    get_compiler_by_es_version,
+)
+from .document import (
+    Document,
+    DynamicDocument,
+)
+from .expression import Params
 from .index import Index
-from .search import SearchQuery
+from .result import (
+    BulkResult,
+    ClearScrollResult,
+    CountResult,
+    DeleteByQueryResult,
+    DeleteResult,
+    ExistsResult,
+    FlushResult,
+    RefreshResult,
+    SearchResult,
+)
+from .search import (
+    BaseSearchQuery,
+    SearchQuery,
+)
+from .util import clean_params
 
 MAX_RESULT_WINDOW = 10000
+
+
+def _preprocess_params(params):
+    params = params.copy()
+    params.pop('self')
+    kwargs = params.pop('kwargs') or {}
+    return params, kwargs
+
+
+class MultiSearchError(ElasticsearchException):
+    pass
 
 
 class BaseCluster(with_metaclass(ABCMeta)):
@@ -56,6 +92,241 @@ class BaseCluster(with_metaclass(ABCMeta)):
         major, minor, patch = map(int, version_str.split('.'))
         return ESVersion(major, minor, patch)
 
+    def _get_params(self, params):
+        params, kwargs = _preprocess_params(params)
+        doc_cls = params.pop('doc_cls', None) or DynamicDocument
+        if params.get('doc_type') is None:
+            params['doc_type'] = getattr(doc_cls, '__doc_type__', None)
+        return doc_cls, clean_params(params, **kwargs)
+
+
+    def _get_result(self, doc_cls, raw_result):
+        return doc_cls(_hit=raw_result)
+
+    def _multi_get_params(self, params):
+        # TODO: support ids
+        # need a way to know document class for id
+        params, kwargs = _preprocess_params(params)
+        docs = params.pop('docs')
+
+        params = clean_params(params, **kwargs)
+        body = {}
+        body['docs'] = []
+        doc_classes = []
+        for doc in docs:
+            body['docs'].append(doc.to_meta())
+            doc_classes.append(doc.__class__)
+        params['body'] = body
+        return doc_classes, params
+
+    def _multi_get_result(self, doc_classes, raw_result):
+        result_docs = []
+        for doc_cls, raw_doc in zip(doc_classes, raw_result['docs']):
+            if raw_doc['found']:
+                result_docs.append(doc_cls(_hit=raw_doc))
+            else:
+                result_docs.append(None)
+        return result_docs
+
+    def _search_params(self, params):
+        params, kwargs = _preprocess_params(params)
+        q = params.pop('q')
+
+        query_compiler = self._get_compiler().compiled_query
+        body = q.to_dict(compiler=query_compiler)
+        params = clean_params(params, **kwargs)
+        return body, params
+
+
+    def _search_result(self, q, raw_result):
+        return SearchResult(
+            raw_result, q._aggregations,
+            doc_cls=q._get_doc_cls(),
+            instance_mapper=q._instance_mapper,
+        )
+
+    def _prepare_query(self, q):
+        query_compiler = self._get_compiler().compiled_query
+        if isinstance(q, BaseSearchQuery):
+            query = q.get_context().get_filtered_query(wrap_function_score=False)
+        else:
+            query = q
+
+        if query is None:
+            return None
+
+        query = Params(query=query)
+        return query.to_elastic(compiler=query_compiler)
+
+    def _count_params(self, params):
+        params, kwargs = _preprocess_params(params)
+        q = params.pop('q')
+
+        body = self._prepare_query(q)
+        return body, clean_params(params, **kwargs)
+
+    def _count_result(self, raw_result):
+        return CountResult(raw_result)
+
+    def _exists_params(self, params):
+        params, kwargs = _preprocess_params(params)
+        q = params.pop('q')
+
+        body = self._prepare_query(q)
+        return body, clean_params(params, **kwargs)
+
+    def _exists_result(self, raw_result):
+        return ExistsResult(raw_result)
+
+    def _scroll_params(self, params):
+        params, kwargs = _preprocess_params(params)
+        doc_cls = params.pop('doc_cls', None)
+        instance_mapper = params.pop('instance_mapper', None)
+        return doc_cls, instance_mapper, clean_params(params, **kwargs)
+
+    def _scroll_result(self, doc_cls, instance_mapper, raw_result):
+        return SearchResult(
+            raw_result,
+            doc_cls=doc_cls,
+            instance_mapper=instance_mapper,
+        )
+
+    def _clear_scroll_params(self, params):
+        params, kwargs = _preprocess_params(params)
+        return clean_params(params, **kwargs)
+
+    def _clear_scroll_result(self, raw_result):
+        return ClearScrollResult(raw_result)
+
+    def _multi_search_params(self, params):
+        params, kwargs = _preprocess_params(params)
+        raise_on_error = params.pop('raise_on_error', None)
+        raise_on_error = (
+            raise_on_error
+            if raise_on_error is not None
+            else self._multi_search_raise_on_error
+        )
+        queries = params.pop('queries')
+
+        params = clean_params(params, **kwargs)
+        query_compiler = self._get_compiler().compiled_query
+        body = []
+        for q in queries:
+            query_header = {}
+            if q._index:
+                query_header['index'] = q._index._name
+            doc_type = q._get_doc_type()
+            if doc_type:
+                query_header['type'] = doc_type
+            query_header.update(q._search_params)
+            body += [query_header, q.to_dict(compiler=query_compiler)]
+        return body, raise_on_error, params
+
+    def _multi_search_result(self, queries, raise_on_error, raw_results):
+        errors = []
+        for raw, q in zip(raw_results, queries):
+            result = SearchResult(
+                raw, q._aggregations,
+                doc_cls=q._get_doc_cls(),
+                instance_mapper=q._instance_mapper,
+            )
+            q._cached_result = result
+            print(q, q._cached_result)
+            if result.error:
+                errors.append(result.error)
+
+        if raise_on_error and errors:
+            if len(errors) == 1:
+                error_msg = '1 query was failed'
+            else:
+                error_msg = '{} queries were failed'.format(len(errors))
+            raise MultiSearchError(error_msg, errors)
+
+        return [q.get_result() for q in queries]
+
+    def _put_mapping_params(self, params):
+        params, kwargs = _preprocess_params(params)
+        doc_cls_or_mapping = params.pop('doc_cls_or_mapping')
+        if issubclass(doc_cls_or_mapping, Document):
+            body = doc_cls_or_mapping.to_mapping()
+        else:
+            body = doc_cls_or_mapping
+        if params.get('doc_type', None) is None:
+            params['doc_type'] = getattr(doc_cls_or_mapping, '__doc_type__', None)
+        return body, clean_params(params, **kwargs)
+
+    def _put_mapping_result(self, raw_result):
+        # TODO Convert to nice result object
+        return raw_result
+
+    def _add_params(self, params):
+        from . import actions
+
+        params, kwargs = _preprocess_params(params)
+        docs = params.pop('docs')
+
+        # TODO: Override an index for action if there is index in params
+        return [actions.Index(d) for d in docs], clean_params(params, **kwargs)
+
+    def _delete_params(self, params):
+        params, kwargs = _preprocess_params(params)
+        doc_or_id = params.pop('doc_or_id')
+        doc_cls = params.pop('doc_cls', None)
+        doc_type = params.pop('doc_type', None)
+        if isinstance(doc_or_id, Document):
+            doc_id = doc_or_id._id
+            doc_cls = doc_cls or doc_or_id.__class__
+        else:
+            doc_id = doc_or_id
+        assert doc_type or (doc_cls and doc_cls.__doc_type__), \
+            'Cannot evaluate doc_type: you must specify doc_type or doc_cls'
+        params['doc_type'] = doc_type or doc_cls.__doc_type__
+        params['id'] = doc_id
+        return clean_params(params, **kwargs)
+
+    def _delete_result(self, raw_result):
+        return DeleteResult(raw_result)
+
+    def _delete_by_query_params(self, params):
+        params, kwargs = _preprocess_params(params)
+        q = params.pop('q')
+
+        params['body'] = self._prepare_query(q)
+        return clean_params(params, **kwargs)
+
+    def _delete_by_query_result(self, raw_result):
+        return DeleteByQueryResult(raw_result)
+
+    def _bulk_params(self, params):
+        params, kwargs = _preprocess_params(params)
+        actions = params.pop('actions')
+        body = []
+        for act in actions:
+            body.append({act.__action_name__: act.get_meta()})
+            source = act.get_source()
+            if source is not None:
+                body.append(source)
+        return clean_params(params, body=body, **kwargs)
+
+    def _bulk_result(self, raw_result):
+        return BulkResult(raw_result)
+
+    def _refresh_params(self, params):
+        params, kwargs = _preprocess_params(params)
+        index = params.pop('index')
+        return clean_params(params, index=index, **kwargs)
+
+    def _refresh_result(self, raw_result):
+        return RefreshResult(raw_result)
+
+    def _flush_params(self, params):
+        params, kwargs = _preprocess_params(params)
+        index = params.pop('index')
+        return clean_params(params, index=index, **kwargs)
+
+    def _flush_result(self, raw_result):
+        return FlushResult(raw_result)
+
 
 class Cluster(BaseCluster):
     def search_query(self, *args, **kwargs):
@@ -75,8 +346,8 @@ class Cluster(BaseCluster):
             realtime=None, routing=None, parent=None, preference=None,
             refresh=None, version=None, version_type=None, **kwargs
     ):
-        doc_cls, params = api.get_params(locals())
-        return api.get_result(
+        doc_cls, params = self._get_params(locals())
+        return self._get_result(
             doc_cls,
             self._client.get(**params),
         )
@@ -86,8 +357,8 @@ class Cluster(BaseCluster):
             parent=None, routing=None, preference=None, realtime=None,
             refresh=None, **kwargs
     ):
-        doc_classes, params = api.multi_get_params(locals())
-        return api.multi_get_result(
+        doc_classes, params = self._multi_get_params(locals())
+        return self._multi_get_result(
             doc_classes,
             self._client.mget(**params),
         )
@@ -99,8 +370,8 @@ class Cluster(BaseCluster):
             timeout=None, search_type=None, query_cache=None,
             terminate_after=None, scroll=None, **kwargs
     ):
-        body, params = api.search_params(locals())
-        return api.search_result(
+        body, params = self._search_params(locals())
+        return self._search_result(
             q,
             self._client.search(body=body, **params),
         )
@@ -109,8 +380,8 @@ class Cluster(BaseCluster):
             self, q, index=None, doc_type=None, routing=None, preference=None,
             **kwargs
     ):
-        body, params = api.count_params(locals())
-        return api.count_result(
+        body, params = self._count_params(locals())
+        return self._count_result(
             self._client.count(body=body, **params)
         )
 
@@ -118,8 +389,8 @@ class Cluster(BaseCluster):
             self, q, index=None, doc_type=None, refresh=None, routing=None,
             **kwargs
     ):
-        body, params = api.exists_params(locals())
-        return api.exists_result(
+        body, params = self._exists_params(locals())
+        return self._exists_result(
             self._client.search_exists(body=body, **params)
         )
 
@@ -127,16 +398,16 @@ class Cluster(BaseCluster):
             self, scroll_id, scroll, doc_cls=None, instance_mapper=None,
             **kwargs
     ):
-        doc_cls, instance_mapper, params = api.scroll_params(locals())
-        return api.scroll_result(
+        doc_cls, instance_mapper, params = self._scroll_params(locals())
+        return self._scroll_result(
             doc_cls,
             instance_mapper,
             self._client.scroll(**params)
         )
 
     def clear_scroll(self, scroll_id, **kwargs):
-        params = api.clear_scroll_params(locals())
-        return api.clear_scroll_result(
+        params = self._clear_scroll_params(locals())
+        return self._clear_scroll_result(
             self._client.clear_scroll(body=scroll_id, **kwargs)
         )
 
@@ -145,8 +416,8 @@ class Cluster(BaseCluster):
             routing=None, preference=None, search_type=None,
             raise_on_error=None, **kwargs
     ):
-        body, raise_on_error, params = api.multi_search_params(locals())
-        return api.multi_search_result(
+        body, raise_on_error, params = self._multi_search_params(locals())
+        return self._multi_search_result(
             queries,
             raise_on_error,
             self._client.msearch(body=body, **params)['responses'],
@@ -160,8 +431,8 @@ class Cluster(BaseCluster):
             ignore_conflicts=None, ignore_unavailable=None,
             master_timeout=None, timeout=None, **kwargs
     ):
-        body, params = api.put_mapping_params(locals())
-        return api.put_mapping_result(
+        body, params = self._put_mapping_params(locals())
+        return self._put_mapping_result(
             self._client.indices.put_mapping(body=body, **params)
         )
 
@@ -169,7 +440,7 @@ class Cluster(BaseCluster):
             self, docs, index=None, doc_type=None, refresh=None,
             timeout=None, consistency=None, replication=None, **kwargs
     ):
-        actions, params = api.add_params(locals())
+        actions, params = self._add_params(locals())
         return self.bulk(actions, **params)
 
     def delete(
@@ -179,8 +450,8 @@ class Cluster(BaseCluster):
             version_type=None,
             **kwargs
     ):
-        params = api.delete_params(locals())
-        return api.delete_result(
+        params = self._delete_params(locals())
+        return self._delete_result(
             self._client.delete(**params)
         )
 
@@ -189,8 +460,8 @@ class Cluster(BaseCluster):
             timeout=None, consistency=None, replication=None, routing=None,
             **kwargs
     ):
-        params = api.delete_by_query_params(locals())
-        return api.delete_result(
+        params = self._delete_by_query_params(locals())
+        return self._delete_result(
             self._client.delete_by_query(**params)
         )
 
@@ -198,25 +469,25 @@ class Cluster(BaseCluster):
             self, actions, index=None, doc_type=None, refresh=None,
             timeout=None, consistency=None, replication=None, **kwargs
     ):
-        params = api.bulk_params(locals())
-        return api.bulk_result(
+        params = self._bulk_params(locals())
+        return self._bulk_result(
             self._client.bulk(**params)
         )
 
     def refresh(self, index=None, **kwargs):
-        params = api.refresh_params(locals())
-        return api.refresh_result(
+        params = self._refresh_params(locals())
+        return self._refresh_result(
             self._client.indices.refresh(**params)
         )
 
     def flush(self, index=None, **kwargs):
-        params = api.flush_params(locals())
-        return api.flush_result(
+        params = self._flush_params(locals())
+        return self._flush_result(
             self._client.indices.flush(**params)
         )
 
     def flush_synced(self, index=None, **kwargs):
-        params = api.flush_params(locals())
-        return api.flush_result(
+        params = self._flush_params(locals())
+        return self._flush_result(
             self._client.indices.flush_synced(**params)
         )

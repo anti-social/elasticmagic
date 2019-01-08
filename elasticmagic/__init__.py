@@ -1,5 +1,4 @@
-from .api import MultiSearchError
-from .cluster import Cluster
+from .cluster import Cluster, MultiSearchError
 from .document import Document, DynamicDocument
 from .expression import (
     Params, Term, Terms, Exists, Missing, Match, MultiMatch, MatchAll, Range,
