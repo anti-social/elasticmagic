@@ -136,7 +136,8 @@ class BulkResult(Result):
 class DeleteResult(Result):
     def __init__(self, raw_result):
         super(DeleteResult, self).__init__(raw_result)
-        self.found = raw_result['found']
+        self.found = raw_result.get('found')
+        self.result = raw_result.get('result')
         self._index = raw_result['_index']
         self._type = raw_result['_type']
         self._id = raw_result['_id']

@@ -23,6 +23,13 @@ class AsyncCluster(BaseCluster):
         kwargs.setdefault('_compiler', self._compiler.get_query_compiler())
         return AsyncSearchQuery(*args, **kwargs)
 
+    async def get_es_version(self):
+        if not self._es_version:
+            self._es_version = self._es_version_result(
+                await self._client.info()
+            )
+        return self._es_version
+
     async def get(
             self, index, id, doc_cls=None, doc_type=None, source=None,
             realtime=None, routing=None, parent=None, preference=None,

@@ -96,9 +96,10 @@ commands:
   test-integ-5x: !Supervise
     options: |
       Usage:
-        vagga test-integ-5x [options] [--] [<pytest-options>...]
+        vagga test-integ-5x [options] [--tests=<tests>] [--] [<pytest-options>...]
 
       Options:
+        --tests=<tests>   Tests to run
         <pytest-options>  Pytest options
     children:
       elastic-5x: !Command
@@ -117,7 +118,8 @@ commands:
         container: py3-test
         run: |
           ./scripts/wait_es.sh localhost:9200
-          eval py.test tests_integ/asyncio $VAGGACLI_PYTEST_OPTIONS
+          TESTS=${VAGGAOPT_TESTS:-tests_integ}
+          eval py.test $TESTS $VAGGACLI_PYTEST_OPTIONS
 
   _py2-cov: !Command
     container: py2-test

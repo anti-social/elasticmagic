@@ -26,14 +26,6 @@ class BaseCluster(with_metaclass(ABCMeta)):
     def __getitem__(self, index_name):
         return self.get_index(index_name)
 
-    def get_es_version(self):
-        if not self._es_version:
-            version_str = self._client.info()['version']['number']
-            version_str, _, snapshot = version_str.partition('-')
-            major, minor, patch = map(int, version_str.split('.'))
-            self._es_version = ESVersion(major, minor, patch)
-        return self._es_version
-
     def _get_compiler(self):
         if self._sniff_elastic_version:
             return get_compiler_by_es_version(self.get_es_version())
@@ -58,12 +50,25 @@ class BaseCluster(with_metaclass(ABCMeta)):
     def query(self, *args, **kwargs):
         return self.search_query(*args, **kwargs)
 
+    def _es_version_result(self, raw_result):
+        version_str = raw_result['version']['number']
+        version_str, _, snapshot = version_str.partition('-')
+        major, minor, patch = map(int, version_str.split('.'))
+        return ESVersion(major, minor, patch)
+
 
 class Cluster(BaseCluster):
     def search_query(self, *args, **kwargs):
         kwargs['cluster'] = self
         kwargs.setdefault('_compiler', self._compiler.compiled_query)
         return SearchQuery(*args, **kwargs)
+
+    def get_es_version(self):
+        if not self._es_version:
+            self._es_version = self._es_version_result(
+                self._client.info()
+            )
+        return self._es_version
 
     def get(
             self, index, id, doc_cls=None, doc_type=None, source=None,
