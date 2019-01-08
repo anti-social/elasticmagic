@@ -20,8 +20,8 @@ containers:
         dependencies: true
       - !Py3Requirements requirements.txt
       - !Py3Requirements requirements_geo.txt
-      - !Py3Requirements requirements_test.txt
       - !Py3Requirements requirements_async.txt
+      - !Py3Requirements requirements_async_test.txt
 
   py2-sphinx:
     setup:
