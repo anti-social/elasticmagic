@@ -104,7 +104,8 @@ class Index(BaseIndex):
     msearch = multi_search
 
     def count(
-            self, q, doc_type=None, routing=None, preference=None, **kwargs
+            self, q=None, doc_type=None, routing=None, preference=None,
+            **kwargs
     ):
         return self._cluster.count(
             q, index=self._name, doc_type=doc_type, routing=routing,
@@ -175,13 +176,18 @@ class Index(BaseIndex):
         )
 
     def delete_by_query(
-            self, q, doc_type=None, timeout=None, consistency=None,
-            replication=None, routing=None, **kwargs
+            self, q, doc_type=None, routing=None,
+            conflicts=None, refresh=None, timeout=None,
+            scroll=None, scroll_size=None,
+            wait_for_completion=None, requests_per_second=None,
+            **kwargs
     ):
         return self._cluster.delete_by_query(
-            q, index=self._name, doc_type=doc_type,
-            timeout=timeout, consistency=consistency,
-            replication=replication, routing=routing,
+            q, index=self._name, doc_type=doc_type, routing=routing,
+            conflicts=conflicts, refresh=refresh, timeout=timeout,
+            scroll=scroll, scroll_size=scroll_size,
+            wait_for_completion=wait_for_completion,
+            requests_per_second=requests_per_second,
             **kwargs
         )
 

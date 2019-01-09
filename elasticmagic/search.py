@@ -740,7 +740,7 @@ class SearchQuery(BaseSearchQuery):
 
     def get_result(self):
         """Executes current query and returns processed :class:`SearchResult`
-        object. Caches result so subsequence calls with the same search query
+        object. Caches result so subsequent calls with the same search query
         will return cached value.
         """
         if self._cached_result is not None:
@@ -782,13 +782,30 @@ class SearchQuery(BaseSearchQuery):
         """
         return self._exists_query().get_result().total >= 1
 
-    def delete(self, timeout=None, consistency=None, replication=None):
+    def delete(
+            self, conflicts=None, refresh=None, timeout=None,
+            scroll=None, scroll_size=None,
+            wait_for_completion=None, requests_per_second=None,
+            **kwargs
+    ):
+        """Deletes all documents that match the query.
+
+        .. note::
+           As it uses `delete by query api <https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html>`_
+           the documents that were changed between the time when a snapshot was
+           taken and when the delete request was processed won't be deleted.
+        """
         return self._index_or_cluster.delete_by_query(
             self,
-            self._get_doc_type(),
+            doc_type=self._get_doc_type(),
+            conflicts=conflicts,
+            refresh=refresh,
             timeout=timeout,
-            consistency=consistency,
-            replication=replication,
+            scroll=scroll,
+            scroll_size=scroll_size,
+            wait_for_completion=wait_for_completion,
+            requests_per_second=requests_per_second,
+            **kwargs
         )
 
     def __iter__(self):

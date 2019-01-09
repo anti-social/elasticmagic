@@ -24,6 +24,25 @@ class AsyncSearchQuery(BaseSearchQuery):
     async def exists(self):
         return (await self._exists_query().get_result()).total >= 1
 
+    async def delete(
+            self, conflicts=None, refresh=None, timeout=None,
+            scroll=None, scroll_size=None,
+            wait_for_completion=None, requests_per_second=None,
+            **kwargs
+    ):
+        return await self._index_or_cluster.delete_by_query(
+            self,
+            doc_type=self._get_doc_type(),
+            conflicts=conflicts,
+            refresh=refresh,
+            timeout=timeout,
+            scroll=scroll,
+            scroll_size=scroll_size,
+            wait_for_completion=wait_for_completion,
+            requests_per_second=requests_per_second,
+            **kwargs
+        )
+
     async def _iter_result_async(self):
         return self._iter_result(await self.get_result())
 

@@ -126,10 +126,12 @@ async def test_delete(es_index, docs):
 @pytest.mark.asyncio
 async def test_delete_by_query(es_index, docs):
     res = await es_index.delete_by_query(
-        SearchQuery(Car.name.match("Lightning"))
+        SearchQuery(Car.name.match("Lightning")),
+        refresh=True,
     )
 
-    assert res
+    assert res.deleted == 1
+    assert (await es_index.count()).count == 1
 
 
 @pytest.mark.asyncio

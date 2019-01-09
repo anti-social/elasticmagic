@@ -377,7 +377,7 @@ class Cluster(BaseCluster):
         )
 
     def count(
-            self, q, index=None, doc_type=None, routing=None, preference=None,
+            self, q=None, index=None, doc_type=None, routing=None, preference=None,
             **kwargs
     ):
         body, params = self._count_params(locals())
@@ -456,8 +456,10 @@ class Cluster(BaseCluster):
         )
 
     def delete_by_query(
-            self, q, index=None, doc_type=None,
-            timeout=None, consistency=None, replication=None, routing=None,
+            self, q, index=None, doc_type=None, routing=None,
+            conflicts=None, refresh=None, timeout=None,
+            scroll=None, scroll_size=None,
+            wait_for_completion=None, requests_per_second=None,
             **kwargs
     ):
         params = self._delete_by_query_params(locals())

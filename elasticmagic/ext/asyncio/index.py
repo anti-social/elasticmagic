@@ -57,7 +57,7 @@ class AsyncIndex(BaseIndex):
     msearch = multi_search
 
     async def count(
-            self, q, doc_type=None, routing=None, preference=None, **kwargs
+            self, q=None, doc_type=None, routing=None, preference=None, **kwargs
     ):
         return await self._cluster.count(
             q, index=self._name, doc_type=doc_type, routing=routing,
