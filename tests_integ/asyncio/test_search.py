@@ -4,7 +4,7 @@ from .conftest import Car
 
 
 @pytest.mark.asyncio
-async def test_get_result(es_index, docs):
+async def test_get_result(es_index, cars):
     sq = (
         es_index.search_query(Car.name.match('Sally'))
         .limit(1)
@@ -24,18 +24,18 @@ async def test_get_result(es_index, docs):
 
 
 @pytest.mark.asyncio
-async def test_count(es_index, docs):
+async def test_count(es_index, cars):
     assert await es_index.search_query(Car.name.match('Sally')).count() == 1
 
 
 @pytest.mark.asyncio
-async def test_exists(es_index, docs):
+async def test_exists(es_index, cars):
     assert await es_index.search_query(Car.name.match('Sally')).exists()
     assert not await es_index.search_query(Car.name.match('Buzz')).exists()
 
 
 @pytest.mark.asyncio
-async def test_iter(es_index, docs):
+async def test_iter(es_index, cars):
     sq = (
         es_index.search_query(Car.name.match('Sally'))
         .limit(1)
@@ -51,7 +51,7 @@ async def test_iter(es_index, docs):
 
 
 @pytest.mark.asyncio
-async def test_getitem(es_index, docs):
+async def test_getitem(es_index, cars):
     sq = es_index.search_query()
 
     with pytest.raises(TypeError):

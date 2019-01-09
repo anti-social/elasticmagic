@@ -68,10 +68,29 @@ async def es_index(es_cluster, es_client):
 
 
 @pytest.fixture
-async def docs(es_index):
-    docs = [
+async def cars(es_index):
+    cars = [
         Car(_id=1, name='Lightning McQueen'),
         Car(_id=2, name='Sally Carerra'),
     ]
-    await es_index.add(docs, refresh=True)
-    yield docs
+    await es_index.add(cars, refresh=True)
+    yield cars
+
+
+@pytest.fixture
+async def all_cars(es_index):
+    cars = [
+        Car(_id=1, name='Lightning McQueen'),
+        Car(_id=2, name='Sally Carerra'),
+        Car(_id=3, name='Doc Hudson'),
+        Car(_id=4, name='Ramone'),
+        Car(_id=5, name='Luigi'),
+        Car(_id=6, name='Guido'),
+        Car(_id=7, name='Flo'),
+        Car(_id=8, name='Sarge'),
+        Car(_id=9, name='Sheriff'),
+        Car(_id=10, name='Fillmore'),
+        Car(_id=11, name='Mack'),
+    ]
+    await es_index.add(cars, refresh=True)
+    yield cars

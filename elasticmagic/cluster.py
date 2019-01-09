@@ -1,4 +1,5 @@
 from abc import ABCMeta, abstractmethod
+from collections import Iterable, Mapping
 
 from elasticsearch import ElasticsearchException
 
@@ -81,7 +82,9 @@ class BaseCluster(with_metaclass(ABCMeta)):
 
     @abstractmethod
     def search_query(self, *args, **kwargs):
-        pass
+        """Returns a :class:`search.SearchQuery` instance that is bound to this
+        cluster.
+        """
 
     def query(self, *args, **kwargs):
         return self.search_query(*args, **kwargs)
@@ -99,33 +102,57 @@ class BaseCluster(with_metaclass(ABCMeta)):
             params['doc_type'] = getattr(doc_cls, '__doc_type__', None)
         return doc_cls, clean_params(params, **kwargs)
 
-
     def _get_result(self, doc_cls, raw_result):
         return doc_cls(_hit=raw_result)
 
     def _multi_get_params(self, params):
-        # TODO: support ids
-        # need a way to know document class for id
         params, kwargs = _preprocess_params(params)
-        docs = params.pop('docs')
+        docs_or_ids = params.pop('docs')
+        doc_cls = params.pop('doc_cls', None) or DynamicDocument
+        if (
+                params.get('doc_type') is None and
+                getattr(doc_cls, '__doc_type__', None)
+        ):
+            params['doc_type'] = doc_cls.__doc_type__
 
         params = clean_params(params, **kwargs)
         body = {}
         body['docs'] = []
         doc_classes = []
-        for doc in docs:
-            body['docs'].append(doc.to_meta())
-            doc_classes.append(doc.__class__)
+        for doc_or_id in docs_or_ids:
+            if isinstance(doc_or_id, Document):
+                body['docs'].append(doc_or_id.to_meta())
+                doc_classes.append(doc_or_id.__class__)
+            elif isinstance(doc_or_id, Mapping):
+                body['docs'].append(doc_or_id)
+                doc_classes.append(doc_or_id.pop('doc_cls', None))
+            else:
+                body['docs'].append({'_id': doc_or_id})
+                doc_classes.append(None)
         params['body'] = body
-        return doc_classes, params
+        return doc_classes, doc_cls, params
 
-    def _multi_get_result(self, doc_classes, raw_result):
+    def _multi_get_result(self, doc_classes, default_doc_cls, raw_result):
         result_docs = []
+        if isinstance(default_doc_cls, Iterable):
+            doc_cls_map = {
+                doc_cls.__doc_type__: doc_cls for doc_cls in default_doc_cls
+            }
+            default_doc_cls = None
+        else:
+            doc_cls_map = None
+
         for doc_cls, raw_doc in zip(doc_classes, raw_result['docs']):
+            if doc_cls is None and doc_cls_map:
+                doc_cls = doc_cls_map.get(raw_doc['_type'])
+            if doc_cls is None and default_doc_cls:
+                doc_cls = default_doc_cls
+
             if raw_doc['found']:
                 result_docs.append(doc_cls(_hit=raw_doc))
             else:
                 result_docs.append(None)
+
         return result_docs
 
     def _search_params(self, params):
@@ -231,7 +258,6 @@ class BaseCluster(with_metaclass(ABCMeta)):
                 instance_mapper=q._instance_mapper,
             )
             q._cached_result = result
-            print(q, q._cached_result)
             if result.error:
                 errors.append(result.error)
 
@@ -342,8 +368,8 @@ class Cluster(BaseCluster):
         return self._es_version
 
     def get(
-            self, index, id, doc_cls=None, doc_type=None, source=None,
-            realtime=None, routing=None, parent=None, preference=None,
+            self, index, id, doc_cls=None, doc_type=None, routing=None,
+            source=None, realtime=None, parent=None, preference=None,
             refresh=None, version=None, version_type=None, **kwargs
     ):
         doc_cls, params = self._get_params(locals())
@@ -353,13 +379,14 @@ class Cluster(BaseCluster):
         )
 
     def multi_get(
-            self, docs, index=None, doc_type=None, source=None,
+            self, docs, index=None, doc_cls=None, doc_type=None, source=None,
             parent=None, routing=None, preference=None, realtime=None,
             refresh=None, **kwargs
     ):
-        doc_classes, params = self._multi_get_params(locals())
+        doc_classes, default_doc_cls, params = self._multi_get_params(locals())
         return self._multi_get_result(
             doc_classes,
+            default_doc_cls,
             self._client.mget(**params),
         )
 

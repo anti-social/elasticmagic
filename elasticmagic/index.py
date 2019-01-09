@@ -38,7 +38,9 @@ class BaseIndex(with_metaclass(ABCMeta)):
 
     @abstractmethod
     def search_query(self, *args, **kwargs):
-        pass
+        """Returns a :class:`search.SearchQuery` instance that is bound to this
+        index.
+        """
 
     def query(self, *args, **kwargs):
         return self.search_query(*args, **kwargs)
@@ -49,8 +51,6 @@ class Index(BaseIndex):
         kwargs['index'] = self
         kwargs.setdefault('_compiler', self._cluster._compiler.compiled_query)
         return SearchQuery(*args, **kwargs)
-
-    query = search_query
 
     # Methods that do requests to elasticsearch
 

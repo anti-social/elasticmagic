@@ -86,12 +86,12 @@ commands:
   test-py2: !Command
     description: Run tests with Python2
     container: py2-test
-    run: [py.test]
+    run: [py.test, tests]
 
   test-py3: !Command
     description: Run tests with Python3
     container: py3-test
-    run: [py.test]
+    run: [py.test, tests]
 
   test-integ-5x: !Supervise
     options: |
