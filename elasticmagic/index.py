@@ -1,10 +1,14 @@
 from __future__ import absolute_import
-from .util import to_camel_case
-from .search import SearchQuery
+
+from abc import ABCMeta, abstractmethod
+
+from .compat import with_metaclass
 from .document import DynamicDocument
+from .search import SearchQuery
+from .util import to_camel_case
 
 
-class Index(object):
+class BaseIndex(with_metaclass(ABCMeta)):
     def __init__(self, cluster, name):
         self._cluster = cluster
         self._name = name
@@ -32,18 +36,29 @@ class Index(object):
     def get_settings(self):
         return self._cluster._client.indices.get_settings(index=self._name)
 
+    @abstractmethod
+    def search_query(self, *args, **kwargs):
+        """Returns a :class:`search.SearchQuery` instance that is bound to this
+        index.
+        """
+
+    def query(self, *args, **kwargs):
+        return self.search_query(*args, **kwargs)
+
+
+class Index(BaseIndex):
     def search_query(self, *args, **kwargs):
         kwargs['index'] = self
         kwargs.setdefault('_compiler', self._cluster._compiler.compiled_query)
         return SearchQuery(*args, **kwargs)
 
-    query = search_query
-
     # Methods that do requests to elasticsearch
 
-    def get(self, id, doc_cls=None, doc_type=None, source=None,
+    def get(
+            self, id, doc_cls=None, doc_type=None, source=None,
             realtime=None, routing=None, preference=None, refresh=None,
-            version=None, version_type=None, **kwargs):
+            version=None, version_type=None, **kwargs
+    ):
         return self._cluster.get(
             self._name, id, doc_cls=doc_cls, doc_type=doc_type, source=source,
             realtime=realtime, routing=routing, preference=preference,
@@ -52,13 +67,13 @@ class Index(object):
         )
 
     def multi_get(
-            self, docs, doc_type=None, source=None,
-            realtime=None, routing=None, preference=None, refresh=None
+            self, docs, doc_type=None, source=None, realtime=None,
+            routing=None, preference=None, refresh=None, **kwargs
     ):
         return self._cluster.multi_get(
             docs, index=self._name, doc_type=doc_type, source=source,
             realtime=realtime, routing=routing, preference=preference,
-            refresh=refresh,
+            refresh=refresh, **kwargs
         )
 
     mget = multi_get
@@ -88,13 +103,18 @@ class Index(object):
 
     msearch = multi_search
 
-    def count(self, q, doc_type=None, routing=None, preference=None, **kwargs):
+    def count(
+            self, q=None, doc_type=None, routing=None, preference=None,
+            **kwargs
+    ):
         return self._cluster.count(
             q, index=self._name, doc_type=doc_type, routing=routing,
             preference=preference, **kwargs
         )
 
-    def exists(self, q, doc_type=None, refresh=None, routing=None, **kwargs):
+    def exists(
+            self, q, doc_type=None, refresh=None, routing=None, **kwargs
+    ):
         return self._cluster.exists(
             q, index=self._name, doc_type=doc_type, refresh=refresh,
             routing=routing, **kwargs
@@ -105,7 +125,8 @@ class Index(object):
             **kwargs
     ):
         return self._cluster.scroll(
-            scroll_id, scroll, doc_cls=doc_cls,
+            scroll_id, scroll,
+            doc_cls=doc_cls,
             instance_mapper=instance_mapper,
             **kwargs
         )
@@ -129,16 +150,14 @@ class Index(object):
             **kwargs
         )
 
-    def add(self, docs, doc_type=None, timeout=None, consistency=None,
-            replication=None, **kwargs):
-        from . import actions
-
-        acts = []
-        for doc in docs:
-            acts.append(actions.Index(doc))
-        return self._cluster.bulk(
-            acts, index=self._name, doc_type=doc_type,
-            timeout=timeout, consistency=consistency, replication=replication
+    def add(
+            self, docs, doc_type=None, refresh=None, timeout=None,
+            consistency=None, replication=None, **kwargs
+    ):
+        return self._cluster.add(
+            docs, index=self._name, doc_type=doc_type, refresh=refresh,
+            timeout=timeout, consistency=consistency, replication=replication,
+            **kwargs
         )
 
     def delete(
@@ -156,12 +175,19 @@ class Index(object):
             **kwargs
         )
 
-    def delete_by_query(self, q, doc_type=None, timeout=None, consistency=None,
-                        replication=None, routing=None, **kwargs):
+    def delete_by_query(
+            self, q, doc_type=None, routing=None,
+            conflicts=None, refresh=None, timeout=None,
+            scroll=None, scroll_size=None,
+            wait_for_completion=None, requests_per_second=None,
+            **kwargs
+    ):
         return self._cluster.delete_by_query(
-            q, index=self._name, doc_type=doc_type,
-            timeout=timeout, consistency=consistency,
-            replication=replication, routing=routing,
+            q, index=self._name, doc_type=doc_type, routing=routing,
+            conflicts=conflicts, refresh=refresh, timeout=timeout,
+            scroll=scroll, scroll_size=scroll_size,
+            wait_for_completion=wait_for_completion,
+            requests_per_second=requests_per_second,
             **kwargs
         )
 

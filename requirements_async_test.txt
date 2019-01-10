@@ -1,0 +1,8 @@
+mock
+setuptools
+nose
+# https://github.com/pytest-dev/pytest-asyncio/issues/104
+pytest==4.0.2
+pytest-asyncio
+pytest-cov
+coverage

@@ -48,7 +48,7 @@ class ClusterTest(BaseTestCase):
         sq = self.cluster.search_query()
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
-            result = sq.result
+            result = sq.get_result()
         self.client.search.assert_called_with(body={})
 
         self.assertEqual(len(result.hits), 2)
@@ -80,7 +80,7 @@ class ClusterTest(BaseTestCase):
                 percentiles=agg.Percentiles(es_log_index.log.querytime, percents=[50, 95])
             )
         )
-        sq.result
+        sq.get_result()
         self.client.search.assert_called_with(
             index='log_2014-11-19,log_2014-11-20,log_2014-11-20',
             doc_type='log',
@@ -160,8 +160,8 @@ class ClusterTest(BaseTestCase):
             ]
         )
 
-        self.assertIs(results[0], sq1.result)
-        self.assertIs(results[1], sq2.result)
+        self.assertIs(results[0], sq1.get_result())
+        self.assertIs(results[1], sq2.get_result())
         self.assertEqual(results[0].total, 27802974)
         self.assertEqual(len(results[0].hits), 0)
         self.assertEqual(results[1].total, 272)
@@ -212,8 +212,8 @@ class ClusterTest(BaseTestCase):
 
         results = self.cluster.multi_search([sq1, sq2], raise_on_error=False)
 
-        self.assertIs(results[0], sq1.result)
-        self.assertIs(results[1], sq2.result)
+        self.assertIs(results[0], sq1.get_result())
+        self.assertIs(results[1], sq2.get_result())
         self.assertEqual(results[0].total, 27802974)
         self.assertEqual(results[0].took, 59)
         self.assertEqual(results[0].timed_out, False)

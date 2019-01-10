@@ -283,6 +283,7 @@ class ExpressionCompiled(Compiled):
         return {'has_child': params}
 
     def visit_script(self, script):
+        # TODO Wrap into a dictionary with 'script' key
         return self.visit(script.params)
 
     def visit_function(self, func):
@@ -357,10 +358,12 @@ class QueryCompiled(Compiled):
     @classmethod
     def get_filtered_query(cls, query_context, wrap_function_score=True):
         q = cls.get_query(
-            query_context, wrap_function_score=wrap_function_score)
+            query_context, wrap_function_score=wrap_function_score
+        )
         if query_context.filters:
             return Filtered(
-                query=q, filter=Bool.must(*query_context.iter_filters()))
+                query=q, filter=Bool.must(*query_context.iter_filters())
+            )
         return q
 
     @classmethod

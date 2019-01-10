@@ -1,34 +1,18 @@
 import warnings
 import collections
+from abc import ABCMeta
 
-from .compat import zip
+from .compat import zip, with_metaclass
 from .util import _with_clone
-from .util import cached_property, merge_params, collect_doc_classes
+from .util import merge_params, collect_doc_classes
 from .compiler import DefaultCompiler
 from .expression import Params, Source, Highlight, Rescore
 
 
-__all__ = ['SearchQuery']
+__all__ = ['BaseSearchQuery', 'SearchQuery']
 
 
-class SearchQuery(object):
-    """Elasticsearch search query construction object.
-
-    :class:`.SearchQuery` object is usually instantiated by calling
-    :func:`Index.search_query()` method.
-
-    See :func:`Index.search_query()` for more details.
-
-    .. testsetup:: *
-
-       import datetime
-
-       from elasticmagic import SearchQuery, DynamicDocument
-
-       class PostDocument(DynamicDocument):
-           __doc_type__ = 'post'
-    """
-
+class BaseSearchQuery(with_metaclass(ABCMeta)):
     __visit_name__ = 'search_query'
 
     _q = None
@@ -61,6 +45,8 @@ class SearchQuery(object):
 
     _instance_mapper = None
     _iter_instances = False
+
+    _cached_result = None
 
     def __init__(
             self, q=None,
@@ -96,18 +82,26 @@ class SearchQuery(object):
             self._search_params = search_params
 
     def clone(self):
+        """Clones this query so you can modify both queries independently.
+        """
         cls = self.__class__
         q = cls.__new__(cls)
-        q.__dict__ = {k: v for k, v in self.__dict__.items()
-                      if not isinstance(getattr(cls, k, None), cached_property)}
+        q.__dict__ = {
+            k: v for k, v in self.__dict__.items()
+            if not k.startswith('_cached_')
+        }
         return q
 
     def to_dict(self, compiler=None):
+        """Compiles the query and returns python dictionary that can be
+        serialized to json.
+        """
         return (compiler or self._compiler)(self).params
 
     @_with_clone
-    def source(self, *args, **kwargs):
-        """Controls which fields of the document ``_source`` field to retrieve.
+    def source(self, *fields, **kwargs):
+        """Controls which fields of the document's ``_source`` field
+        to retrieve.
 
         .. _fields_arg:
 
@@ -138,23 +132,98 @@ class SearchQuery(object):
         See `source filtering <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-source-filtering.html>`_
         for more information.
         """
-        if len(args) == 1 and args[0] is None:
+        if len(fields) == 1 and fields[0] is None:
             if '_source' in self.__dict__:
                 del self._source
-        elif len(args) == 1 and isinstance(args[0], bool):
-            self._source = Source(args[0], **kwargs)
+        elif len(fields) == 1 and isinstance(fields[0], bool):
+            self._source = Source(fields[0], **kwargs)
         else:
-            self._source = Source(args, **kwargs)
+            self._source = Source(fields, **kwargs)
 
     @_with_clone
-    def fields(self, *args):
-        if len(args) == 1 and args[0] is None:
+    def stored_fields(self, *fields):
+        """Allows to load fields that marked as ``store: true``.
+
+        Example:
+
+        .. testcode:: stored_fields
+
+           search_query = SearchQuery().stored_fields(PostDocument.rank)
+
+        .. testcode:: stored_fields
+
+           assert search_query.to_dict() == {'stored_fields': ['rank']}
+
+        See `stored fields <https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-store.html>`_ and
+        `stored fields filtering <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-stored-fields.html>`_
+        for more information.
+        """
+        if len(fields) == 1 and fields[0] is None:
             if '_fields' in self.__dict__:
                 del self._fields
-        elif len(args) == 1 and isinstance(args[0], bool):
-            self._fields = args[0]
+        elif len(fields) == 1 and isinstance(fields[0], bool):
+            self._fields = fields[0]
         else:
-            self._fields = args
+            self._fields = fields
+
+    def fields(self, *fields):
+        return self.stored_fields(*fields)
+
+    @_with_clone
+    def script_fields(self, **kwargs):
+        """Allows to evaluate fields based on scripts.
+
+        .. testcode:: script_fields
+
+           from elasticmagic import Script
+
+           search_query = SearchQuery().script_fields(
+               rating=Script(
+                   inline='doc[params.positive_opinions_field].value / '
+                          'doc[params.total_opinions_field].value * 5',
+                   params={
+                       'total_opinions_field': PostDocument.total_opinions,
+                       'positive_opinions_field': PostDocument.positive_opinions,
+                   }
+               )
+           )
+
+        .. testcode:: script_fields
+
+           expected = {
+               'script_fields': {
+                   'rating': {
+                       'script': {
+                           'inline': 'doc[params.positive_opinions_field].value / '
+                                     'doc[params.total_opinions_field].value * 5',
+                           'params': {
+                               'total_opinions_field': 'total_opinions',
+                               'positive_opinions_field': 'positive_opinions'
+                           }
+                       }
+                   }
+               }
+           }
+
+           # FIXME
+           # assert search_query.to_dict() == {
+           #     'script_fields': {
+           #         'rating': {
+           #             'script': {
+           #                 'inline': 'doc[params.positive_opinions_field].value / '
+           #                           'doc[params.total_opinions_field].value * 5',
+           #                 'params': {
+           #                     'total_opinions_field': 'total_opinions',
+           #                     'positive_opinions_field': 'positive_opinions'
+           #                 }
+           #             }
+           #         }
+           #     }
+           # }
+
+        See `script fields <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-script-fields.html>`_
+        """
+        self._script_fields = Params(kwargs)
 
     @_with_clone
     def query(self, q):
@@ -299,7 +368,10 @@ class SearchQuery(object):
         else:
             self._aggregations = merge_params(self._aggregations, args, kwargs)
 
-    aggs = aggregations
+    def aggs(self, *args, **kwargs):
+        """A shortcut for the :meth:`.aggregations` method
+        """
+        return self.aggregations(*args, **kwargs)
 
     @_with_clone
     def function_score(self, *args, **kwargs):
@@ -391,10 +463,6 @@ class SearchQuery(object):
                 dict(self._boost_score_params), **kwargs)
 
     @_with_clone
-    def script_fields(self, **kwargs):
-        self._script_fields = Params(kwargs)
-
-    @_with_clone
     def limit(self, limit):
         """Sets size of the maximum amount of hits. Used for pagination.
 
@@ -416,10 +484,14 @@ class SearchQuery(object):
 
     @_with_clone
     def min_score(self, min_score):
+        """Excludes hits with a ``_score`` less then ``min_score``. See
+        `min score <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-min-score.html>`_"""
         self._min_score = min_score
 
     @_with_clone
     def rescore(self, rescorer, window_size=None):
+        """Adds a rescorer for the query. See
+        `rescoring <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-rescore.html>`_"""
         if rescorer is None:
             if '_rescores' in self.__dict__:
                 del self._rescores
@@ -429,6 +501,8 @@ class SearchQuery(object):
 
     @_with_clone
     def suggest(self, *args, **kwargs):
+        """Adds `suggesters <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-suggesters.html>`_
+        to the query"""
         if args == (None,):
             if'_suggest' in self.__dict__:
                 del self._suggest
@@ -458,6 +532,9 @@ class SearchQuery(object):
 
         When processing search result you can get hit highlight by calling
         :meth:`.Document.get_highlight`.
+
+        See `highlighting <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-highlighting.html>`_
+        for details.
         """
         self._highlight = Highlight(
             fields=fields, type=type, pre_tags=pre_tags, post_tags=post_tags,
@@ -471,14 +548,6 @@ class SearchQuery(object):
             phrase_limit=phrase_limit,
             **kwargs
         )
-
-    @_with_clone
-    def suggest(self, *args, **kwargs):
-        if args == (None,):
-            if'_suggest' in self.__dict__:
-                del self._suggest
-        else:
-            self._suggest = merge_params(self._suggest, args, kwargs)
 
     @_with_clone
     def instances(self):
@@ -555,6 +624,10 @@ class SearchQuery(object):
             )
         )
 
+    @property
+    def _index_or_cluster(self):
+        return self._index or self._cluster
+
     def _get_doc_cls(self):
         if self._doc_cls:
             doc_cls = self._doc_cls
@@ -579,82 +652,171 @@ class SearchQuery(object):
     def get_context(self, compiler=None):
         return SearchQueryContext(self, compiler or self._compiler)
 
-    @cached_property
-    def result(self):
+    def _prepare_search_params(self):
+        if not self._index and not self._cluster:
+            raise ValueError("Search query is not bound to index or cluster")
+
         doc_cls = self._get_doc_cls()
         doc_type = self._get_doc_type(doc_cls)
-        return (self._index or self._cluster).search(
-            self,
-            doc_type=doc_type,
-            **(self._search_params or {})
+        search_params = self._search_params or {}
+        return dict(doc_type=doc_type, **search_params)
+
+    def _exists_query(self):
+        return (
+            self.with_terminate_after(1)
+                .limit(0)
+                .function_score(None)
+                .boost_score(None)
+                .aggs(None)
+                .rescore(None)
         )
+
+    def slice(self, offset, limit):
+        """Applies offset and limit to the query."""
+        sliced_query, _ = self._prepare_slice(slice(offset, limit))
+        return sliced_query
+
+    def _prepare_slice(self, k):
+        if not isinstance(k, (slice, int)):
+            raise TypeError('Index must be of type int or slice')
+
+        if isinstance(k, slice):
+            start, stop, step = k.start, k.stop, k.step or 1
+            if (
+                    start is not None and start < 0 or
+                    stop is not None and stop < 0
+            ):
+                raise ValueError(
+                    'Negative slices are not supported'
+                )
+            if step is not None and step != 1:
+                raise ValueError(
+                    'Slices with step different from 1 are not supported'
+                )
+
+            clone = self.clone()
+            if start is not None:
+                clone._offset = start
+            if stop is not None:
+                if start is None:
+                    clone._limit = stop
+                else:
+                    clone._limit = stop - start
+            return clone, True
+        else:
+            if k < 0:
+                raise ValueError('Negative indexes are not supported')
+            clone = self.clone()
+            clone._offset = k
+            clone._limit = 1
+            return clone, False
+
+    def _iter_result(self, res):
+        if self._iter_instances:
+            return iter(
+                doc.instance for doc in res.hits
+                if doc.instance
+            )
+        return iter(res)
+
+
+class SearchQuery(BaseSearchQuery):
+    """Elasticsearch search query construction object.
+
+    :class:`.SearchQuery` object is usually instantiated by calling
+    :func:`Index.search_query()` method.
+
+    See :func:`Index.search_query()` for more details.
+
+    .. testsetup:: *
+
+       import datetime
+
+       from elasticmagic import SearchQuery, DynamicDocument
+
+       class PostDocument(DynamicDocument):
+           __doc_type__ = 'post'
+    """
+
+    def get_result(self):
+        """Executes current query and returns processed :class:`SearchResult`
+        object. Caches result so subsequent calls with the same search query
+        will return cached value.
+        """
+        if self._cached_result is not None:
+            return self._cached_result
+
+        self._cached_result = self._index_or_cluster.search(
+            self, **self._prepare_search_params()
+        )
+        return self._cached_result
+
+    @property
+    def result(self):
+        warnings.warn(
+            'Field `result` is deprecated, use `get_result` method instead',
+            DeprecationWarning
+        )
+        return self.get_result()
 
     @property
     def results(self):
-        """Executes current query and returns processed :class:`SearchResult`
-        object. Caches result so subsequence calls with the same search query
-        will return cached value.
-        """
-        return self.result
+        warnings.warn(
+            'Field `results` is deprecated, use `get_result` method instead',
+            DeprecationWarning
+        )
+        return self.get_result()
 
     def count(self):
         """Executes current query and returns number of documents matched the
         query. Uses `count api <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-count.html>`_.
         """
-        res = self._index.count(
-            self.get_context().get_filtered_query(wrap_function_score=False),
+        return self._index_or_cluster.count(
+            self, **self._prepare_search_params()
+        ).count
+
+    def exists(self):
+        """Executes current query optimized for checking that
+        there are at least 1 matching document. This method is an analogue of
+        the old `exists search api <https://www.elastic.co/guide/en/elasticsearch/reference/2.4/search-exists.html>`_
+        """
+        return self._exists_query().get_result().total >= 1
+
+    def delete(
+            self, conflicts=None, refresh=None, timeout=None,
+            scroll=None, scroll_size=None,
+            wait_for_completion=None, requests_per_second=None,
+            **kwargs
+    ):
+        """Deletes all documents that match the query.
+
+        .. note::
+           As it uses `delete by query api <https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html>`_
+           the documents that were changed between the time when a snapshot was
+           taken and when the delete request was processed won't be deleted.
+        """
+        return self._index_or_cluster.delete_by_query(
+            self,
             doc_type=self._get_doc_type(),
-            routing=self._search_params.get('routing'),
-        )
-        return res.count
-
-    def exists(self, refresh=None):
-        res = self._index.exists(
-            self.get_context().get_filtered_query(wrap_function_score=False),
-            self._get_doc_type(),
+            conflicts=conflicts,
             refresh=refresh,
-            routing=self._search_params.get('routing'),
-        )
-        return res.exists
-
-    def delete(self, timeout=None, consistency=None, replication=None):
-        return self._index.delete_by_query(
-            self.get_context().get_filtered_query(wrap_function_score=False),
-            self._get_doc_type(),
             timeout=timeout,
-            consistency=consistency,
-            replication=replication,
+            scroll=scroll,
+            scroll_size=scroll_size,
+            wait_for_completion=wait_for_completion,
+            requests_per_second=requests_per_second,
+            **kwargs
         )
 
     def __iter__(self):
-        if self._iter_instances:
-            return iter(doc.instance for doc in self.result.hits
-                        if doc.instance)
-        return iter(self.result)
+        return self._iter_result(self.get_result())
 
     def __getitem__(self, k):
-        if not isinstance(k, (slice, int)):
-            raise TypeError
-
-        if 'results' in self.__dict__:
-            docs = self.result.hits[k]
+        clone, is_slice = self._prepare_slice(k)
+        if is_slice:
+            return list(clone)
         else:
-            if isinstance(k, slice):
-                start, stop = k.start, k.stop
-                clone = self.clone()
-                if start is not None:
-                    clone._offset = start
-                if stop is not None:
-                    if start is None:
-                        clone._limit = stop
-                    else:
-                        clone._limit = stop - start
-                return clone
-            else:
-                docs = self.result.hits[k]
-        if self._iter_instances:
-            return [doc.instance for doc in docs if doc.instance]
-        return docs
+            return list(clone)[0]
 
 
 class SearchQueryContext(object):
@@ -694,11 +856,13 @@ class SearchQueryContext(object):
 
     def get_query(self, wrap_function_score=True):
         return self.compiler.get_query(
-            self, wrap_function_score=wrap_function_score)
+            self, wrap_function_score=wrap_function_score
+        )
 
     def get_filtered_query(self, wrap_function_score=True):
         return self.compiler.get_filtered_query(
-            self, wrap_function_score=wrap_function_score)
+            self, wrap_function_score=wrap_function_score
+        )
 
     def iter_filters_with_meta(self):
         return zip(self.filters, self.filters_meta)

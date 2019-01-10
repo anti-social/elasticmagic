@@ -136,7 +136,8 @@ class BulkResult(Result):
 class DeleteResult(Result):
     def __init__(self, raw_result):
         super(DeleteResult, self).__init__(raw_result)
-        self.found = raw_result['found']
+        self.found = raw_result.get('found')
+        self.result = raw_result.get('result')
         self._index = raw_result['_index']
         self._type = raw_result['_type']
         self._id = raw_result['_id']
@@ -144,7 +145,25 @@ class DeleteResult(Result):
 
 
 class DeleteByQueryResult(Result):
-    pass
+    def __init__(self, raw_result):
+        super(DeleteByQueryResult, self).__init__(raw_result)
+        self.took = raw_result.get('took')
+        self.timed_out = raw_result.get('timed_out')
+        self.deleted = raw_result.get('deleted')
+        self.batches = raw_result.get('batches')
+        self.version_conflicts = raw_result.get('version_conflicts')
+        self.noops = raw_result.get('noops')
+        self.retries = self.Retries(raw_result.get('retries') or {})
+        self.throttled_millis = raw_result.get('throttled_millis')
+        self.requests_per_second = raw_result.get('requests_per_second')
+        self.throttled_until_millis = raw_result.get('throttled_until_millis')
+        self.total = raw_result.get('total')
+        self.failures = raw_result.get('failures')
+
+    class Retries(object):
+        def __init__(self, raw_result):
+            self.bulk = raw_result.get('bulk')
+            self.search = raw_result.get('search')
 
 
 class RefreshResult(Result):
@@ -153,3 +172,10 @@ class RefreshResult(Result):
 
 class FlushResult(Result):
     pass
+
+
+class ClearScrollResult(Result):
+    def __init__(self, raw_result):
+        super(ClearScrollResult, self).__init__(raw_result)
+        self.succeeded = raw_result['succeeded']
+        self.num_freed = raw_result['num_freed']

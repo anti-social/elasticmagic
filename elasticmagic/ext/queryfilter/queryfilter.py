@@ -1,8 +1,6 @@
-import logging
-
-import operator
 import functools
-from contextlib import contextmanager
+import logging
+import operator
 from math import ceil
 from itertools import chain
 
@@ -17,7 +15,6 @@ from .codec import SimpleCodec
 
 log = logging.getLogger(__name__)
 
-first = operator.itemgetter(0)
 is_not_none = functools.partial(operator.is_not, None)
 
 
@@ -241,7 +238,6 @@ class SimpleFilter(FieldFilter):
 
     def _get_values_from_params(self, params):
         values = params.get('exact', [])
-        values = map(first, values)
         if not self._allow_null:
             values = filter(is_not_none, values)
         return list(values)
@@ -431,8 +427,10 @@ class FacetValueResult(object):
             return text_type(self.instance)
         return text_type(self.value)
 
-    def __unicode__(self):
-        return self.title
+    def __str__(self):
+        return text_type(self.title)
+
+    __unicode__ = __str__
 
 
 class BinaryFilter(BaseFilter):
@@ -446,12 +444,12 @@ class BinaryFilter(BaseFilter):
     def _parameters_condition(self, params):
         if self.p_key is None:
             return params.get(
-                self.name, {'exact': [[None]]}
-            ).get('exact', [[None]])[0][0] == u"true"
+                self.name, {'exact': [None]}
+            ).get('exact', [None])[0] == u"true"
         else:
             return params.get(
-                self.p_key, {'exact': [[None]]}
-            ).get('exact', [[None]])[0][0] == self.p_value
+                self.p_key, {'exact': [None]}
+            ).get('exact', [None])[0] == self.p_value
 
     def _reset(self):
         self.selected = False
@@ -484,6 +482,7 @@ class BinaryFilter(BaseFilter):
                 self.count = aggregation.doc_count
 
 
+# TODO Remove this
 class Facet(FacetFilter):
     """
     Non-filtering version of facet filter
@@ -535,7 +534,7 @@ class FacetValue(BaseFilterValue):
         return text_type(self.value)
 
     def __str__(self):
-        return self.title
+        return text_type(self.title)
 
     __unicode__ = __str__
 
@@ -579,18 +578,18 @@ class RangeFilter(FieldFilter):
     def _get_from_value(self, params):
         from_values = params.get('gte')
         if from_values:
-            return from_values[0][0]
+            return from_values[0]
         from_values = params.get('exact')
         if from_values:
-            return from_values[0][0]
+            return from_values[0]
 
     def _get_to_value(self, params):
         to_values = params.get('lte')
         if to_values:
-            return to_values[0][0]
+            return to_values[0]
         to_values = params.get('exact')
         if to_values:
-            return to_values[-1][0]
+            return to_values[-1]
 
     def _apply_filter(self, search_query, params):
         params = params.get(self.alias) or {}
@@ -701,14 +700,13 @@ class SimpleQueryFilter(BaseFilter):
         values = params.get(self.alias, {}).get('exact')
         if not values:
             if self.default:
-                values = [[self.default]]
+                values = [self.default]
         if not values:
             return None
 
         expressions = []
         for v in values:
-            w = v[0]
-            filter_value = self.get_value(w)
+            filter_value = self.get_value(v)
             if filter_value and not isinstance(filter_value.expr, MatchAll):
                 expressions.append(filter_value.expr)
 
@@ -768,10 +766,10 @@ class FacetQueryValue(BaseFilterValue):
 
     @property
     def title(self):
-        return text_type(self.opts.get('title', self.value))
+        return self.opts.get('title', self.value)
 
     def __str__(self):
-        return self.title
+        return text_type(self.title)
 
     __unicode__ = __str__
 
@@ -814,12 +812,15 @@ class FacetQueryFilter(SimpleQueryFilter):
         if self._conj_operator == QueryFilter.CONJ_OR:
             exclude_tags.add(self.name)
         filters = self._get_agg_filters(
-            search_query.get_context().iter_post_filters_with_meta(), exclude_tags
+            search_query.get_context().iter_post_filters_with_meta(),
+            exclude_tags
         )
 
         filter_aggs = {}
         for fv in self.values:
-            filter_aggs[self._make_agg_name(fv.value)] = agg.Filter(fv.expr, **self.agg_kwargs)
+            filter_aggs[self._make_agg_name(fv.value)] = agg.Filter(
+                fv.expr, **self.agg_kwargs
+            )
 
         if filters:
             aggs = {
@@ -834,7 +835,6 @@ class FacetQueryFilter(SimpleQueryFilter):
 
     def _process_result(self, result, params):
         values = params.get(self.alias, {}).get('exact', [])
-        values = list(chain(*values))
         if result.get_aggregation(self._filter_agg_name):
             filters_agg = result.get_aggregation(self._filter_agg_name)
         else:
@@ -913,10 +913,12 @@ class FacetQueryValueResult(object):
 
     @property
     def title(self):
-        return text_type(self.opts.get('title', self.value))
+        return self.opts.get('title', self.value)
 
-    def __unicode__(self):
-        return self.title
+    def __str__(self):
+        return text_type(self.title)
+
+    __unicode__ = __str__
 
 
 class OrderingValue(BaseFilterValue):
@@ -958,7 +960,7 @@ class OrderingFilter(BaseFilter):
 
         ordering_value = None
         if values:
-            ordering_value = self.get_value(values[0][0])
+            ordering_value = self.get_value(values[0])
         if not ordering_value:
             ordering_value = self.default_value
 
@@ -967,8 +969,8 @@ class OrderingFilter(BaseFilter):
         return ordering_value._apply(search_query)
 
     def _get_selected_value(self, values):
-        if values and values[0][0] in self._values_map:
-            return self._values_map[values[0][0]]
+        if values and values[0] in self._values_map:
+            return self._values_map[values[0]]
         return self.default_value
 
     def _process_result(self, result, params):
@@ -1012,8 +1014,10 @@ class OrderingValueResult(object):
         self.is_default = is_default
         self.title = title
 
-    def __unicode__(self):
-        return unicode(self.title)
+    def __str__(self):
+        return text_type(self.title)
+
+    __unicode__ = __str__
 
 
 class PageFilter(BaseFilter):
@@ -1051,7 +1055,7 @@ class PageFilter(BaseFilter):
     def _get_per_page(self, params):
         per_page_from_param = params.get(self.per_page_param, {}).get('exact')
         if per_page_from_param:
-            per_page = per_page_from_param[0][0]
+            per_page = per_page_from_param[0]
         else:
             per_page = self.per_page_values[0]
         if per_page not in self.per_page_values:
@@ -1061,7 +1065,7 @@ class PageFilter(BaseFilter):
     def _get_page(self, params):
         page_num = params.get(self.alias, {}).get('exact')
         if page_num:
-            return page_num[0][0]
+            return page_num[0]
         return 1
 
     def _apply_filter(self, search_query, params):
@@ -1119,199 +1123,6 @@ class PageFilterResult(object):
         self.has_next = self.page < self.pages
 
 
-class GroupedPageFilter(PageFilter):
-    DEFAULT_MAX_ITEMS = 1000
-
-    def __init__(
-            self, name, group_by, group_kwargs=None, alias=None,
-            per_page_param=None, per_page_values=None, max_items=None,
-    ):
-        super(GroupedPageFilter, self).__init__(
-            name, alias=alias,
-            per_page_param=per_page_param,
-            per_page_values=per_page_values,
-            max_items=max_items,
-        )
-        self.group_by = group_by
-        self.group_kwargs = group_kwargs or {}
-
-    @property
-    def _agg_name(self):
-        return '{}.{}'.format(self.qf._name, self.name)
-
-    @property
-    def _filter_agg_name(self):
-        return '{}.filter'.format(self._agg_name)
-
-    @property
-    def _pagination_agg_name(self):
-        return '{}.pagination'.format(self._agg_name)
-
-    _top_hits_agg_name = 'top_items'
-
-    def _order_agg_name(self, ix):
-        return 'order_{}'.format(ix)
-
-    def _apply_filter(self, search_query, params):
-        self.per_page = self._get_per_page(params)
-        self.page = self._get_page(params)
-
-        return search_query
-
-    def _extract_orders(self, search_query):
-        order_aggs = {}
-        order_by = []
-        if search_query._order_by:
-            for i, o in enumerate(search_query._order_by):
-                order_name = self._order_agg_name(i)
-                if isinstance(o, Sort):
-                    expr = o.expr
-                    order = o.order
-                else:
-                    expr = o
-                    order = None
-
-                if isinstance(expr, Field):
-                    field_name = expr.get_name()
-                elif isinstance(expr, AttributedField):
-                    field_name = expr.get_field_name()
-                else:
-                    field_name = expr
-
-                if field_name == '_score':
-                    # default ordering for _score is desc
-                    desc = order is None or order == 'desc'
-                else:
-                    desc = order == 'desc'
-
-                if desc:
-                    if field_name == '_score':
-                        order_aggs[order_name] = agg.Max(script='_score')
-                    else:
-                        order_aggs[order_name] = agg.Max(expr)
-                    order_by.append({order_name: 'desc'})
-                else:
-                    if field_name == '_score':
-                        order_aggs[order_name] = agg.Min(script='_score')
-                    else:
-                        order_aggs[order_name] = agg.Min(expr)
-                    order_by.append({order_name: 'asc'})
-        else:
-            order_aggs = {
-                self._order_agg_name(0): agg.Max(script='_score')
-            }
-            order_by = [{self._order_agg_name(0): 'desc'}]
-
-        return order_aggs, order_by
-
-    def _apply_agg(self, search_query):
-        order_aggs, order_by = self._extract_orders(search_query)
-
-        group_agg = agg.Terms(
-            self.group_by,
-            size=self.per_page,
-            order=order_by,
-            aggs=dict(
-                {self._top_hits_agg_name: agg.TopHits(**self.group_kwargs)},
-                **order_aggs
-            )
-        )
-
-        pagination_agg = agg.Terms(
-            self.group_by,
-            size=self.max_items,
-            order=order_by,
-            aggs=order_aggs,
-        )
-
-        post_filters = list(search_query.get_context().iter_post_filters())
-
-        if self.page == 1:
-            page_aggs = {
-                self._agg_name: group_agg,
-                self._pagination_agg_name: pagination_agg,
-            }
-        else:
-            group_values = self._get_group_values(search_query, post_filters, pagination_agg)
-            post_filters.append(self.group_by.in_(group_values))
-            page_aggs={
-                self._agg_name: group_agg,
-            }
-
-        if post_filters:
-            aggs = {
-                self._filter_agg_name: agg.Filter(
-                    Bool.must(*post_filters),
-                    aggs=page_aggs
-                )
-            }
-        else:
-            aggs = page_aggs
-
-        search_query = search_query.aggs(aggs)
-
-        return search_query
-
-    def _get_group_values(self, search_query, post_filters, pagination_agg):
-        if post_filters:
-            aggs = {
-                self._filter_agg_name: agg.Filter(
-                    Bool.must(*post_filters),
-                    aggs={self._pagination_agg_name: pagination_agg}
-                )
-            }
-        else:
-            aggs = {self._pagination_agg_name: pagination_agg}
-
-        sq = (
-            search_query
-            .with_search_type('count')
-            .aggs(None)
-            .aggs(**aggs)
-        )
-
-        pagination_agg_res = self._get_pagination_agg_result(sq.result)
-        self._process_pagination_agg(pagination_agg_res)
-        values = [
-            group_bucket.key for group_bucket in pagination_agg_res.buckets
-        ]
-
-        offset = self._get_offset()
-        return values[offset:offset + self.per_page]
-
-    def _get_offset(self):
-        return (self.page - 1) * self.per_page
-
-    def _get_pagination_agg_result(self, result):
-        filter_agg = result.get_aggregation(self._filter_agg_name)
-        if filter_agg:
-            return filter_agg.get_aggregation(self._pagination_agg_name)
-        return result.get_aggregation(self._pagination_agg_name)
-
-    def _get_groups_agg_result(self, result):
-        filter_agg = result.get_aggregation(self._filter_agg_name)
-        if filter_agg:
-            return filter_agg.get_aggregation(self._agg_name)
-        return result.get_aggregation(self._agg_name)
-
-    def _process_result(self, result, params):
-        pagination_agg = self._get_pagination_agg_result(result)
-        if pagination_agg:
-            total = len(pagination_agg.buckets)
-        else:
-            total = 0
-
-        groups_agg = self._get_groups_agg_result(result)
-        items = groups_agg.buckets
-        return PageFilterResult(
-            total=total, hits=items, page=self.page,
-            per_page_param=self.per_page_param,
-            per_page=self.per_page,
-            per_page_values=self.per_page_values,
-            max_items=self.max_items,
-        )
-
-
 class NestedFacetFilter(BaseFilter):
 
     def __init__(
@@ -1348,7 +1159,7 @@ class NestedFacetFilter(BaseFilter):
     @staticmethod
     def _get_values_from_params(params):
         values = params.get('exact', [])
-        return list(filter(is_not_none, map(first, values)))
+        return list(filter(is_not_none, values))
 
     def _get_expression(self, params):
         values = self._get_values_from_params(params.get(self.alias, {}))
@@ -1546,12 +1357,12 @@ class NestedRangeFilter(BaseFilter):
     @staticmethod
     def _get_from_value(params):
         from_values = params.get('gte')
-        return from_values[0][0] if from_values else None
+        return from_values[0] if from_values else None
 
     @staticmethod
     def _get_to_value(params):
         to_values = params.get('lte')
-        return to_values[0][0] if to_values else None
+        return to_values[0] if to_values else None
 
     def _apply_filter(self, search_query, params):
         params = params.get(self.alias) or {}

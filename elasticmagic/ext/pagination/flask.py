@@ -1,46 +1,44 @@
 # coding: utf-8
 from __future__ import unicode_literals
 
+from abc import ABCMeta
 from math import ceil
 
 from . import SearchQueryWrapper
+from ...cluster import MAX_RESULT_WINDOW
+from ...compat import with_metaclass
 
 
-class Pagination(object):
-    """Helper class to provide compatibility with Flask-SQLAlchemy paginator.
-    """
-    def __init__(self, query, page=1, per_page=20):
-        self.original_query = query
-        if isinstance(query, SearchQueryWrapper):
-            self.query = query
-        else:
-            self.query = SearchQueryWrapper(query)
-        self.page = page if page > 0 else 1
-        self.per_page = per_page
-        self.offset = (self.page - 1) * self.per_page
+class BasePagination(with_metaclass(ABCMeta)):
+    def _prev_page_params(self):
+        return {
+            'page': self.prev_num,
+            'per_page': self.per_page,
+            'max_items': self.max_items,
+        }
 
-        self.items = self.query[self.offset:self.offset + self.per_page]
-        self.total = len(self.query)
-        
+    def _next_page_params(self):
+        return {
+            'page': self.next_num,
+            'per_page': self.per_page,
+            'max_items': self.max_items,
+        }
+
     @property
     def pages(self):
-        return int(ceil(self.total / float(self.per_page)))
+        return int(
+            ceil(min(self.total, self.max_items) / float(self.per_page))
+        )
 
-    def prev(self):
-        return type(self)(
-            self.original_query, page=self.prev_num, per_page=self.per_page)
-    
     @property
     def has_prev(self):
         return self.page > 1
 
     @property
     def prev_num(self):
+        if not self.has_prev:
+            return None
         return self.page - 1
-
-    def next(self):
-        return type(self)(
-            self.original_query, page=self.next_num, per_page=self.per_page)
 
     @property
     def has_next(self):
@@ -48,6 +46,8 @@ class Pagination(object):
 
     @property
     def next_num(self):
+        if not self.has_next:
+            return None
         return self.page + 1
 
     def iter_pages(self, left_edge=2, left_current=2,
@@ -77,11 +77,40 @@ class Pagination(object):
 """
         last = 0
         for num in range(1, self.pages + 1):
-            if num <= left_edge or \
-               (num > self.page - left_current - 1 and \
-                num < self.page + right_current) or \
-               num > self.pages - right_edge:
+            is_left = num <= left_edge
+            is_right = num > self.pages - right_edge
+            is_center = (
+                self.page - left_current - 1 < num < self.page + right_current
+            )
+            if is_left or is_right or is_center:
                 if last + 1 != num:
                     yield None
                 yield num
                 last = num
+
+
+class Pagination(BasePagination):
+    """Helper class to provide compatibility with Flask-SQLAlchemy paginator.
+    """
+    def __init__(
+            self, query, page=1, per_page=10, max_items=MAX_RESULT_WINDOW
+    ):
+        self.original_query = query
+        self.query = SearchQueryWrapper(query, max_items=max_items)
+        self.page = page if page > 0 else 1
+        self.per_page = per_page
+        self.max_items = max_items
+        self.offset = (self.page - 1) * self.per_page
+
+        self.items = self.query[self.offset:self.offset + self.per_page]
+        self.total = len(self.query)
+
+    def prev(self):
+        return type(self)(
+            self.original_query, **self._prev_page_params()
+        )
+
+    def next(self):
+        return type(self)(
+            self.original_query, **self._next_page_params()
+        )

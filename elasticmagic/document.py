@@ -267,6 +267,10 @@ class DynamicDocumentMeta(DocumentMeta):
         return dynamic_defaults
 
     def __getattr__(cls, name):
+        if name.startswith('__') and name.endswith('__'):
+            raise AttributeError(
+                "'{}' class has no attribute '{}'".format(cls, name)
+            )
         return cls.fields[name]
 
 

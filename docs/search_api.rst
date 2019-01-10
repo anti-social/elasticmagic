@@ -5,5 +5,9 @@ Search Query API
 ================
 
 .. autoclass:: elasticmagic.search.SearchQuery
-   :member-order: bysource
+   :inherited-members:
    :members:
+   :member-order: bysource
+
+.. autoclass:: elasticmagic.ext.asyncio.search.AsyncSearchQuery
+   :member-order: bysource
