@@ -8,7 +8,6 @@ from .expression import (
     Nested, HasParent, HasChild, QueryRescorer
 )
 from .index import Index
-from .result import DelayedElasticsearchException
 from .search import SearchQuery
 from .types import ValidationError
 from .version import __version__

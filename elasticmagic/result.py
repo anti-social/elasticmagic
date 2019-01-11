@@ -6,18 +6,16 @@ from .compat import string_types
 from .document import DynamicDocument
 
 
-class DelayedElasticsearchException(ElasticsearchException):
-    pass
-
-
 class Result(object):
     def __init__(self, raw_result):
         self.raw = raw_result
 
 
 class SearchResult(Result):
-    def __init__(self, raw_result, aggregations=None,
-                 doc_cls=None, instance_mapper=None):
+    def __init__(
+            self, raw_result, aggregations=None, doc_cls=None,
+            instance_mapper=None,
+    ):
         super(SearchResult, self).__init__(raw_result)
 
         self._query_aggs = aggregations or {}
@@ -28,50 +26,46 @@ class SearchResult(Result):
             doc_classes = (doc_cls,)
         else:
             doc_classes = doc_cls
-        self._doc_cls_map = {doc_cls.__doc_type__: doc_cls for doc_cls in doc_classes}
+        self._doc_cls_map = {
+            doc_cls.__doc_type__: doc_cls for doc_cls in doc_classes
+        }
 
         self._mapper_registry = {}
         if isinstance(instance_mapper, dict):
             self._instance_mappers = instance_mapper
         else:
-            self._instance_mappers = {doc_cls: instance_mapper for doc_cls in doc_classes}
+            self._instance_mappers = {
+                doc_cls: instance_mapper for doc_cls in doc_classes
+            }
 
         self.error = raw_result.get('error')
+        self.took = raw_result.get('took')
+        self.timed_out = raw_result.get('timed_out')
 
-        if not self.error or 'took' in raw_result:
-            self.took = raw_result.get('took')
-            
-        if not self.error or 'timed_out' in raw_result:
-            self.timed_out = raw_result.get('timed_out')
-            
-        if not self.error or 'hits' in raw_result:
-            self.total = raw_result['hits']['total']
-            self.max_score = raw_result['hits']['max_score']
-            self.hits = []
-            for hit in raw_result['hits']['hits']:
-                doc_cls = self._doc_cls_map.get(hit['_type'], DynamicDocument)
-                self.hits.append(doc_cls(_hit=hit, _result=self))
+        hits = raw_result.get('hits') or {}
+        self.total = hits.get('total')
+        self.max_score = hits.get('max_score')
+        self.hits = []
+        for hit in hits.get('hits', []):
+            doc_cls = self._doc_cls_map.get(hit['_type'], DynamicDocument)
+            self.hits.append(doc_cls(_hit=hit, _result=self))
 
-        if not self.error or 'aggregations' in raw_result:
-            self.aggregations = {}
-            for agg_name, agg_expr in self._query_aggs.items():
-                raw_agg_data = raw_result['aggregations'][agg_name]
-                agg_result = agg_expr.build_agg_result(raw_agg_data, self._doc_cls_map, mapper_registry=self._mapper_registry)
-                self.aggregations[agg_name] = agg_result
+        self.aggregations = {}
+        for agg_name, agg_expr in self._query_aggs.items():
+            raw_agg_data = raw_result['aggregations'][agg_name]
+            agg_result = agg_expr.build_agg_result(
+                raw_agg_data, self._doc_cls_map,
+                mapper_registry=self._mapper_registry
+            )
+            self.aggregations[agg_name] = agg_result
 
-        if not self.error or '_scroll_id' in raw_result:
-            self.scroll_id = raw_result.get('_scroll_id')
+        self.scroll_id = raw_result.get('_scroll_id')
             
     def __iter__(self):
         return iter(self.hits)
 
     def __len__(self):
         return len(self.hits)
-
-    def __getattr__(self, name):
-        if self.error and name in ('took', 'timed_out', 'total', 'hits', 'max_score', 'aggregations', 'scroll_id'):
-            raise DelayedElasticsearchException(self.error)
-        return super(SearchResult, self).__getattr__(name)
 
     def get_aggregation(self, name):
         return self.aggregations.get(name)
