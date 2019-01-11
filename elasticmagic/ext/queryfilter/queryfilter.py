@@ -785,7 +785,7 @@ class FacetQueryValue(BaseFilterValue):
 
     @property
     def title(self):
-        return self.opts.get('title', self.value)
+        return text_type(self.opts.get('title', self.value))
 
     def __str__(self):
         return text_type(self.title)
@@ -858,6 +858,11 @@ class FacetQueryFilter(SimpleQueryFilter):
             filters_agg = result.get_aggregation(self._filter_agg_name)
         else:
             filters_agg = result
+        for fv in self.values:
+            filt_agg = filters_agg.get_aggregation(self._make_agg_name(fv.value))
+            if fv.value in values:
+                self.qf._set_selected(self.name, fv.value)
+            self.qf._set_value_data(self.name, fv.value, {'agg': filt_agg})
         facet_result = FacetQueryFilterResult()
         has_selected_values = any(
             map(lambda fv: fv.value in values, self._values)
@@ -932,7 +937,7 @@ class FacetQueryValueResult(object):
 
     @property
     def title(self):
-        return self.opts.get('title', self.value)
+        return text_type(self.opts.get('title', self.value))
 
     def __str__(self):
         return text_type(self.title)
@@ -1089,7 +1094,7 @@ class PageFilter(BaseFilter):
 
     def _get_page(self, params):
         page_num = params.get(self.alias, {}).get('exact')
-        if page_num:
+        if page_num and page_num[0] is not None:
             return page_num[0]
         return 1
 

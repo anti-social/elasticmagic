@@ -1481,6 +1481,11 @@ def test_page(index, client):
             "size": 10
         }
 
+    assert qf.apply(sq, {'p': [None]}).to_dict() == \
+           {
+               "size": 10
+           }
+
     assert qf.apply(sq, {'p': 3}).to_dict() == \
         {
             "size": 10,

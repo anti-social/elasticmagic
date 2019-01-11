@@ -87,12 +87,12 @@ commands:
   test-py2: !Command
     description: Run tests with Python2
     container: py2-test
-    run: [py.test, tests]
+    run: [py.test]
 
   test-py3: !Command
     description: Run tests with Python3
     container: py3-test
-    run: [py.test, tests]
+    run: [py.test]
 
   flake8: !Command
     description: Run flake8 linter
