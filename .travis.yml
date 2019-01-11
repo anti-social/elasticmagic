@@ -52,7 +52,7 @@ script:
   esac
 - |
   case $TRAVIS_PYTHON_VERSION in
-    3.7)
+    3.6|3.7)
       tox -e flake8 ;;
   esac
 - tox -e doctest

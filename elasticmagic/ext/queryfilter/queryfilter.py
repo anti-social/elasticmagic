@@ -859,7 +859,9 @@ class FacetQueryFilter(SimpleQueryFilter):
         else:
             filters_agg = result
         for fv in self.values:
-            filt_agg = filters_agg.get_aggregation(self._make_agg_name(fv.value))
+            filt_agg = filters_agg.get_aggregation(
+                self._make_agg_name(fv.value)
+            )
             if fv.value in values:
                 self.qf._set_selected(self.name, fv.value)
             self.qf._set_value_data(self.name, fv.value, {'agg': filt_agg})
