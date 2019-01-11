@@ -164,7 +164,6 @@ class BaseCluster(with_metaclass(ABCMeta)):
         params = clean_params(params, **kwargs)
         return body, params
 
-
     def _search_result(self, q, raw_result):
         return SearchResult(
             raw_result, q._aggregations,
@@ -175,7 +174,9 @@ class BaseCluster(with_metaclass(ABCMeta)):
     def _prepare_query(self, q):
         query_compiler = self._get_compiler().compiled_query
         if isinstance(q, BaseSearchQuery):
-            query = q.get_context().get_filtered_query(wrap_function_score=False)
+            query = q.get_context().get_filtered_query(
+                wrap_function_score=False
+            )
         else:
             query = q
 
@@ -278,7 +279,9 @@ class BaseCluster(with_metaclass(ABCMeta)):
         else:
             body = doc_cls_or_mapping
         if params.get('doc_type', None) is None:
-            params['doc_type'] = getattr(doc_cls_or_mapping, '__doc_type__', None)
+            params['doc_type'] = getattr(
+                doc_cls_or_mapping, '__doc_type__', None
+            )
         return body, clean_params(params, **kwargs)
 
     def _put_mapping_result(self, raw_result):
@@ -404,8 +407,8 @@ class Cluster(BaseCluster):
         )
 
     def count(
-            self, q=None, index=None, doc_type=None, routing=None, preference=None,
-            **kwargs
+            self, q=None, index=None, doc_type=None, routing=None,
+            preference=None, **kwargs
     ):
         body, params = self._count_params(locals())
         return self._count_result(

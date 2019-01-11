@@ -57,7 +57,8 @@ class AsyncIndex(BaseIndex):
     msearch = multi_search
 
     async def count(
-            self, q=None, doc_type=None, routing=None, preference=None, **kwargs
+            self, q=None, doc_type=None, routing=None, preference=None,
+            **kwargs
     ):
         return await self._cluster.count(
             q, index=self._name, doc_type=doc_type, routing=routing,
@@ -87,8 +88,9 @@ class AsyncIndex(BaseIndex):
 
     async def put_mapping(
             self, doc_cls_or_mapping, doc_type=None, allow_no_indices=None,
-            expand_wildcards=None, ignore_conflicts=None, ignore_unavailable=None,
-            master_timeout=None, timeout=None, **kwargs
+            expand_wildcards=None, ignore_conflicts=None,
+            ignore_unavailable=None, master_timeout=None, timeout=None,
+            **kwargs
     ):
         return await self._cluster.put_mapping(
             doc_cls_or_mapping, index=self._name, doc_type=doc_type,

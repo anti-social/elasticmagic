@@ -39,7 +39,7 @@ class SearchQueryWrapper(BaseSearchQueryWrapper):
         if self.items is None:
             raise ValueError('Slice first')
         return iter(self.items)
-    
+
     def __len__(self):
         if self.count is None:
             raise ValueError('Slice first')

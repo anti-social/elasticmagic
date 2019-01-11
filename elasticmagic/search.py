@@ -105,12 +105,12 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
         .. _fields_arg:
 
-        :param \*fields: list of fields which should be returned by \
+        :param \\*fields: list of fields which should be returned by
         elasticsearch. Can be one of the following types:
 
            - field expression, for example: ``PostDocument.title``
-           - ``str`` means field name or glob pattern. For example: ``"title"``,
-             ``"user.*"``
+           - ``str`` means field name or glob pattern. For example: 
+             ``"title"``, ``"user.*"``
            - ``False`` disables retrieving source
            - ``True`` enables retrieving all source document
            - ``None`` cancels source filtering applied before
@@ -131,7 +131,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
         See `source filtering <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-source-filtering.html>`_
         for more information.
-        """
+        """  # noqa:E501
         if len(fields) == 1 and fields[0] is None:
             if '_source' in self.__dict__:
                 del self._source
@@ -157,7 +157,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         See `stored fields <https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-store.html>`_ and
         `stored fields filtering <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-stored-fields.html>`_
         for more information.
-        """
+        """  # noqa:E501
         if len(fields) == 1 and fields[0] is None:
             if '_fields' in self.__dict__:
                 del self._fields
@@ -222,7 +222,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
            # }
 
         See `script fields <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-script-fields.html>`_
-        """
+        """  # noqa:E501
         self._script_fields = Params(kwargs)
 
     @_with_clone
@@ -230,7 +230,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         """Replaces query clause. Elasticsearch's query clause will calculate
         ``_score`` for every matching document.
 
-        :param q: query expression. Existing query can be cancelled by passing \
+        :param q: query expression. Existing query can be cancelled by passing
         ``None``.
 
         .. testcode:: query
@@ -273,7 +273,9 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
            assert search_query.to_dict() == {
                'query': {'bool': {'filter': {'bool': {'must': [
                    {'term': {'status': 'published'}},
-                   {'range': {'publish_date': {'gte': datetime.date(2015, 1, 1)}}}]}}}}}
+                   {'range': {
+                       'publish_date': {
+                           'gte': datetime.date(2015, 1, 1)}}}]}}}}}
 
         Filter expression can be a python dictionary object:
 
@@ -281,7 +283,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
            search_query = SearchQuery().filter({'term': {'status': 'published'}})
 
-        """
+        """  # noqa:E501
         meta = kwargs.pop('meta', None)
         self._filters = self._filters + filters
         self._filters_meta = self._filters_meta + (meta,) * len(filters)
@@ -293,7 +295,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
         All parameters have the same meaning as for
         :meth:`.filter` method.
-        """
+        """  # noqa:E501
         if len(filters) == 1 and filters[0] is None:
             if '_post_filters' in self.__dict__:
                 del self._post_filters
@@ -305,7 +307,8 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
     @_with_clone
     def order_by(self, *orders):
-        """Apply sorting criterion to the search query. Corresponds elasticsearch's
+        """Apply sorting criterion to the search query. 
+        Corresponds elasticsearch's
         `sort <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-sort.html>`_.
 
         .. testcode:: order_by
@@ -328,7 +331,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
            search_query = SearchQuery().order_by(None)
            assert search_query.to_dict() == {}
-        """
+        """  # noqa:E501
         if len(orders) == 1 and orders[0] is None:
             if '_order_by' in self.__dict__:
                 del self._order_by
@@ -340,7 +343,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         """Adds `aggregations <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations.html>`_
         to the search query.
 
-        :param \*aggs: dictionaries with aggregations. Can be ``None`` that \
+        :param \\*aggs: dictionaries with aggregations. Can be ``None`` that
         cleans up previous aggregations.
 
         After executing the query you can get aggregation result by its name
@@ -361,7 +364,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
                    'stars': {'terms': {'field': 'stars', 'size': 50},
                        'aggregations': {
                            'profit': {'sum': {'field': 'profit'}}}}}}
-        """
+        """  # noqa:E501
         if len(args) == 1 and args[0] is None:
             if '_aggregations' in self.__dict__:
                 del self._aggregations
@@ -378,15 +381,21 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         """Adds `function scores <https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-function-score-query.html>`_
         to the search query.
 
-        :param \*functions: list of function scores.
+        :param \\*functions: list of function scores.
 
         .. testcode:: function_score
 
            from elasticmagic import Weight, FieldValueFactor
 
-           search_query = SearchQuery(PostDocument.title.match('test')).function_score(
-               Weight(2, filter=PostDocument.created_date == 'now/d'),
-               FieldValueFactor(PostDocument.popularity, factor=1.2, modifier='sqrt'))
+           search_query = (
+               SearchQuery(PostDocument.title.match('test'))
+               .function_score(
+                   Weight(2, filter=PostDocument.created_date == 'now/d'),
+                   FieldValueFactor(
+                       PostDocument.popularity, factor=1.2, modifier='sqrt'
+                   )
+               )
+           )
 
         .. testcode:: function_score
 
@@ -397,8 +406,11 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
                        'functions': [
                            {'weight': 2,
                             'filter': {'term': {'created_date': 'now/d'}}},
-                           {'field_value_factor': {'field': 'popularity', 'factor': 1.2, 'modifier': 'sqrt'}}]}}}
-        """
+                           {'field_value_factor': {
+                                'field': 'popularity',
+                                'factor': 1.2,
+                                 'modifier': 'sqrt'}}]}}}
+        """  # noqa:E501
 
         if args == (None,):
             if '_function_score' in self.__dict__:
@@ -414,7 +426,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         """Adds one more level of the function_score query with default
         sum modes. It is especially useful for complex ordering scenarios.
 
-        :param \*functions: See :meth:`.function_score`
+        :param \\*functions: See :meth:`.function_score`
 
         .. testcode:: boost_score
 
@@ -427,10 +439,11 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
                    Factor(PostDocument.popularity, modifier='sqrt'))
                .boost_score(
                    # Display advertized posts higher than any others
-                   ScriptScore(Script(inline='log10(10.0 + doc[cpc_field].value)',
-                                      params={'cpc_field': PostDocument.adv_cpc}),
-                               weight=1000,
-                               filter=PostDocument.adv_cpc > 0))
+                   ScriptScore(
+                       Script(inline='log10(10.0 + doc[cpc_field].value)',
+                              params={'cpc_field': PostDocument.adv_cpc}),
+                       weight=1000,
+                       filter=PostDocument.adv_cpc > 0))
            )
 
         .. testcode:: boost_score
@@ -442,8 +455,9 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
                            'function_score': {
                                'query': {'match': {'title': 'test'}},
                                'functions': [
-                                   {'field_value_factor': {'field': 'popularity',
-                                                           'modifier': 'sqrt'}}]}},
+                                   {'field_value_factor': {
+                                       'field': 'popularity',
+                                       'modifier': 'sqrt'}}]}},
                        'functions': [
                            {'script_score': {'script': {
                                 'inline': 'log10(10.0 + doc[cpc_field].value)',
@@ -467,7 +481,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         """Sets size of the maximum amount of hits. Used for pagination.
 
         See `from / size <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-from-size.html>`_
-        """
+        """  # noqa:E501
         self._limit = limit
 
     size = limit
@@ -477,7 +491,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         """Sets the offset - the number of hits to skip. Used for pagination.
 
         See `from / size <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-from-size.html>`_
-        """
+        """  # noqa:E501
         self._offset = offset
 
     from_ = offset
@@ -485,13 +499,15 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
     @_with_clone
     def min_score(self, min_score):
         """Excludes hits with a ``_score`` less then ``min_score``. See
-        `min score <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-min-score.html>`_"""
+        `min score <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-min-score.html>`_
+        """  # noqa:E501
         self._min_score = min_score
 
     @_with_clone
     def rescore(self, rescorer, window_size=None):
         """Adds a rescorer for the query. See
-        `rescoring <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-rescore.html>`_"""
+        `rescoring <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-rescore.html>`_
+        """  # noqa:E501
         if rescorer is None:
             if '_rescores' in self.__dict__:
                 del self._rescores
@@ -502,7 +518,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
     @_with_clone
     def suggest(self, *args, **kwargs):
         """Adds `suggesters <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-suggesters.html>`_
-        to the query"""
+        to the query"""  # noqa:E501
         if args == (None,):
             if'_suggest' in self.__dict__:
                 del self._suggest
@@ -525,8 +541,10 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
            from elasticmagic import MultiMatch
 
            search_query = (
-               SearchQuery(MultiMatch('The quick brown fox',
-                                      [PostDocument.title, PostDocument.content]))
+               SearchQuery(
+                   MultiMatch('The quick brown fox',
+                              [PostDocument.title, PostDocument.content])
+               )
                .highlight([PostDocument.title, PostDocument.content])
            )
 
@@ -535,7 +553,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
         See `highlighting <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-highlighting.html>`_
         for details.
-        """
+        """  # noqa:E501
         self._highlight = Highlight(
             fields=fields, type=type, pre_tags=pre_tags, post_tags=post_tags,
             fragment_size=fragment_size,
@@ -770,7 +788,7 @@ class SearchQuery(BaseSearchQuery):
     def count(self):
         """Executes current query and returns number of documents matched the
         query. Uses `count api <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-count.html>`_.
-        """
+        """  # noqa:E501
         return self._index_or_cluster.count(
             self, **self._prepare_search_params()
         ).count
@@ -779,7 +797,7 @@ class SearchQuery(BaseSearchQuery):
         """Executes current query optimized for checking that
         there are at least 1 matching document. This method is an analogue of
         the old `exists search api <https://www.elastic.co/guide/en/elasticsearch/reference/2.4/search-exists.html>`_
-        """
+        """  # noqa:E501
         return self._exists_query().get_result().total >= 1
 
     def delete(
@@ -794,7 +812,7 @@ class SearchQuery(BaseSearchQuery):
            As it uses `delete by query api <https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html>`_
            the documents that were changed between the time when a snapshot was
            taken and when the delete request was processed won't be deleted.
-        """
+        """  # noqa:E501
         return self._index_or_cluster.delete_by_query(
             self,
             doc_type=self._get_doc_type(),

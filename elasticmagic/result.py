@@ -1,7 +1,5 @@
 import collections
 
-from elasticsearch import ElasticsearchException
-
 from .compat import string_types
 from .document import DynamicDocument
 
@@ -60,7 +58,7 @@ class SearchResult(Result):
             self.aggregations[agg_name] = agg_result
 
         self.scroll_id = raw_result.get('_scroll_id')
-            
+
     def __iter__(self):
         return iter(self.hits)
 
@@ -72,7 +70,9 @@ class SearchResult(Result):
 
     def _populate_instances(self, doc_cls):
         docs = [doc for doc in self.hits if isinstance(doc, doc_cls)]
-        instances = self._instance_mappers.get(doc_cls)([doc._id for doc in docs])
+        instances = self._instance_mappers.get(doc_cls)(
+            [doc._id for doc in docs]
+        )
         for doc in docs:
             doc.__dict__['instance'] = instances.get(doc._id)
 
