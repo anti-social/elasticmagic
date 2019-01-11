@@ -66,8 +66,8 @@ class AsyncCluster(BaseCluster):
         )
 
     async def count(
-            self, q=None, index=None, doc_type=None, routing=None, preference=None,
-            **kwargs
+            self, q=None, index=None, doc_type=None, routing=None,
+            preference=None, **kwargs
     ):
         body, params = self._count_params(locals())
         return self._count_result(

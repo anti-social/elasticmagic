@@ -310,6 +310,7 @@ class ExpressionCompiled(Compiled):
             params['filter'] = self.visit(func.filter)
         return params
 
+
 class ExpressionCompiled50(ExpressionCompiled):
     def visit_missing(self, expr):
         return self.visit(
@@ -377,45 +378,45 @@ class QueryCompiled(Compiled):
 
     def visit_search_query(self, query):
         params = {}
-        query_context = query.get_context()
+        query_ctx = query.get_context()
 
-        q = self.get_filtered_query(query_context)
+        q = self.get_filtered_query(query_ctx)
         if q is not None:
             params['query'] = self.visit_expression(q)
 
-        post_filter = self.get_post_filter(query_context)
+        post_filter = self.get_post_filter(query_ctx)
         if post_filter:
             params['post_filter'] = self.visit_expression(post_filter)
 
-        if query_context.order_by:
-            params['sort'] = self.visit_expression(query_context.order_by)
-        if query_context.source:
-            params['_source'] = self.visit_expression(query_context.source)
-        if query_context.fields is not None:
-            if query_context.fields is True:
+        if query_ctx.order_by:
+            params['sort'] = self.visit_expression(query_ctx.order_by)
+        if query_ctx.source:
+            params['_source'] = self.visit_expression(query_ctx.source)
+        if query_ctx.fields is not None:
+            if query_ctx.fields is True:
                 params['fields'] = '*'
-            elif query_context.fields is False:
+            elif query_ctx.fields is False:
                 params['fields'] = []
             else:
-                params['fields'] = self.visit_expression(query_context.fields)
-        if query_context.aggregations:
+                params['fields'] = self.visit_expression(query_ctx.fields)
+        if query_ctx.aggregations:
             params['aggregations'] = self.visit_expression(
-                query_context.aggregations)
-        if query_context.limit is not None:
-            params['size'] = query_context.limit
-        if query_context.offset is not None:
-            params['from'] = query_context.offset
-        if query_context.min_score is not None:
-            params['min_score'] = query_context.min_score
-        if query_context.rescores:
-            params['rescore'] = self.visit_expression(query_context.rescores)
-        if query_context.suggest:
-            params['suggest'] = self.visit_expression(query_context.suggest)
-        if query_context.highlight:
-            params['highlight'] = self.visit_expression(query_context.highlight)
-        if query_context.script_fields:
+                query_ctx.aggregations)
+        if query_ctx.limit is not None:
+            params['size'] = query_ctx.limit
+        if query_ctx.offset is not None:
+            params['from'] = query_ctx.offset
+        if query_ctx.min_score is not None:
+            params['min_score'] = query_ctx.min_score
+        if query_ctx.rescores:
+            params['rescore'] = self.visit_expression(query_ctx.rescores)
+        if query_ctx.suggest:
+            params['suggest'] = self.visit_expression(query_ctx.suggest)
+        if query_ctx.highlight:
+            params['highlight'] = self.visit_expression(query_ctx.highlight)
+        if query_ctx.script_fields:
             params['script_fields'] = self.visit_expression(
-                query_context.script_fields
+                query_ctx.script_fields
             )
         return params
 
@@ -426,7 +427,9 @@ class QueryCompiled20(QueryCompiled):
         q = cls.get_query(
             query_context, wrap_function_score=wrap_function_score)
         if query_context.filters:
-            return Bool(must=q, filter=Bool.must(*query_context.iter_filters()))
+            return Bool(
+                must=q, filter=Bool.must(*query_context.iter_filters())
+            )
         return q
 
 
@@ -470,7 +473,9 @@ class MappingCompiled(Compiled):
             if isinstance(field._fields, collections.Mapping):
                 for subfield_name, subfield in field._fields.items():
                     subfield_name = subfield.get_name() or subfield_name
-                    subfield_mapping = next(iter(self.visit(subfield).values()))
+                    subfield_mapping = next(iter(
+                        self.visit(subfield).values()
+                    ))
                     mapping.setdefault('fields', {}) \
                         .update({subfield_name: subfield_mapping})
             else:

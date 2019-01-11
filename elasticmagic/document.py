@@ -51,14 +51,17 @@ class DocumentMeta(type):
 
         for dyn_field in cls.__dynamic_fields__:
             cls._dynamic_fields[dyn_field.get_name()] = AttributedField(
-                cls, dyn_field.get_name(), dyn_field)
+                cls, dyn_field.get_name(), dyn_field
+            )
 
         return cls
 
     def _get_dynamic_defaults(cls):
         dynamic_defaults = {}
         for dyn_field in cls.__dynamic_fields__:
-            default = _attributed_field_factory(AttributedField, cls, dyn_field)
+            default = _attributed_field_factory(
+                AttributedField, cls, dyn_field
+            )
             dynamic_defaults[dyn_field.get_name()] = default
         return dynamic_defaults
 
@@ -150,8 +153,10 @@ class Document(with_metaclass(DocumentMeta)):
                         _hit.get(attr_field._field._name))
             if _hit.get('_source'):
                 for hit_key, hit_value in _hit['_source'].items():
-                    setattr(self,
-                            *self._process_source_key_value(hit_key, hit_value))
+                    setattr(
+                        self,
+                        *self._process_source_key_value(hit_key, hit_value)
+                    )
             if _hit.get('fields'):
                 # we cannot construct document from fields
                 # in next example we cannot decide
@@ -187,7 +192,9 @@ class Document(with_metaclass(DocumentMeta)):
                 field_type = attr_field.get_field().get_type()
                 doc_cls = field_type.doc_cls
             if field_type:
-                processed_values = list(map(field_type.to_python, field_values))
+                processed_values = list(
+                    map(field_type.to_python, field_values)
+                )
             else:
                 processed_values = field_values
             processed_fields[field_name] = processed_values
@@ -221,7 +228,7 @@ class Document(with_metaclass(DocumentMeta)):
                         ))
                     continue
                 value = attr_field.get_type() \
-                                  .from_python(value, validate=validate)
+                    .from_python(value, validate=validate)
                 res[attr_field._field._name] = value
 
         for attr_field in self._fields.values():

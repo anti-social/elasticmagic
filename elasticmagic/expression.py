@@ -219,8 +219,8 @@ class Boosting(QueryExpression):
     __query_name__ = 'boosting'
 
     def __init__(
-            self, positive=None, negative=None, negative_boost=None, boost=None,
-            **kwargs
+            self, positive=None, negative=None, negative_boost=None,
+            boost=None, **kwargs
     ):
         super(Boosting, self).__init__(
             positive=positive, negative=negative,

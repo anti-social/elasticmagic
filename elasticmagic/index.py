@@ -79,9 +79,9 @@ class Index(BaseIndex):
     mget = multi_get
 
     def search(
-            self, q, doc_type=None, routing=None, preference=None, timeout=None,
-            search_type=None, query_cache=None, terminate_after=None,
-            scroll=None, **kwargs
+            self, q, doc_type=None, routing=None, preference=None,
+            timeout=None, search_type=None, query_cache=None,
+            terminate_after=None, scroll=None, **kwargs
     ):
         return self._cluster.search(
             q, index=self._name, doc_type=doc_type,

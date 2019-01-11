@@ -40,7 +40,9 @@ class AggExpression(ParamsExpression):
     def clone(self):
         return self.__class__(**self.params)
 
-    def build_agg_result(self, raw_data, doc_cls_map=None, mapper_registry=None):
+    def build_agg_result(
+            self, raw_data, doc_cls_map=None, mapper_registry=None,
+    ):
         raise NotImplementedError()
 
 
@@ -50,7 +52,9 @@ class AggResult(object):
 
 
 class MetricsAgg(AggExpression):
-    def build_agg_result(self, raw_data, doc_cls_map=None, mapper_registry=None):
+    def build_agg_result(
+            self, raw_data, doc_cls_map=None, mapper_registry=None,
+    ):
         return self.result_cls(self, raw_data)
 
 
@@ -59,7 +63,9 @@ class BucketAgg(AggExpression):
 
     def __init__(self, aggs=None, **kwargs):
         super(BucketAgg, self).__init__(**kwargs)
-        self._aggregations = Params(aggs or {}, **kwargs.pop('aggregations', {}))
+        self._aggregations = Params(
+            aggs or {}, **kwargs.pop('aggregations', {})
+        )
 
     def clone(self):
         return self.__class__(aggs=self._aggregations, **self.params)
@@ -73,8 +79,14 @@ class BucketAgg(AggExpression):
 
     aggs = aggregations
 
-    def build_agg_result(self, raw_data, doc_cls_map=None, mapper_registry=None):
-        return self.result_cls(self, raw_data, doc_cls_map=doc_cls_map, mapper_registry=mapper_registry)
+    def build_agg_result(
+            self, raw_data, doc_cls_map=None, mapper_registry=None,
+    ):
+        return self.result_cls(
+            self, raw_data,
+            doc_cls_map=doc_cls_map,
+            mapper_registry=mapper_registry,
+        )
 
 
 class SingleValueMetricsAggResult(AggResult):
@@ -82,14 +94,18 @@ class SingleValueMetricsAggResult(AggResult):
         super(SingleValueMetricsAggResult, self).__init__(agg_expr)
         # TODO: Do we really need to coerce to float?
         self.value = maybe_float(raw_data['value'])
-        self.value_as_string = raw_data.get('value_as_string', force_unicode(raw_data['value']))
+        self.value_as_string = raw_data.get(
+            'value_as_string', force_unicode(raw_data['value'])
+        )
 
 
 class SingleValueMetricsAgg(MetricsAgg):
     result_cls = SingleValueMetricsAggResult
 
     def __init__(self, field=None, script=None, **kwargs):
-        super(SingleValueMetricsAgg, self).__init__(field=field, script=script, **kwargs)
+        super(SingleValueMetricsAgg, self).__init__(
+            field=field, script=script, **kwargs
+        )
 
 
 class MultiValueMetricsAggResult(AggResult):
@@ -135,7 +151,7 @@ class Min(SingleValueMetricsAgg):
 
        10.0
        10.0
-    """
+    """  # noqa:E501
     __agg_name__ = 'min'
 
 
@@ -143,7 +159,7 @@ class Max(SingleValueMetricsAgg):
     """A single-value metric aggregation that returns the maximum value among
     all extracted numeric values. See
     `max agg <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-max-aggregation.html>`_.
-    """
+    """  # noqa:E501
     __agg_name__ = 'max'
 
 
@@ -172,7 +188,7 @@ class Sum(SingleValueMetricsAgg):
 
        450.0
        450.0
-    """
+    """  # noqa:E501
     __agg_name__ = 'sum'
 
 
@@ -180,7 +196,7 @@ class Avg(SingleValueMetricsAgg):
     """A single-value metric aggregation that computes average of all extracted
     numeric values. See
     `avg agg <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-avg-aggregation.html>`_.
-    """
+    """  # noqa:E501
     __agg_name__ = 'avg'
 
 
@@ -215,12 +231,15 @@ class ValueCount(SingleValueMetricsAgg):
     .. testoutput:: value-count
 
        7.0
-    """
+    """  # noqa:E501
     __agg_name__ = 'value_count'
 
 
 class TopHitsResult(AggResult):
-    def __init__(self, agg_expr, raw_data, doc_cls_map, mapper_registry, instance_mapper):
+    def __init__(
+            self, agg_expr, raw_data, doc_cls_map,
+            mapper_registry, instance_mapper,
+    ):
         super(TopHitsResult, self).__init__(agg_expr)
         hits_data = raw_data['hits']
         self.total = hits_data['total']
@@ -234,7 +253,9 @@ class TopHitsResult(AggResult):
         if isinstance(instance_mapper, dict):
             self._instance_mappers = instance_mapper
         else:
-            self._instance_mappers = {doc_cls: instance_mapper for doc_cls in doc_cls_map.values()}
+            self._instance_mappers = {
+                doc_cls: instance_mapper for doc_cls in doc_cls_map.values()
+            }
 
         if mapper_registry is None:
             self._mapper_registry = {}
@@ -243,14 +264,18 @@ class TopHitsResult(AggResult):
 
         if self._instance_mappers:
             for instance_mapper in self._instance_mappers.values():
-                self._mapper_registry.setdefault(instance_mapper, []).append(self)
+                self._mapper_registry \
+                    .setdefault(instance_mapper, []) \
+                    .append(self)
 
     def _populate_instances(self, doc_cls):
         instance_mapper = self._instance_mappers.get(doc_cls)
         hits = list(chain(
             *(
                 map(
-                    lambda r: filter(lambda hit: isinstance(hit, doc_cls), r.hits),
+                    lambda r: filter(
+                        lambda hit: isinstance(hit, doc_cls), r.hits
+                    ),
                     self._mapper_registry.get(instance_mapper, [self])
                 )
             )
@@ -302,7 +327,9 @@ class TopHits(MetricsAgg):
                aggs={'top_sales_hits': agg.TopHits(
                    size=1,
                    sort=SaleDocument.date.desc(),
-                   _source={'includes': [SaleDocument.date, SaleDocument.price]}
+                   _source={
+                       'includes': [SaleDocument.date, SaleDocument.price]
+                   }
                )}
            )
        })
@@ -319,25 +346,34 @@ class TopHits(MetricsAgg):
        top_tags = search_query.get_result().get_aggregation('top_tags')
        for tag_bucket in top_tags.buckets:
            top_hit = tag_bucket.get_aggregation('top_sales_hits').hits[0]
-           print('{0.key} ({0.doc_count}) - {1.price}'.format(tag_bucket, top_hit))
+           print(
+               '{0.key} ({0.doc_count}) - {1.price}'.format(
+                   tag_bucket, top_hit
+               )
+           )
 
     .. testoutput:: top-hits
 
        hat (3) - 200
        t-shirt (3) - 175
        bag (1) - 150
-    """
+    """  # noqa:E501
     __agg_name__ = 'top_hits'
 
     result_cls = TopHitsResult
 
-    def __init__(self, size=None, from_=None, sort=None, _source=None, instance_mapper=None, **kwargs):
+    def __init__(
+            self, size=None, from_=None, sort=None, _source=None,
+            instance_mapper=None, **kwargs
+    ):
         super(TopHits, self).__init__(
             size=size, from_=from_, sort=sort, _source=_source, **kwargs
         )
         self._instance_mapper = instance_mapper
 
-    def build_agg_result(self, raw_data, doc_cls_map=None, mapper_registry=None):
+    def build_agg_result(
+            self, raw_data, doc_cls_map=None, mapper_registry=None
+    ):
         doc_cls_map = doc_cls_map or {}
         return self.result_cls(
             self, raw_data, doc_cls_map, mapper_registry, self._instance_mapper
@@ -386,7 +422,7 @@ class Stats(MultiValueMetricsAgg):
        max: 98
        avg: 78.5
        sum: 471
-    """
+    """  # noqa:E501
     __agg_name__ = 'stats'
 
     result_cls = StatsResult
@@ -411,13 +447,15 @@ class ExtendedStats(Stats):
     This aggregation is an extended version of the :class:`Stats` aggregation.
     There are some additional metrics:
     `sum_of_squares`, `variance`, `std_deviation`.
-    """
+    """  # noqa:E501
     __agg_name__ = 'extended_stats'
 
     result_cls = ExtendedStatsResult
 
     def __init__(self, field=None, script=None, **kwargs):
-        super(ExtendedStats, self).__init__(field=field, script=script, **kwargs)
+        super(ExtendedStats, self).__init__(
+            field=field, script=script, **kwargs
+        )
 
 
 class BasePercentilesAggResult(MultiValueMetricsAggResult):
@@ -474,7 +512,8 @@ class Percentiles(MultiValueMetricsAgg):
            'aggregations': {
                'load_time_outlier': {
                    'percentiles': {'field': 'load_time'}}}}
-       load_time_agg = search_query.get_result().get_aggregation('load_time_outlier')
+       load_time_agg = search_query.get_result() \
+           .get_aggregation('load_time_outlier')
        for p, v in load_time_agg.values[:-1]:
            print('{:<4} - {}'.format(p, v))
        print('99 percentile is: {}'.format(load_time_agg.get_value(99)))
@@ -488,14 +527,18 @@ class Percentiles(MultiValueMetricsAgg):
        75.0 - 29.0
        95.0 - 60.0
        99 percentile is: 150.0
-    """
+    """  # noqa:E501
     __agg_name__ = 'percentiles'
 
     result_cls = PercentilesAggResult
 
-    def __init__(self, field=None, script=None, percents=None, compression=None, **kwargs):
+    def __init__(
+            self, field=None, script=None, percents=None, compression=None,
+            **kwargs
+    ):
         super(Percentiles, self).__init__(
-            field=field, script=script, percents=percents, compression=compression, **kwargs
+            field=field, script=script, percents=percents,
+            compression=compression, **kwargs
         )
 
 
@@ -532,24 +575,31 @@ class PercentileRanks(MultiValueMetricsAgg):
                    'percentile_ranks': {
                        'field': 'load_time',
                        'values': [15, 30]}}}}
-       load_time_agg = search_query.get_result().get_aggregation('load_time_outlier')
+       load_time_agg = search_query.get_result() \
+           .get_aggregation('load_time_outlier')
        for v, p in load_time_agg.values:
            print('{:<4} - {}'.format(v, p))
-       print('{}% of values are below 15'.format(load_time_agg.get_percent(15)))
+       print(
+           '{}% of values are below 15'.format(load_time_agg.get_percent(15))
+       )
 
     .. testoutput:: percentile-ranks
 
        15.0 - 92.0
        30.0 - 100.0
        92.0% of values are below 15
-    """
+    """  # noqa:E501
     __agg_name__ = 'percentile_ranks'
 
     result_cls = PercentileRanksAggResult
 
-    def __init__(self, field=None, script=None, values=None, compression=None, **kwargs):
+    def __init__(
+            self, field=None, script=None, values=None, compression=None,
+            **kwargs
+    ):
         super(PercentileRanks, self).__init__(
-            field=field, script=script, values=values, compression=None, **kwargs
+            field=field, script=script, values=values, compression=compression,
+            **kwargs
         )
 
 
@@ -557,10 +607,13 @@ class Cardinality(SingleValueMetricsAgg):
     """A single-value metrics aggregation that calculates an approximate count
     of distinct values. See
     `cardinality agg <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cardinality-aggregation.html>`_.
-    """
+    """  # noqa:E501
     __agg_name__ = 'cardinality'
 
-    def __init__(self, field=None, script=None, precision_threshold=None, rehash=None, **kwargs):
+    def __init__(
+            self, field=None, script=None, precision_threshold=None,
+            rehash=None, **kwargs
+    ):
         super(Cardinality, self).__init__(
             field=field, script=script,
             precision_threshold=precision_threshold, rehash=rehash,
@@ -571,7 +624,10 @@ class Cardinality(SingleValueMetricsAgg):
 class Bucket(object):
     _typed_key = True
 
-    def __init__(self, raw_data, agg_expr, parent, doc_cls_map=None, mapper_registry=None):
+    def __init__(
+            self, raw_data, agg_expr, parent, doc_cls_map=None,
+            mapper_registry=None,
+    ):
         self.key = raw_data.get('key')
         if self._typed_key:
             self.key = agg_expr._type.to_python_single(self.key)
@@ -580,7 +636,9 @@ class Bucket(object):
         self.aggregations = {}
         for agg_name, agg_expr in agg_expr._aggregations.items():
             result_agg = agg_expr.build_agg_result(
-                raw_data[agg_name], doc_cls_map=doc_cls_map, mapper_registry=mapper_registry
+                raw_data[agg_name],
+                doc_cls_map=doc_cls_map,
+                mapper_registry=mapper_registry,
             )
             self.aggregations[agg_name] = result_agg
 
@@ -603,14 +661,19 @@ class Bucket(object):
 class MultiBucketAggResult(AggResult):
     bucket_cls = Bucket
 
-    def __init__(self, agg_expr, raw_data, doc_cls_map, mapper_registry, instance_mapper):
+    def __init__(
+            self, agg_expr, raw_data, doc_cls_map,
+            mapper_registry, instance_mapper,
+    ):
         super(MultiBucketAggResult, self).__init__(agg_expr)
 
         raw_buckets = raw_data.get('buckets', [])
         if isinstance(raw_buckets, dict):
             raw_buckets_map = raw_buckets
             raw_buckets = []
-            for key, raw_bucket in sorted(raw_buckets_map.items(), key=lambda i: i[0]):
+            for key, raw_bucket in sorted(
+                    raw_buckets_map.items(), key=lambda i: i[0]
+            ):
                 raw_bucket = raw_bucket.copy()
                 raw_bucket.setdefault('key', key)
                 raw_buckets.append(raw_bucket)
@@ -619,7 +682,8 @@ class MultiBucketAggResult(AggResult):
         self._buckets_map = {}
         for raw_bucket in raw_buckets:
             bucket = self.bucket_cls(
-                raw_bucket, agg_expr, self, doc_cls_map=doc_cls_map, mapper_registry=mapper_registry
+                raw_bucket, agg_expr, self, doc_cls_map=doc_cls_map,
+                mapper_registry=mapper_registry,
             )
             self.add_bucket(bucket)
 
@@ -630,7 +694,9 @@ class MultiBucketAggResult(AggResult):
             self._mapper_registry = mapper_registry
 
         if self._instance_mapper:
-            self._mapper_registry.setdefault(self._instance_mapper, []).append(self)
+            self._mapper_registry \
+                .setdefault(self._instance_mapper, []) \
+                .append(self)
 
     def add_bucket(self, bucket):
         self._buckets.append(bucket)
@@ -649,10 +715,15 @@ class MultiBucketAggResult(AggResult):
 
     def _populate_instances(self):
         buckets = list(chain(
-            *(a._buckets for a in self._mapper_registry.get(self._instance_mapper, [self]))
+            *(
+                a._buckets for a in
+                self._mapper_registry.get(self._instance_mapper, [self])
+            )
         ))
         keys = [bucket.key for bucket in buckets]
-        instances = self._instance_mapper(keys) if self._instance_mapper else {}
+        instances = (
+            self._instance_mapper(keys) if self._instance_mapper else {}
+        )
         for bucket in buckets:
             bucket.__dict__['instance'] = instances.get(bucket.key)
 
@@ -673,8 +744,12 @@ class MultiBucketAgg(BucketAgg):
             **self.params
         )
 
-    def build_agg_result(self, raw_data, doc_cls_map=None, mapper_registry=None):
-        return self.result_cls(self, raw_data, doc_cls_map, mapper_registry, self._instance_mapper)
+    def build_agg_result(
+            self, raw_data, doc_cls_map=None, mapper_registry=None
+    ):
+        return self.result_cls(
+            self, raw_data, doc_cls_map, mapper_registry, self._instance_mapper
+        )
 
 
 class Terms(MultiBucketAgg):
@@ -690,8 +765,9 @@ class Terms(MultiBucketAgg):
         type = type or (field.get_type() if field else None)
         super(Terms, self).__init__(
             field=field, script=script, size=size, shard_size=shard_size,
-            order=order, min_doc_count=min_doc_count, shard_min_doc_count=shard_min_doc_count,
-            include=include, exclude=exclude, collect_mode=collect_mode,
+            order=order, min_doc_count=min_doc_count,
+            shard_min_doc_count=shard_min_doc_count, include=include,
+            exclude=exclude, collect_mode=collect_mode,
             execution_hint=execution_hint, type=type, aggs=aggs,
             **kwargs
         )
@@ -707,9 +783,13 @@ class Terms(MultiBucketAgg):
 
 
 class SignificantTermsBucket(Bucket):
-    def __init__(self, raw_data, aggs, parent, doc_cls_map=None, mapper_registry=None):
+    def __init__(
+            self, raw_data, aggs, parent,
+            doc_cls_map=None, mapper_registry=None,
+    ):
         super(SignificantTermsBucket, self).__init__(
-            raw_data, aggs, parent, doc_cls_map=doc_cls_map, mapper_registry=mapper_registry
+            raw_data, aggs, parent,
+            doc_cls_map=doc_cls_map, mapper_registry=mapper_registry,
         )
         self.score = raw_data['score']
         self.bg_count = raw_data['bg_count']
@@ -728,7 +808,9 @@ class SignificantTerms(Terms):
 class Histogram(MultiBucketAgg):
     __agg_name__ = 'histogram'
 
-    def __init__(self, field, interval=None, aggs=None, min_doc_count=1, **kwargs):
+    def __init__(
+            self, field, interval=None, aggs=None, min_doc_count=1, **kwargs
+    ):
         super(Histogram, self).__init__(
             field=field, interval=interval, min_doc_count=min_doc_count,
             aggs=aggs, **kwargs)
@@ -741,8 +823,14 @@ class DateHistogram(Histogram):
 class RangeBucket(Bucket):
     _typed_key = False
 
-    def __init__(self, raw_data, agg_expr, parent, doc_cls_map=None, mapper_registry=None):
-        super(RangeBucket, self).__init__(raw_data, agg_expr, parent, doc_cls_map=doc_cls_map, mapper_registry=mapper_registry)
+    def __init__(
+            self, raw_data, agg_expr, parent,
+            doc_cls_map=None, mapper_registry=None,
+    ):
+        super(RangeBucket, self).__init__(
+            raw_data, agg_expr, parent,
+            doc_cls_map=doc_cls_map, mapper_registry=mapper_registry,
+        )
         self.from_ = agg_expr._type.to_python_single(raw_data.get('from'))
         self.to = agg_expr._type.to_python_single(raw_data.get('to'))
         if self.key is None:
@@ -758,7 +846,10 @@ class Range(MultiBucketAgg):
 
     result_cls = RangeAggResult
 
-    def __init__(self, field=None, script=None, ranges=None, type=None, aggs=None, **kwargs):
+    def __init__(
+            self, field=None, script=None, ranges=None, type=None, aggs=None,
+            **kwargs
+    ):
         type = type or (field.get_type() if field else None)
         super(Range, self).__init__(
             field=field, script=script, ranges=ranges,
@@ -781,7 +872,9 @@ class SingleBucketAggResult(AggResult):
         self.aggregations = {}
         for agg_name, agg_expr in agg_expr._aggregations.items():
             agg_result = agg_expr.build_agg_result(
-                raw_data.get(agg_name, {}), doc_cls_map=doc_cls_map, mapper_registry=mapper_registry
+                raw_data.get(agg_name, {}),
+                doc_cls_map=doc_cls_map,
+                mapper_registry=mapper_registry,
             )
             self.aggregations[agg_name] = agg_result
 
@@ -806,7 +899,9 @@ class Filter(SingleBucketAgg):
         self.filter = filter
 
     def clone(self):
-        return self.__class__(self.filter, aggs=self._aggregations, **self.params)
+        return self.__class__(
+            self.filter, aggs=self._aggregations, **self.params
+        )
 
 
 class Missing(SingleBucketAgg):
@@ -823,10 +918,13 @@ class Nested(SingleBucketAgg):
 class Sampler(SingleBucketAgg):
     __agg_name__ = 'sampler'
 
-    def __init__(self, shard_size=None, field=None, script=None, execution_hint=None, **kwargs):
+    def __init__(
+            self, shard_size=None, field=None, script=None,
+            execution_hint=None, **kwargs
+    ):
         super(Sampler, self).__init__(
-            shard_size=shard_size, field=field, script=script, execution_hint=execution_hint,
-            **kwargs
+            shard_size=shard_size, field=field, script=script,
+            execution_hint=execution_hint, **kwargs
         )
 
 

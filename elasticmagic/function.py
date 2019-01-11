@@ -5,7 +5,9 @@ from .expression import Params, ParamsExpression
 class Script(ParamsExpression):
     __visit_name__ = 'script'
 
-    def __init__(self, lang=None, inline=None, id=None, file=None, params=None):
+    def __init__(
+            self, lang=None, inline=None, id=None, file=None, params=None
+    ):
         assert inline or id or file, \
             "Specify one of the next arguments: 'inline', 'id' of 'file'"
         super(Script, self).__init__(
@@ -42,6 +44,7 @@ class FieldValueFactor(Function):
             filter=filter, **kwargs
         )
 
+
 Factor = FieldValueFactor
 
 
@@ -49,7 +52,9 @@ class ScriptScore(Function):
     __func_name__ = 'script_score'
 
     def __init__(self, script, filter=None, **kwargs):
-        super(ScriptScore, self).__init__(script=script, filter=filter, **kwargs)
+        super(ScriptScore, self).__init__(
+            script=script, filter=filter, **kwargs
+        )
 
 
 class RandomScore(Function):

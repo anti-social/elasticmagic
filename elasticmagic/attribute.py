@@ -3,7 +3,9 @@ from .datastructures import OrderedAttributes
 
 
 # really its factory factory
-def _attributed_field_factory(attr_cls, doc_cls, dynamic_field, make_field_name=None):
+def _attributed_field_factory(
+        attr_cls, doc_cls, dynamic_field, make_field_name=None
+):
     def _attr_field(name):
         field = dynamic_field.clone()
         field._name = make_field_name(name) if make_field_name else name
@@ -24,11 +26,17 @@ class AttributedField(Expression, FieldOperators):
         if self._field._type.doc_cls:
             doc_cls = self._field._type.doc_cls
             dynamic_defaults = {}
-            for dyn_field_name, dyn_attr_field in doc_cls.dynamic_fields.items():
+            for dyn_field_name, dyn_attr_field in \
+                    doc_cls.dynamic_fields.items():
                 dyn_field = dyn_attr_field._field.clone()
                 dyn_field._name = self._make_field_name(dyn_field._name)
-                self._dynamic_fields[dyn_field_name] = AttributedField(self._parent, dyn_field_name, dyn_field)
-                default = _attributed_field_factory(AttributedField, self._parent, dyn_field, self._make_field_name)
+                self._dynamic_fields[dyn_field_name] = AttributedField(
+                    self._parent, dyn_field_name, dyn_field
+                )
+                default = _attributed_field_factory(
+                    AttributedField, self._parent, dyn_field,
+                    self._make_field_name
+                )
                 dynamic_defaults[dyn_field_name] = default
 
             self._sub_fields = OrderedAttributes(defaults=dynamic_defaults)
