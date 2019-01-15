@@ -1,11 +1,10 @@
-from abc import ABCMeta, abstractmethod
+from abc import ABCMeta
 from collections import Iterable, Mapping
 
 from elasticsearch import ElasticsearchException
 
 from .compat import with_metaclass
 from .compiler import (
-    DefaultCompiler,
     ESVersion,
     get_compiler_by_es_version,
 )
@@ -47,27 +46,28 @@ class MultiSearchError(ElasticsearchException):
 
 
 class BaseCluster(with_metaclass(ABCMeta)):
+    _index_cls = None
+    _search_query_cls = None
+
     def __init__(
-            self, client,
-            multi_search_raise_on_error=True, compiler=None,
-            index_cls=None, sniff_elastic_version=False,
+            self, client, index_cls=None,
+            multi_search_raise_on_error=True,
+            autodetect_es_version=True, compiler=None,
     ):
         self._client = client
+        self._index_cls = index_cls or self._index_cls
         self._multi_search_raise_on_error = multi_search_raise_on_error
-        self._compiler = compiler or DefaultCompiler()
-        self._index_cls = index_cls or Index
-        self._sniff_elastic_version = sniff_elastic_version
+        assert autodetect_es_version or compiler, (
+            'Cannot detect compiler: either `autodetect_es_version` should be '
+            '`True` or `compiler` must be specified'
+        )
+        self._autodetect_es_version = autodetect_es_version
+        self._compiler = compiler
         self._index_cache = {}
         self._es_version = None
 
     def __getitem__(self, index_name):
         return self.get_index(index_name)
-
-    def _get_compiler(self):
-        if self._sniff_elastic_version:
-            return get_compiler_by_es_version(self.get_es_version())
-        else:
-            return self._compiler
 
     def get_index(self, name):
         if isinstance(name, tuple):
@@ -80,11 +80,12 @@ class BaseCluster(with_metaclass(ABCMeta)):
     def get_client(self):
         return self._client
 
-    @abstractmethod
     def search_query(self, *args, **kwargs):
         """Returns a :class:`search.SearchQuery` instance that is bound to this
         cluster.
         """
+        kwargs['cluster'] = self
+        return self._search_query_cls(*args, **kwargs)
 
     def query(self, *args, **kwargs):
         return self.search_query(*args, **kwargs)
@@ -155,12 +156,11 @@ class BaseCluster(with_metaclass(ABCMeta)):
 
         return result_docs
 
-    def _search_params(self, params):
+    def _search_params(self, params, compiler):
         params, kwargs = _preprocess_params(params)
         q = params.pop('q')
 
-        query_compiler = self._get_compiler().compiled_query
-        body = q.to_dict(compiler=query_compiler)
+        body = q.to_dict(compiler)
         params = clean_params(params, **kwargs)
         return body, params
 
@@ -171,11 +171,12 @@ class BaseCluster(with_metaclass(ABCMeta)):
             instance_mapper=q._instance_mapper,
         )
 
-    def _prepare_query(self, q):
-        query_compiler = self._get_compiler().compiled_query
+    def _prepare_query(self, q, compiler):
+        query_compiler = compiler.compiled_query
         if isinstance(q, BaseSearchQuery):
-            query = q.get_context().get_filtered_query(
-                wrap_function_score=False
+            query_ctx = q.get_context()
+            query = query_compiler.get_filtered_query(
+                query_ctx, wrap_function_score=False
             )
         else:
             query = q
@@ -186,21 +187,21 @@ class BaseCluster(with_metaclass(ABCMeta)):
         query = Params(query=query)
         return query.to_elastic(compiler=query_compiler)
 
-    def _count_params(self, params):
+    def _count_params(self, params, compiler):
         params, kwargs = _preprocess_params(params)
         q = params.pop('q')
 
-        body = self._prepare_query(q)
+        body = self._prepare_query(q, compiler)
         return body, clean_params(params, **kwargs)
 
     def _count_result(self, raw_result):
         return CountResult(raw_result)
 
-    def _exists_params(self, params):
+    def _exists_params(self, params, compiler):
         params, kwargs = _preprocess_params(params)
         q = params.pop('q')
 
-        body = self._prepare_query(q)
+        body = self._prepare_query(q, compiler)
         return body, clean_params(params, **kwargs)
 
     def _exists_result(self, raw_result):
@@ -226,7 +227,7 @@ class BaseCluster(with_metaclass(ABCMeta)):
     def _clear_scroll_result(self, raw_result):
         return ClearScrollResult(raw_result)
 
-    def _multi_search_params(self, params):
+    def _multi_search_params(self, params, compiler):
         params, kwargs = _preprocess_params(params)
         raise_on_error = params.pop('raise_on_error', None)
         raise_on_error = (
@@ -237,7 +238,6 @@ class BaseCluster(with_metaclass(ABCMeta)):
         queries = params.pop('queries')
 
         params = clean_params(params, **kwargs)
-        query_compiler = self._get_compiler().compiled_query
         body = []
         for q in queries:
             query_header = {}
@@ -247,7 +247,7 @@ class BaseCluster(with_metaclass(ABCMeta)):
             if doc_type:
                 query_header['type'] = doc_type
             query_header.update(q._search_params)
-            body += [query_header, q.to_dict(compiler=query_compiler)]
+            body += [query_header, q.to_dict(compiler)]
         return body, raise_on_error, params
 
     def _multi_search_result(self, queries, raise_on_error, raw_results):
@@ -316,11 +316,11 @@ class BaseCluster(with_metaclass(ABCMeta)):
     def _delete_result(self, raw_result):
         return DeleteResult(raw_result)
 
-    def _delete_by_query_params(self, params):
+    def _delete_by_query_params(self, params, compiler):
         params, kwargs = _preprocess_params(params)
         q = params.pop('q')
 
-        params['body'] = self._prepare_query(q)
+        params['body'] = self._prepare_query(q, compiler)
         return clean_params(params, **kwargs)
 
     def _delete_by_query_result(self, raw_result):
@@ -358,10 +358,14 @@ class BaseCluster(with_metaclass(ABCMeta)):
 
 
 class Cluster(BaseCluster):
-    def search_query(self, *args, **kwargs):
-        kwargs['cluster'] = self
-        kwargs.setdefault('_compiler', self._compiler.compiled_query)
-        return SearchQuery(*args, **kwargs)
+    _index_cls = Index
+    _search_query_cls = SearchQuery
+
+    def get_compiler(self):
+        if self._compiler:
+            return self._compiler
+        else:
+            return get_compiler_by_es_version(self.get_es_version())
 
     def get_es_version(self):
         if not self._es_version:
@@ -400,7 +404,7 @@ class Cluster(BaseCluster):
             timeout=None, search_type=None, query_cache=None,
             terminate_after=None, scroll=None, **kwargs
     ):
-        body, params = self._search_params(locals())
+        body, params = self._search_params(locals(), self.get_compiler())
         return self._search_result(
             q,
             self._client.search(body=body, **params),
@@ -410,7 +414,7 @@ class Cluster(BaseCluster):
             self, q=None, index=None, doc_type=None, routing=None,
             preference=None, **kwargs
     ):
-        body, params = self._count_params(locals())
+        body, params = self._count_params(locals(), self.get_compiler())
         return self._count_result(
             self._client.count(body=body, **params)
         )
@@ -419,7 +423,7 @@ class Cluster(BaseCluster):
             self, q, index=None, doc_type=None, refresh=None, routing=None,
             **kwargs
     ):
-        body, params = self._exists_params(locals())
+        body, params = self._exists_params(locals(), self.get_compiler())
         return self._exists_result(
             self._client.search_exists(body=body, **params)
         )
@@ -446,7 +450,9 @@ class Cluster(BaseCluster):
             routing=None, preference=None, search_type=None,
             raise_on_error=None, **kwargs
     ):
-        body, raise_on_error, params = self._multi_search_params(locals())
+        body, raise_on_error, params = self._multi_search_params(
+            locals(), self.get_compiler()
+        )
         return self._multi_search_result(
             queries,
             raise_on_error,
@@ -492,7 +498,7 @@ class Cluster(BaseCluster):
             wait_for_completion=None, requests_per_second=None,
             **kwargs
     ):
-        params = self._delete_by_query_params(locals())
+        params = self._delete_by_query_params(locals(), self.get_compiler())
         return self._delete_result(
             self._client.delete_by_query(**params)
         )

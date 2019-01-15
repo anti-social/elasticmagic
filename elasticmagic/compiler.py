@@ -555,8 +555,10 @@ DefaultCompiler = Compiler50
 
 
 def get_compiler_by_es_version(es_version):
-    if es_version.major >= 5:
-        return Compiler50()
+    if es_version.major == 1:
+        return Compiler10
     elif es_version.major == 2:
-        return Compiler20()
-    return Compiler10()
+        return Compiler20
+    elif es_version.major == 5:
+        return Compiler50
+    return DefaultCompiler

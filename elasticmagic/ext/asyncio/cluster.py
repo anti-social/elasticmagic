@@ -1,26 +1,13 @@
+from elasticmagic.compiler import get_compiler_by_es_version
+
 from ...cluster import BaseCluster
 from .index import AsyncIndex
 from .search import AsyncSearchQuery
 
 
 class AsyncCluster(BaseCluster):
-    def __init__(
-            self, client,
-            multi_search_raise_on_error=True, compiler=None,
-            index_cls=None, sniff_elastic_version=False,
-    ):
-        super(AsyncCluster, self).__init__(
-            client,
-            multi_search_raise_on_error=multi_search_raise_on_error,
-            compiler=compiler,
-            index_cls=index_cls or AsyncIndex,
-            sniff_elastic_version=sniff_elastic_version,
-        )
-
-    def search_query(self, *args, **kwargs):
-        kwargs['cluster'] = self
-        kwargs.setdefault('_compiler', self._compiler.get_query_compiler())
-        return AsyncSearchQuery(*args, **kwargs)
+    _index_cls = AsyncIndex
+    _search_query_cls = AsyncSearchQuery
 
     async def get_es_version(self):
         if not self._es_version:
@@ -28,6 +15,12 @@ class AsyncCluster(BaseCluster):
                 await self._client.info()
             )
         return self._es_version
+
+    async def get_compiler(self):
+        if self._compiler:
+            return self._compiler
+        else:
+            return get_compiler_by_es_version(await self.get_es_version())
 
     async def get(
             self, index, id, doc_cls=None, doc_type=None, source=None,
@@ -59,7 +52,9 @@ class AsyncCluster(BaseCluster):
             timeout=None, search_type=None, query_cache=None,
             terminate_after=None, scroll=None, **kwargs
     ):
-        body, params = self._search_params(locals())
+        body, params = self._search_params(
+            locals(), await self.get_compiler()
+        )
         return self._search_result(
             q,
             await self._client.search(body=body, **params),
@@ -69,7 +64,7 @@ class AsyncCluster(BaseCluster):
             self, q=None, index=None, doc_type=None, routing=None,
             preference=None, **kwargs
     ):
-        body, params = self._count_params(locals())
+        body, params = self._count_params(locals(), await self.get_compiler())
         return self._count_result(
             await self._client.count(body=body, **params)
         )
@@ -96,7 +91,9 @@ class AsyncCluster(BaseCluster):
             routing=None, preference=None, search_type=None,
             raise_on_error=None, **kwargs
     ):
-        body, raise_on_error, params = self._multi_search_params(locals())
+        body, raise_on_error, params = self._multi_search_params(
+            locals(), await self.get_compiler()
+        )
         return self._multi_search_result(
             queries,
             raise_on_error,
@@ -140,7 +137,9 @@ class AsyncCluster(BaseCluster):
             timeout=None, consistency=None, replication=None, routing=None,
             **kwargs
     ):
-        params = self._delete_by_query_params(locals())
+        params = self._delete_by_query_params(
+            locals(), await self.get_compiler()
+        )
         return self._delete_by_query_result(
             await self._client.delete_by_query(**params)
         )

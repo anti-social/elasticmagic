@@ -3,6 +3,7 @@ import unittest
 from mock import MagicMock
 
 from elasticmagic import Cluster, Index
+from elasticmagic.compiler import DefaultCompiler
 
 
 class BaseTestCase(unittest.TestCase):
@@ -10,7 +11,7 @@ class BaseTestCase(unittest.TestCase):
 
     def setUp(self):
         self.client = MagicMock()
-        self.cluster = Cluster(self.client)
+        self.cluster = Cluster(self.client, compiler=DefaultCompiler)
         self.index = Index(self.cluster, 'test')
 
     def assert_expression(self, expr, params):

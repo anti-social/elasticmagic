@@ -1,10 +1,9 @@
 from __future__ import absolute_import
 
-from abc import ABCMeta, abstractmethod
+from abc import ABCMeta
 
 from .compat import with_metaclass
 from .document import DynamicDocument
-from .search import SearchQuery
 from .util import to_camel_case
 
 
@@ -36,23 +35,22 @@ class BaseIndex(with_metaclass(ABCMeta)):
     def get_settings(self):
         return self._cluster._client.indices.get_settings(index=self._name)
 
-    @abstractmethod
     def search_query(self, *args, **kwargs):
         """Returns a :class:`search.SearchQuery` instance that is bound to this
         index.
         """
+        kwargs['index'] = self
+        return self._cluster._search_query_cls(*args, **kwargs)
 
     def query(self, *args, **kwargs):
         return self.search_query(*args, **kwargs)
 
 
 class Index(BaseIndex):
-    def search_query(self, *args, **kwargs):
-        kwargs['index'] = self
-        kwargs.setdefault('_compiler', self._cluster._compiler.compiled_query)
-        return SearchQuery(*args, **kwargs)
-
     # Methods that do requests to elasticsearch
+
+    def get_compiler(self):
+        return self._cluster.get_compiler()
 
     def get(
             self, id, doc_cls=None, doc_type=None, source=None,

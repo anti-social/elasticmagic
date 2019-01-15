@@ -253,8 +253,8 @@ class Document(with_metaclass(DocumentMeta)):
         return self._hit_fields or {}
 
     @classmethod
-    def to_mapping(cls, ordered=False, compiler=None):
-        mapping_compiler = (compiler or DefaultCompiler()).compiled_mapping
+    def to_mapping(cls, compiler=None, ordered=False):
+        mapping_compiler = (compiler or DefaultCompiler).compiled_mapping
         return mapping_compiler(cls, ordered=ordered).params
 
     @cached_property

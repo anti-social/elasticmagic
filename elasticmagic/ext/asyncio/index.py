@@ -1,11 +1,9 @@
 from ...index import BaseIndex
-from .search import AsyncSearchQuery
 
 
 class AsyncIndex(BaseIndex):
-    def search_query(self, *args, **kwargs):
-        kwargs['index'] = self
-        return AsyncSearchQuery(*args, **kwargs)
+    async def get_compiler(self):
+        return await self._cluster.get_compiler()
 
     async def get(
             self, id, doc_cls=None, doc_type=None, source=None,
