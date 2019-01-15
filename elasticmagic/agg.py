@@ -5,6 +5,7 @@
    from mock import Mock
 
    from elasticmagic import agg, Cluster, SearchQuery, DynamicDocument
+   from elasticmagic.compiler import DefaultCompiler
 
    class SaleDocument(DynamicDocument):
        __doc_type__ = 'sale'
@@ -20,7 +21,8 @@
            search=Mock(
                return_value={
                    'hits': {'max_score': 1, 'total': 1, 'hits': []},
-                   'aggregations': aggs_raw_result})))
+                   'aggregations': aggs_raw_result})),
+           compiler=DefaultCompiler)
        return cluster.search_query()
 """
 from itertools import chain

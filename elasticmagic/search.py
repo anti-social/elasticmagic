@@ -53,10 +53,8 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
             cluster=None, index=None, doc_cls=None, doc_type=None,
             routing=None, preference=None, timeout=None, search_type=None,
             query_cache=None, terminate_after=None, scroll=None,
-            _compiler=None, **kwargs
+            **kwargs
     ):
-        self._compiler = _compiler or DefaultCompiler().compiled_query
-
         if q is not None:
             self._q = q
         if cluster:
@@ -91,12 +89,6 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
             if not k.startswith('_cached_')
         }
         return q
-
-    def to_dict(self, compiler=None):
-        """Compiles the query and returns python dictionary that can be
-        serialized to json.
-        """
-        return (compiler or self._compiler)(self).params
 
     @_with_clone
     def source(self, *fields, **kwargs):
@@ -667,8 +659,16 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         elif doc_cls:
             return doc_cls.__doc_type__
 
-    def get_context(self, compiler=None):
-        return SearchQueryContext(self, compiler or self._compiler)
+    def get_compiler_context(self):
+        return SearchQueryContext(self)
+
+    get_context = get_compiler_context
+
+    def to_dict(self, compiler=None):
+        """Compiles the query and returns python dictionary that can be
+        serialized to json.
+        """
+        return (compiler or DefaultCompiler).compiled_query(self).params
 
     def _prepare_search_params(self):
         if not self._index and not self._cluster:
@@ -756,6 +756,9 @@ class SearchQuery(BaseSearchQuery):
            __doc_type__ = 'post'
     """
 
+    def get_compiler(self):
+        return self._index_or_cluster.get_compiler()
+
     def get_result(self):
         """Executes current query and returns processed :class:`SearchResult`
         object. Caches result so subsequent calls with the same search query
@@ -838,9 +841,7 @@ class SearchQuery(BaseSearchQuery):
 
 
 class SearchQueryContext(object):
-    def __init__(self, search_query, compiler):
-        self.compiler = compiler
-
+    def __init__(self, search_query):
         self.q = search_query._q
         self.source = search_query._source
         self.fields = search_query._fields
@@ -871,16 +872,6 @@ class SearchQueryContext(object):
 
         self.instance_mapper = search_query._instance_mapper
         self.iter_instances = search_query._iter_instances
-
-    def get_query(self, wrap_function_score=True):
-        return self.compiler.get_query(
-            self, wrap_function_score=wrap_function_score
-        )
-
-    def get_filtered_query(self, wrap_function_score=True):
-        return self.compiler.get_filtered_query(
-            self, wrap_function_score=wrap_function_score
-        )
 
     def iter_filters_with_meta(self):
         return zip(self.filters, self.filters_meta)

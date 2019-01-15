@@ -16,7 +16,7 @@ class Expression(object):
     def compile(self, compiler=None):
         from .compiler import DefaultCompiler
 
-        compiler = compiler or DefaultCompiler()
+        compiler = compiler or DefaultCompiler
         return compiler.compiled_expression(self)
 
     def to_elastic(self, compiler=None):
@@ -592,7 +592,7 @@ class Field(Expression, FieldOperators):
     def to_mapping(self, compiler=None):
         from .compiler import DefaultCompiler
 
-        mapping_compiler = (compiler or DefaultCompiler()).compiled_mapping
+        mapping_compiler = (compiler or DefaultCompiler).compiled_mapping
         return mapping_compiler(self).params
 
 
