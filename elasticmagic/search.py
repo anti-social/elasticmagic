@@ -757,7 +757,7 @@ class SearchQuery(BaseSearchQuery):
     """
 
     def get_compiler(self):
-        return self._index_or_cluster.get_compiler()
+        return self._index_or_cluster.get_compiler().compiled_query
 
     def get_result(self):
         """Executes current query and returns processed :class:`SearchResult`

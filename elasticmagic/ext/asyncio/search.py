@@ -6,7 +6,7 @@ class AsyncSearchQuery(BaseSearchQuery):
     """
 
     async def get_compiler(self):
-        return await self._index_or_cluster.get_compiler()
+        return (await self._index_or_cluster.get_compiler()).compiled_query
 
     async def get_result(self):
         if self._cached_result is not None:
