@@ -97,7 +97,7 @@ commands:
   flake8: !Command
     description: Run flake8 linter
     container: py3-test
-    run: [flake8, elasticmagic]
+    run: [flake8, elasticmagic, tests_integ]
 
   test-integ-5x: !Supervise
     options: |

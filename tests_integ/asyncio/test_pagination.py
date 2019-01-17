@@ -86,7 +86,7 @@ async def test_flask_pagination_many_pages(es_index, all_cars):
     assert p.has_next is True
     assert p.next_num == 2
     assert list(p.iter_pages(right_current=2)) == \
-           [1, 2, None, 5, 6]
+        [1, 2, None, 5, 6]
 
 
 @pytest.mark.asyncio
