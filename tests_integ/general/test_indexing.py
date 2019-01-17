@@ -1,5 +1,7 @@
 from elasticmagic import SearchQuery
 
+import pytest
+
 from ..conftest import Car
 
 
@@ -25,9 +27,10 @@ def test_adding_documents(es_index):
 
 
 def test_scroll(es_index, cars):
-    search_res = es_index.search(
-        SearchQuery(), scroll='1m',
-    )
+    with pytest.warns(UserWarning, match='Cannot determine document class'):
+        search_res = es_index.search(
+            SearchQuery(), scroll='1m',
+        )
 
     assert search_res.total == 2
     assert len(search_res.hits) == 2

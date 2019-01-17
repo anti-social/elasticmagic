@@ -123,9 +123,10 @@ async def test_count(es_index, cars):
 
 @pytest.mark.asyncio
 async def test_scroll(es_index, cars):
-    search_res = await es_index.search(
-        SearchQuery(), scroll='1m',
-    )
+    with pytest.warns(UserWarning, match='Cannot determine document class'):
+        search_res = await es_index.search(
+            SearchQuery(), scroll='1m',
+        )
 
     assert search_res.total == 2
     assert len(search_res.hits) == 2
