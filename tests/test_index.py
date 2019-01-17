@@ -1,4 +1,4 @@
-from mock import MagicMock
+from mock import Mock
 
 from elasticmagic import Cluster, Index, Document, DynamicDocument, MatchAll, Field
 from elasticmagic import actions
@@ -10,18 +10,19 @@ from .base import BaseTestCase
 
 class IndexTest(BaseTestCase):
     def test_auto_doc_cls(self):
-        doc_cls = self.index.product
+        doc_cls = self.index['product']
         self.assertEqual(doc_cls.__name__, 'ProductDocument')
         self.assertEqual(doc_cls.__bases__, (DynamicDocument,))
 
-        self.assertIs(doc_cls, self.index.product)
+        self.assertIs(doc_cls, self.index['product'])
 
     def test_index_compiler(self):
         cluster = Cluster(self.client, compiler=Compiler20())
         index = Index(cluster, 'test')
 
         self.assert_expression(
-            index.search_query(index.user.name == 'kimchy').filter(index.user.status == 0),
+            index.search_query(index['user'].name == 'kimchy')
+            .filter(index['user'].status == 0),
             {
                 "query": {
                     "bool": {
@@ -43,7 +44,7 @@ class IndexTest(BaseTestCase):
         self.assertIs(self.index.get_cluster(), self.cluster)
 
     def test_get(self):
-        self.client.get = MagicMock(
+        self.client.get = Mock(
             return_value={
                 "_index": "twitter",
                 "_type": "tweet",
@@ -74,7 +75,7 @@ class IndexTest(BaseTestCase):
         self.assertEqual(doc.message, 'trying out Elasticsearch')
 
     def test_multi_get(self):
-        self.client.mget = MagicMock(
+        self.client.mget = Mock(
             return_value={
                 "docs": [
                     {
@@ -101,8 +102,8 @@ class IndexTest(BaseTestCase):
         twitter_index = self.cluster['twitter']
         docs = twitter_index.multi_get(
             [
-                twitter_index.tweet(_id=111), 
-                twitter_index.user(_id=222)
+                twitter_index['tweet'](_id=111),
+                twitter_index['user'](_id=222)
             ],
             refresh=True
         )
@@ -146,7 +147,7 @@ class IndexTest(BaseTestCase):
             routing=123
         )
 
-        result = self.index.count(self.index.car.name.match('Subaru'), 'car')
+        result = self.index.count(self.index['car'].name.match('Subaru'), 'car')
         self.client.count.assert_called_with(
             index='test',
             doc_type='car',
@@ -172,7 +173,7 @@ class IndexTest(BaseTestCase):
             refresh=True
         )
 
-        result = self.index.exists(self.index.car.name.match('Subaru'), 'car')
+        result = self.index.exists(self.index['car'].name.match('Subaru'), 'car')
         self.client.search_exists.assert_called_with(
             index='test',
             doc_type='car',
@@ -232,7 +233,7 @@ class IndexTest(BaseTestCase):
         )
 
     def test_bulk_errors(self):
-        self.client.bulk = MagicMock(
+        self.client.bulk = Mock(
             return_value={
                 "took": 85,
                 "errors": True,
@@ -259,7 +260,7 @@ class IndexTest(BaseTestCase):
                 ]
             }
         )
-        res = self.index.bulk([actions.Delete(self.index.car(_id=1))])
+        res = self.index.bulk([actions.Delete(self.index['car'](_id=1))])
         self.client.bulk.assert_called_with(
             body=[
                 {'delete': {'_type': 'car', '_id': 1}},
@@ -278,7 +279,7 @@ class IndexTest(BaseTestCase):
         self.assertTrue('TransportReplicationAction' in item.error.reason)
 
     def test_delete(self):
-        self.index.delete(self.index.car(_id='test_id'), refresh=True)
+        self.index.delete(self.index['car'](_id='test_id'), refresh=True)
         self.client.delete.assert_called_with(
             index='test',
             doc_type='car',
@@ -287,7 +288,7 @@ class IndexTest(BaseTestCase):
         )
 
         # delete also accept document id
-        res = self.index.delete('test_id', doc_cls=self.index.car)
+        res = self.index.delete('test_id', doc_cls=self.index['car'])
         self.client.delete.assert_called_with(
             index='test',
             doc_type='car',
@@ -300,7 +301,9 @@ class IndexTest(BaseTestCase):
         )
         
     def test_delete_by_query(self):
-        self.index.delete_by_query(self.index.car.vendor == 'Ford', doc_type='car', routing='Ford')
+        self.index.delete_by_query(
+            self.index['car'].vendor == 'Ford', doc_type='car', routing='Ford'
+        )
         self.client.delete_by_query.assert_called_with(
             index='test',
             doc_type='car',

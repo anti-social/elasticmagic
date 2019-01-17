@@ -14,17 +14,17 @@ class BaseIndex(with_metaclass(ABCMeta)):
 
         self._doc_cls_cache = {}
 
-    def __getattr__(self, name):
-        return self.get_doc_cls(name)
+    def __getitem__(self, doc_type):
+        return self.get_doc_cls(doc_type)
 
-    def get_doc_cls(self, name):
-        if name not in self._doc_cls_cache:
-            self._doc_cls_cache[name] = type(
-                '{}{}'.format(to_camel_case(name), 'Document'),
+    def get_doc_cls(self, doc_type):
+        if doc_type not in self._doc_cls_cache:
+            self._doc_cls_cache[doc_type] = type(
+                '{}{}'.format(to_camel_case(doc_type), 'Document'),
                 (DynamicDocument,),
-                {'__doc_type__': name}
+                {'__doc_type__': doc_type}
             )
-        return self._doc_cls_cache[name]
+        return self._doc_cls_cache[doc_type]
 
     def get_name(self):
         return self._name

@@ -1,10 +1,9 @@
 import datetime
-from mock import Mock, MagicMock
+from mock import Mock
 
-from elasticmagic import Index
 from elasticmagic import (
-    Index, Document, DynamicDocument,
-    SearchQuery, Params, Term, Bool, MultiMatch,
+    Document, DynamicDocument,
+    SearchQuery, Params, Term, MultiMatch,
     FunctionScore, Sort, QueryRescorer, agg
 )
 from elasticmagic.compiler import QueryCompiled20
@@ -468,13 +467,13 @@ class SearchQueryTest(BaseTestCase):
             SearchQuery()
             .rescore(
                 QueryRescorer(
-                    self.index.t.field1.match('the quick brown', type='phrase', slop=2)
+                    self.index['type'].field1.match('the quick brown', type='phrase', slop=2)
                 )
             )
             .rescore(None)
             .rescore(
                 QueryRescorer(
-                    self.index.t.field1.match('the quick brown fox', type='phrase', slop=2),
+                    self.index['type'].field1.match('the quick brown fox', type='phrase', slop=2),
                     window_size=100,
                     query_weight=0.7,
                     rescore_query_weight=1.2
@@ -525,9 +524,9 @@ class SearchQueryTest(BaseTestCase):
                 ]
             }
         )
-        self.assertEqual(collect_doc_classes(sq), {self.index.t})
+        self.assertEqual(collect_doc_classes(sq), {self.index['type']})
 
-        sq = SearchQuery().post_filter(self.index.shirt.color == 'red')
+        sq = SearchQuery().post_filter(self.index['shirt'].color == 'red')
         self.assert_expression(
             sq,
             {
@@ -536,13 +535,13 @@ class SearchQueryTest(BaseTestCase):
                 }
             }
         )
-        self.assertEqual(collect_doc_classes(sq), {self.index.shirt})
+        self.assertEqual(collect_doc_classes(sq), {self.index['shirt']})
 
         sq = (
             SearchQuery()
-            .filter(self.index.shirt.brand == 'gucci')
-            .post_filter(self.index.shirt.color == 'red')
-            .post_filter(self.index.shirt.model == 't-shirt')
+            .filter(self.index['shirt'].brand == 'gucci')
+            .post_filter(self.index['shirt'].color == 'red')
+            .post_filter(self.index['shirt'].model == 't-shirt')
         )
         self.assert_expression(
             sq,
@@ -564,7 +563,7 @@ class SearchQueryTest(BaseTestCase):
                 }
             }
         )
-        self.assertEqual(collect_doc_classes(sq), {self.index.shirt})
+        self.assertEqual(collect_doc_classes(sq), {self.index['shirt']})
 
     def test_aggregations(self):
         f = DynamicDocument.fields
@@ -713,7 +712,7 @@ class SearchQueryTest(BaseTestCase):
             }
         }
         self.assertEqual(
-            SearchQuery(index=self.index, doc_cls=self.index.car)
+            SearchQuery(index=self.index, doc_cls=self.index['car'])
             .count(),
             1024
         )
@@ -733,7 +732,7 @@ class SearchQueryTest(BaseTestCase):
         }
         self.assertEqual(
             SearchQuery(index=self.index)
-            .filter(self.index.car.status == 1)
+            .filter(self.index['car'].status == 1)
             .function_score({'boost_factor': 3})
             .count(),
             2
@@ -757,7 +756,7 @@ class SearchQueryTest(BaseTestCase):
             "hits": {"total": 1, "max_score": 1.0, "hits": []}
         }
         self.assertEqual(
-            SearchQuery(index=self.index, doc_cls=self.index.car).exists(),
+            SearchQuery(index=self.index, doc_cls=self.index['car']).exists(),
             True
         )
         self.client.search.assert_called_with(
@@ -772,7 +771,7 @@ class SearchQueryTest(BaseTestCase):
         }
         self.assertEqual(
             SearchQuery(index=self.index)
-            .filter(self.index.car.status == 1)
+            .filter(self.index['car'].status == 1)
             .function_score({'boost_factor': 3})
             .exists(),
             False
@@ -819,7 +818,7 @@ class SearchQueryTest(BaseTestCase):
             year = Field(Integer)
             seller = Field(Object(CarSellerDocument))
 
-        self.client.search = MagicMock(
+        self.client.search = Mock(
             return_value={
                 'hits': {
                     'hits': [
@@ -917,17 +916,17 @@ class SearchQueryTest(BaseTestCase):
 
         sq = (
             self.index.query(
-                self.index.seller.name.first.match('Alex'),
-                doc_cls=(self.index.seller, self.index.customer)
+                self.index['seller'].name.first.match('Alex'),
+                doc_cls=(self.index['seller'], self.index['customer'])
             )
-            .with_instance_mapper({self.index.seller: seller_mapper,
-                                   self.index.customer: customer_mapper})
-            .filter(self.index.customer.birthday >= datetime.date(1960, 1, 1))
+            .with_instance_mapper({self.index['seller']: seller_mapper,
+                                   self.index['customer']: customer_mapper})
+            .filter(self.index['customer'].birthday >= datetime.date(1960, 1, 1))
             .limit(2)
         )
-        self.assertEqual(collect_doc_classes(sq), {self.index.seller, self.index.customer})
+        self.assertEqual(collect_doc_classes(sq), {self.index['seller'], self.index['customer']})
 
-        self.client.search = MagicMock(
+        self.client.search = Mock(
             return_value={
                 'hits': {
                     'hits': [
@@ -989,7 +988,7 @@ class SearchQueryTest(BaseTestCase):
 
         self.assertEqual(len(sq.get_result().hits), 2)
         doc = sq.get_result().hits[0]
-        self.assertIsInstance(doc, self.index.customer)
+        self.assertIsInstance(doc, self.index['customer'])
         self.assertEqual(doc._id, '3')
         self.assertEqual(doc._type, 'customer')
         self.assertEqual(doc._index, 'test')
@@ -999,7 +998,7 @@ class SearchQueryTest(BaseTestCase):
         self.assertEqual(doc.birthday, '1966-10-04')
         self.assertEqual(doc.instance, '3:3')
         doc = sq.get_result().hits[1]
-        self.assertIsInstance(doc, self.index.seller)
+        self.assertIsInstance(doc, self.index['seller'])
         self.assertEqual(doc._id, '21')
         self.assertEqual(doc._type, 'seller')
         self.assertEqual(doc._index, 'test')
@@ -1011,7 +1010,7 @@ class SearchQueryTest(BaseTestCase):
         self.assertEqual(doc.instance, '21-21')
 
     def test_search_scroll(self):
-        self.client.search = MagicMock(
+        self.client.search = Mock(
             return_value={
                 '_scroll_id': 'c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1',
                 'hits': {
@@ -1024,13 +1023,16 @@ class SearchQueryTest(BaseTestCase):
             }
         )
         sq = (
-            self.index.search_query(search_type='scan', scroll='1m')
+            self.index.search_query(
+                search_type='scan', scroll='1m', doc_cls=self.index['type']
+            )
             .limit(1000)
         )
         result = sq.get_result()
 
         self.client.search.assert_called_with(
             index='test',
+            doc_type='type',
             body={
                 'size': 1000
             },
@@ -1041,7 +1043,7 @@ class SearchQueryTest(BaseTestCase):
         self.assertEqual(list(result), [])
 
     def test_delete(self):
-        self.index.query(self.index.car.vendor == 'Focus').delete()
+        self.index.query(self.index['car'].vendor == 'Focus').delete()
         self.client.delete_by_query.assert_called_with(
             index='test',
             doc_type='car',
@@ -1052,10 +1054,10 @@ class SearchQueryTest(BaseTestCase):
             },
         )
 
-        self.index.query(self.index.car.vendor == 'Focus') \
-                .filter(self.index.car.status == 0) \
-                .limit(20) \
-                .delete(timeout='1m', replication='async')
+        self.index.query(self.index['car'].vendor == 'Focus') \
+            .filter(self.index['car'].status == 0) \
+            .limit(20) \
+            .delete(timeout='1m', replication='async')
         self.client.delete_by_query.assert_called_with(
             index='test',
             doc_type='car',
@@ -1180,11 +1182,11 @@ class SearchQueryTest(BaseTestCase):
 
         sq = SearchQuery()
         sq = sq.highlight(
-            fields=[self.index.test.content],
+            fields=[self.index['test'].content],
             pre_tags=['[em]'],
             post_tags=['[/em]']
         )
-        self.assertEqual(collect_doc_classes(sq), {self.index.test})
+        self.assertEqual(collect_doc_classes(sq), {self.index['test']})
         self.assert_expression(
             sq,
             {
@@ -1203,13 +1205,13 @@ class SearchQueryTest(BaseTestCase):
         sq = SearchQuery()
         sq = sq.highlight(
             fields=[
-                self.index.test.content.highlight(
-                    matched_fields=[self.index.test.content, self.index.test.content.plain],
+                self.index['test'].content.highlight(
+                    matched_fields=[self.index['test'].content, self.index['test'].content.plain],
                     type='fvh',
                 )
             ]
         )
-        self.assertEqual(collect_doc_classes(sq), {self.index.test})
+        self.assertEqual(collect_doc_classes(sq), {self.index['test']})
         self.assert_expression(
             sq,
             {

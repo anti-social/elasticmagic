@@ -1,4 +1,4 @@
-from mock import MagicMock
+from mock import Mock
 
 from elasticmagic.ext.pagination import SearchQueryWrapper
 from elasticmagic.ext.pagination.flask import Pagination
@@ -8,7 +8,7 @@ from .base import BaseTestCase
 
 class FlaskPaginationTest(BaseTestCase):
     def test_pagination(self):
-        self.client.search = MagicMock(
+        self.client.search = Mock(
             return_value={
                 "hits": {
                     "max_score": 1,
@@ -29,7 +29,7 @@ class FlaskPaginationTest(BaseTestCase):
             }
         )
 
-        p = Pagination(self.index.search_query(doc_cls=self.index.car), page=2, per_page=2)
+        p = Pagination(self.index.search_query(doc_cls=self.index['car']), page=2, per_page=2)
 
         self.assertEqual(p.total, 28)
         self.assertEqual(p.pages, 14)
@@ -46,7 +46,7 @@ class FlaskPaginationTest(BaseTestCase):
         self.assertEqual(self.client.search.call_count, 1)
 
     def test_wrapper(self):
-        self.client.search = MagicMock(
+        self.client.search = Mock(
             return_value={
                 "hits": {
                     "max_score": 1,
@@ -67,7 +67,7 @@ class FlaskPaginationTest(BaseTestCase):
             }
         )
 
-        sq = self.index.search_query(doc_cls=self.index.car)
+        sq = self.index.search_query(doc_cls=self.index['car'])
         wrapper = SearchQueryWrapper(sq)
         self.assertRaises(ValueError, lambda: wrapper[None])
         self.assertRaises(ValueError, lambda: [d for d in wrapper])

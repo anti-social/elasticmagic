@@ -1,6 +1,5 @@
-import re
 import warnings
-from mock import MagicMock
+from mock import Mock
 
 from elasticmagic import (
     actions, agg, Cluster, DynamicDocument, Index, SearchQuery
@@ -15,7 +14,7 @@ class ClusterTest(BaseTestCase):
         self.assertIs(self.cluster.get_client(), self.client)
 
     def test_search_query(self):
-        self.client.search = MagicMock(
+        self.client.search = Mock(
             return_value={
                 'hits': {
                     'hits': [
@@ -75,9 +74,9 @@ class ClusterTest(BaseTestCase):
         )
 
         sq = (
-            es_log_index.query(doc_cls=es_log_index.log)
+            es_log_index.query(doc_cls=es_log_index['log'])
             .aggregations(
-                percentiles=agg.Percentiles(es_log_index.log.querytime, percents=[50, 95])
+                percentiles=agg.Percentiles(es_log_index['log'].querytime, percents=[50, 95])
             )
         )
         sq.get_result()
@@ -97,7 +96,7 @@ class ClusterTest(BaseTestCase):
         )
 
     def test_multi_search(self):
-        self.client.msearch = MagicMock(
+        self.client.msearch = Mock(
             return_value={
                 u'responses': [
                     {
@@ -143,7 +142,7 @@ class ClusterTest(BaseTestCase):
                 ]
             }
         )
-        ProductDoc = self.index.product
+        ProductDoc = self.index['product']
         sq1 = SearchQuery(doc_cls=ProductDoc, search_type='count', routing=123)
         sq2 = (
             SearchQuery(index=self.cluster['us'], doc_cls=ProductDoc)
@@ -177,7 +176,7 @@ class ClusterTest(BaseTestCase):
         self.assertEqual(doc.status, 0)
 
     def test_multi_search_with_error(self):
-        self.client.msearch = MagicMock(
+        self.client.msearch = Mock(
             return_value={
                 u'responses': [
                     {
@@ -200,7 +199,7 @@ class ClusterTest(BaseTestCase):
                 ]
             }
         )
-        ProductDoc = self.index.product
+        ProductDoc = self.index['product']
         sq1 = SearchQuery(doc_cls=ProductDoc, search_type='count', routing=123)
         sq2 = (
             SearchQuery(index=self.cluster['us'], doc_cls=ProductDoc)
@@ -227,7 +226,7 @@ class ClusterTest(BaseTestCase):
         self.assertRaises(AttributeError, lambda: results[1].unknown_attr)
 
     def test_scroll(self):
-        self.client.scroll = MagicMock(
+        self.client.scroll = Mock(
             return_value={
                 "_scroll_id": "c2NhbjsxNjsxNTM4NDo1ajYydHRRZVNDeXBrS2RNODVYUkt",
                 "took": 570,
@@ -270,7 +269,7 @@ class ClusterTest(BaseTestCase):
         self.assertEqual(result.scroll_id, 'c2NhbjsxNjsxNTM4NDo1ajYydHRRZVNDeXBrS2RNODVYUkt')
 
     def test_get(self):
-        self.client.get = MagicMock(
+        self.client.get = Mock(
             return_value={
                 "_index": "twitter",
                 "_type": "tweet",
@@ -299,14 +298,14 @@ class ClusterTest(BaseTestCase):
         self.assertEqual(doc.post_date, '2009-11-15T14:12:12')
         self.assertEqual(doc.message, 'trying out Elasticsearch')
 
-        doc = self.cluster.get('twitter', 111, doc_cls=self.cluster['twitter'].tweet, routing=111)
+        doc = self.cluster.get('twitter', 111, doc_cls=self.cluster['twitter']['tweet'], routing=111)
         self.client.get.assert_called_with(
             index='twitter',
             doc_type='tweet',
             id=111,
             routing=111,
         )
-        self.assertIsInstance(doc, self.cluster['twitter'].tweet)
+        self.assertIsInstance(doc, self.cluster['twitter']['tweet'])
         self.assertEqual(doc._id, '111')
         self.assertEqual(doc._index, 'twitter')
         self.assertEqual(doc._type, 'tweet')
@@ -316,7 +315,7 @@ class ClusterTest(BaseTestCase):
         self.assertEqual(doc.message, 'trying out Elasticsearch')
         
     def test_multi_get(self):
-        self.client.mget = MagicMock(
+        self.client.mget = Mock(
             return_value={
                 "docs": [
                     {
@@ -348,8 +347,8 @@ class ClusterTest(BaseTestCase):
         )
         # TODO: index aware document class
         docs = self.cluster.multi_get(
-            [self.index.tweet(_id=1, _index='twitter'),
-             self.index.tweet(_id=2, _index='test', _version=1)],
+            [self.index['tweet'](_id=1, _index='twitter'),
+             self.index['tweet'](_id=2, _index='test', _version=1)],
             realtime=False
         )
         self.client.mget.assert_called_with(
@@ -371,7 +370,7 @@ class ClusterTest(BaseTestCase):
             realtime=False
         )
         self.assertEqual(len(docs), 2)
-        self.assertIsInstance(docs[0], self.index.tweet)
+        self.assertIsInstance(docs[0], self.index['tweet'])
         self.assertEqual(docs[0]._id, '1')
         self.assertEqual(docs[0]._type, 'tweet')
         self.assertEqual(docs[0]._index, 'twitter')
@@ -379,7 +378,7 @@ class ClusterTest(BaseTestCase):
         self.assertEqual(docs[0].user, 'kimchy')
         self.assertEqual(docs[0].post_date, '2009-11-15T14:12:12')
         self.assertEqual(docs[0].message, 'trying out Elasticsearch')
-        self.assertIsInstance(docs[1], self.index.tweet)
+        self.assertIsInstance(docs[1], self.index['tweet'])
         self.assertEqual(docs[1]._id, '2')
         self.assertEqual(docs[1]._type, 'tweet')
         self.assertEqual(docs[1]._index, 'test')
@@ -389,7 +388,7 @@ class ClusterTest(BaseTestCase):
         self.assertEqual(docs[1].message, 'Elasticsearch the best')
 
     def test_bulk(self):
-        self.client.bulk = MagicMock(
+        self.client.bulk = Mock(
             return_value={
                 "took": 2,
                 "errors": True,
@@ -443,10 +442,10 @@ class ClusterTest(BaseTestCase):
                 ]
             }
         )
-        doc1 = self.index.car(_id='1', _ttl='1d', field1='value1')
-        doc2 = self.index.car(_id='2')
-        doc3 = self.index.car(_id='3', field3='value3')
-        doc4 = self.index.car(_id='4', field4='value4')
+        doc1 = self.index['car'](_id='1', _ttl='1d', field1='value1')
+        doc2 = self.index['car'](_id='2')
+        doc3 = self.index['car'](_id='3', field3='value3')
+        doc4 = self.index['car'](_id='4', field4='value4')
         result = self.cluster.bulk(
             [
                 actions.Index(doc1, index=self.index, consistency='one'),

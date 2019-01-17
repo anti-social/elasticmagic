@@ -1,5 +1,7 @@
 import datetime
-from mock import Mock, MagicMock
+from mock import Mock
+
+import pytest
 
 from elasticmagic import agg, Document, Field, Match
 from elasticmagic.compat import text_type
@@ -42,9 +44,9 @@ def type_mapper(values):
 
 def test_simple_filter(index):
     class CarQueryFilter(QueryFilter):
-        type = SimpleFilter(index.car.type, type=Integer)
-        vendor = SimpleFilter(index.car.vendor)
-        model = SimpleFilter(index.car.model, alias='m')
+        type = SimpleFilter(index['car'].type, type=Integer)
+        vendor = SimpleFilter(index['car'].vendor)
+        model = SimpleFilter(index['car'].model, alias='m')
 
     qf = CarQueryFilter()
 
@@ -62,8 +64,8 @@ def test_simple_filter(index):
         }
 
     sq = (
-        index.search_query(Match(index.car.name, 'test'))
-        .filter(index.car.status == 0)
+        index.search_query(Match(index['car'].name, 'test'))
+        .filter(index['car'].status == 0)
     )
     sq = qf.apply(sq, {'type': ['0', '1', '3', 'null'],
                        'vendor': ['Subaru']})
@@ -90,7 +92,7 @@ def test_simple_filter(index):
 
 def test_simple_filter_with_and_conjunction(index):
     class ClientQueryFilter(QueryFilter):
-        label = SimpleFilter(index.client.label,
+        label = SimpleFilter(index['client'].label,
                              conj_operator=QueryFilter.CONJ_AND)
 
     qf = ClientQueryFilter()
@@ -148,14 +150,14 @@ def test_facet_filter(index, client):
 
     class CarQueryFilter(QueryFilter):
         type = FacetFilter(
-            index.car.type,
+            index['car'].type,
             instance_mapper=type_mapper,
             get_title=get_title,
             type=Integer,
         )
-        vendor = FacetFilter(index.car.vendor,
-                             aggs={'min_price': agg.Min(index.car.price)})
-        model = FacetFilter(index.car.model, alias='m')
+        vendor = FacetFilter(index['car'].vendor,
+                             aggs={'min_price': agg.Min(index['car'].price)})
+        model = FacetFilter(index['car'].model, alias='m')
 
     qf = CarQueryFilter()
 
@@ -223,9 +225,9 @@ def test_facet_filter(index, client):
         }
 
     sq = (
-        index.search_query(Match(index.car.name, 'test'))
-        .filter(index.car.status == 0)
-        .post_filter(index.car.date_created > 'now-1y',
+        index.search_query(Match(index['car'].name, 'test'))
+        .filter(index['car'].status == 0)
+        .post_filter(index['car'].date_created > 'now-1y',
                      meta={'tags': {qf.get_name()}})
     )
     sq = qf.apply(sq, {'type': ['0', '1', '3', 'null'],
@@ -295,7 +297,7 @@ def test_facet_filter(index, client):
             }
         }
 
-    client.search = MagicMock(
+    client.search = Mock(
         return_value={
             "hits": {
                 "hits": [],
@@ -428,8 +430,8 @@ def test_facet_filter(index, client):
 
 def test_facet_filter_with_and_conjunction(index):
     class ClientQueryFilter(QueryFilter):
-        region = FacetFilter(index.client.region_id, type=Integer)
-        label = FacetFilter(index.client.label,
+        region = FacetFilter(index['client'].region_id, type=Integer)
+        label = FacetFilter(index['client'].label,
                             conj_operator=QueryFilter.CONJ_AND)
 
     qf = ClientQueryFilter()
@@ -638,7 +640,7 @@ def test_range_filter(index, client):
             }
         }
 
-    client.search = MagicMock(
+    client.search = Mock(
         return_value={
             "hits": {
                 "hits": [],
@@ -673,8 +675,8 @@ def test_range_filter(index, client):
 
 def test_range_filter_dynamic_document(index, client):
     class CarQueryFilter(QueryFilter):
-        price = RangeFilter(index.car.price, type=Integer)
-        disp = RangeFilter(index.car.engine_displacement, type=Float)
+        price = RangeFilter(index['car'].price, type=Integer)
+        disp = RangeFilter(index['car'].engine_displacement, type=Float)
 
     qf = CarQueryFilter()
 
@@ -708,7 +710,7 @@ def test_range_filter_dynamic_document(index, client):
             }
         }
 
-    client.search = MagicMock(
+    client.search = Mock(
         return_value={
             "hits": {
                 "hits": [],
@@ -897,17 +899,17 @@ def test_range_datetime_filter(index):
 def test_simple_query_filter(index):
     class CarQueryFilter(QueryFilter):
         is_new = SimpleQueryFilter(
-            SimpleQueryValue('true', index.car.state == 'new'),
+            SimpleQueryValue('true', index['car'].state == 'new'),
             alias='new'
         )
         price = SimpleQueryFilter(
-            SimpleQueryValue('*-10000', index.car.price <= 10000),
+            SimpleQueryValue('*-10000', index['car'].price <= 10000),
             SimpleQueryValue('10000-20000',
-                             index.car.price.range(gt=10000, lte=20000)),
+                             index['car'].price.range(gt=10000, lte=20000)),
             SimpleQueryValue('20000-30000',
-                             index.car.price.range(gt=20000, lte=30000)),
-            SimpleQueryValue('30000-*', index.car.price.range(gt=30000)),
-            aggs={'disp_avg': agg.Avg(index.car.engine_displacement)}
+                             index['car'].price.range(gt=20000, lte=30000)),
+            SimpleQueryValue('30000-*', index['car'].price.range(gt=30000)),
+            aggs={'disp_avg': agg.Avg(index['car'].engine_displacement)}
         )
 
     qf = CarQueryFilter()
@@ -936,7 +938,7 @@ def test_simple_query_filter(index):
     qf = CarQueryFilter()
     sq = (
         index.search_query()
-        .filter(index.car.year == 2014)
+        .filter(index['car'].year == 2014)
     )
     sq = qf.apply(sq, {'price': ['*-10000', '10000-20000', 'null']})
     assert sq.to_dict() == \
@@ -980,9 +982,9 @@ def test_simple_query_filter_with_and_conjunction(index):
     class ItemQueryFilter(QueryFilter):
         selling_type = SimpleQueryFilter(
             SimpleQueryValue('retail',
-                             index.item.selling_type.in_([1, 2, 3])),
+                             index['item'].selling_type.in_([1, 2, 3])),
             SimpleQueryValue('wholesale',
-                             index.item.selling_type.in_([3, 4, 5])),
+                             index['item'].selling_type.in_([3, 4, 5])),
             conj_operator=QueryFilter.CONJ_AND
         )
 
@@ -1018,17 +1020,17 @@ def test_simple_query_filter_with_and_conjunction(index):
 def test_facet_query_filter(index, client):
     class CarQueryFilter(QueryFilter):
         is_new = FacetQueryFilter(
-            FacetQueryValue('true', index.car.state == 'new'),
+            FacetQueryValue('true', index['car'].state == 'new'),
             alias='new'
         )
         price = FacetQueryFilter(
-            FacetQueryValue('*-10000', index.car.price <= 10000),
+            FacetQueryValue('*-10000', index['car'].price <= 10000),
             FacetQueryValue('10000-20000',
-                            index.car.price.range(gt=10000, lte=20000)),
+                            index['car'].price.range(gt=10000, lte=20000)),
             FacetQueryValue('20000-30000',
-                            index.car.price.range(gt=20000, lte=30000)),
-            FacetQueryValue('30000-*', index.car.price.range(gt=30000)),
-            aggs={'disp_avg': agg.Avg(index.car.engine_displacement)}
+                            index['car'].price.range(gt=20000, lte=30000)),
+            FacetQueryValue('30000-*', index['car'].price.range(gt=30000)),
+            aggs={'disp_avg': agg.Avg(index['car'].engine_displacement)}
         )
 
     qf = CarQueryFilter()
@@ -1101,7 +1103,7 @@ def test_facet_query_filter(index, client):
             }
         }
 
-    client.search = MagicMock(
+    client.search = Mock(
         return_value={
             "hits": {
                 "hits": [],
@@ -1172,7 +1174,7 @@ def test_facet_query_filter(index, client):
     assert fv.agg.get_aggregation('disp_avg').value == 2.92
 
     qf = CarQueryFilter()
-    sq = index.search_query(index.car.year == 2014)
+    sq = index.search_query(index['car'].year == 2014)
     sq = qf.apply(sq, {'price': ['*-10000', '10000-20000', 'null']})
     assert sq.to_dict() == \
         {
@@ -1264,7 +1266,7 @@ def test_facet_query_filter(index, client):
             }
         }
 
-    client.search = MagicMock(
+    client.search = Mock(
         return_value={
             "hits": {
                 "hits": [],
@@ -1338,13 +1340,13 @@ def test_facet_query_filter(index, client):
 def test_facet_query_filter_with_and_conjunction(index):
     class ItemQueryFilter(QueryFilter):
         available = FacetQueryFilter(
-            SimpleQueryValue('true', index.item.is_available == True),
+            SimpleQueryValue('true', index['item'].is_available == True),
         )
         selling_type = FacetQueryFilter(
             SimpleQueryValue('retail',
-                             index.item.selling_type.in_([1, 2, 3])),
+                             index['item'].selling_type.in_([1, 2, 3])),
             SimpleQueryValue('wholesale',
-                             index.item.selling_type.in_([3, 4, 5])),
+                             index['item'].selling_type.in_([3, 4, 5])),
             conj_operator=QueryFilter.CONJ_AND
         )
 
@@ -1419,11 +1421,11 @@ def test_ordering(index):
         sort = OrderingFilter(
             OrderingValue(
                 'popularity',
-                [index.car.popularity.desc(),
-                 index.car.opinion_count.desc(missing='_last')],
+                [index['car'].popularity.desc(),
+                 index['car'].opinion_count.desc(missing='_last')],
             ),
-            OrderingValue('price', [index.car.price]),
-            OrderingValue('-price', [index.car.price.desc()]),
+            OrderingValue('price', [index['car'].price]),
+            OrderingValue('-price', [index['car'].price.desc()]),
             alias='o',
             default='popularity',
         )
@@ -1444,7 +1446,7 @@ def test_ordering(index):
             ]
         }
 
-    qf_res = qf.process_result(MagicMock())
+    qf_res = qf.process_result(Mock())
     assert qf_res.sort.default_value.value == 'popularity'
     assert qf_res.sort.default_value.selected is True
     assert qf_res.sort.selected_value.value == 'popularity'
@@ -1460,7 +1462,7 @@ def test_ordering(index):
             ]
         }
 
-    qf_res = qf.process_result(MagicMock())
+    qf_res = qf.process_result(Mock())
     assert qf_res.sort.default_value.value == 'popularity'
     assert qf_res.sort.default_value.selected is False
     assert qf_res.sort.selected_value.value, 'price'
@@ -1508,7 +1510,7 @@ def test_page(index, client):
             "from": 20
         }
 
-    client.search = MagicMock(
+    client.search = Mock(
         return_value={
             "hits": {
                 "hits": [
@@ -1528,7 +1530,8 @@ def test_page(index, client):
             }
         }
     )
-    qf_res = qf.process_results(sq.get_result())
+    with pytest.warns(UserWarning, match='Cannot determine document class'):
+        qf_res = qf.process_results(sq.get_result())
     assert qf_res.page.offset == 20
     assert qf_res.page.limit == 10
     assert qf_res.page.total == 105
@@ -1706,7 +1709,7 @@ def test_nested_facet_filter_func(index, client):
 
     qf = TestQueryFilter()
 
-    client.search = MagicMock(
+    client.search = Mock(
         return_value={
             "hits": {
                 "hits": [],
@@ -1785,7 +1788,7 @@ def test_nested_facet_filter_func(index, client):
     assert len(color_res.all_values) == 0
     assert len(color_res.selected_values) == 0
 
-    client.search = MagicMock(
+    client.search = Mock(
         return_value={
             "hits": {
                 "hits": [],
@@ -2059,7 +2062,7 @@ def test_nested_range_filter_func(index, client):
 
     qf = TestQueryFilter()
 
-    client.search = MagicMock(
+    client.search = Mock(
         return_value={
             "hits": {
                 "hits": [],

@@ -144,7 +144,7 @@ class ExpressionTestCase(BaseTestCase):
 
         e = MultiMatch(
             "Will Smith",
-            [self.index.star.title.boost(4), self.index.star.wildcard('*_name').boost(2)],
+            [self.index['star'].title.boost(4), self.index['star'].wildcard('*_name').boost(2)],
             minimum_should_match='100%'
         )
         self.assert_expression(
@@ -159,11 +159,11 @@ class ExpressionTestCase(BaseTestCase):
         )
         self.assertEqual(
             e._collect_doc_classes(),
-            {self.index.star}
+            {self.index['star']}
         )
 
         self.assert_expression(
-            Range(self.index.product.price, lte=100, boost=2.2, execution='index', _cache=False),
+            Range(self.index['product'].price, lte=100, boost=2.2, execution='index', _cache=False),
             {
                 "range": {
                     "price": {"lte": 100, "boost": 2.2},
@@ -585,8 +585,8 @@ class ExpressionTestCase(BaseTestCase):
         )
 
         e = Nested(
-            self.index.movie.stars,
-            Match(self.index.movie.stars.full_name, 'Will Smith'),
+            self.index['movie'].stars,
+            Match(self.index['movie'].stars.full_name, 'Will Smith'),
             score_mode='max',
         )
         self.assert_expression(
@@ -605,12 +605,12 @@ class ExpressionTestCase(BaseTestCase):
         )
         self.assertEqual(
             e._collect_doc_classes(),
-            {self.index.movie}
+            {self.index['movie']}
         )
 
         e = HasParent(
-            self.index.blog.tag == 'something',
-            parent_type=self.index.blog,
+            self.index['blog'].tag == 'something',
+            parent_type=self.index['blog'],
             score_mode='score',
         )
         self.assert_expression(
@@ -633,7 +633,7 @@ class ExpressionTestCase(BaseTestCase):
         )
 
         e = HasParent(
-            self.index.blog.tag == 'something',
+            self.index['blog'].tag == 'something',
             score_mode='score',
         )
         self.assert_expression(
@@ -656,8 +656,8 @@ class ExpressionTestCase(BaseTestCase):
         )
 
         e = HasChild(
-            self.index.blog_tag.tag == 'something',
-            type=self.index.blog_tag,
+            self.index['blog_tag'].tag == 'something',
+            type=self.index['blog_tag'],
             score_mode='sum',
         )
         self.assert_expression(
@@ -680,7 +680,7 @@ class ExpressionTestCase(BaseTestCase):
         )
 
         e = HasChild(
-            self.index.blog_tag.tag == 'something',
+            self.index['blog_tag'].tag == 'something',
             score_mode='sum',
         )
         self.assert_expression(
