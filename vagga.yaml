@@ -123,7 +123,7 @@ commands:
       test: !Command
         container: py3-test
         run: |
-          ./scripts/wait_es.sh localhost:9200
+          ./scripts/wait_es.sh ${ES_URL:-localhost:9200}
           TESTS=${VAGGAOPT_TESTS:-tests_integ}
           eval py.test $TESTS $VAGGACLI_PYTEST_OPTIONS
 

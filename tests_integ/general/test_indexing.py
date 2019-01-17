@@ -1,3 +1,4 @@
+import os
 import uuid
 
 from elasticsearch import Elasticsearch
@@ -16,7 +17,8 @@ class Car(Document):
 
 @pytest.fixture
 def es_client():
-    es_client = Elasticsearch(['localhost:9200'])
+    es_url = os.environ.get('ES_URL', 'localhost:9200')
+    es_client = Elasticsearch([es_url])
     yield es_client
     if hasattr(es_client.transport, 'close'):
         es_client.transport.close()
