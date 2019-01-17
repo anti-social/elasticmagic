@@ -442,7 +442,7 @@ class Cluster(BaseCluster):
     def clear_scroll(self, scroll_id, **kwargs):
         params = self._clear_scroll_params(locals())
         return self._clear_scroll_result(
-            self._client.clear_scroll(body=scroll_id, **kwargs)
+            self._client.clear_scroll(**params)
         )
 
     def multi_search(

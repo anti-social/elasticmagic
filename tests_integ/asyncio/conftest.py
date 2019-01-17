@@ -1,22 +1,15 @@
 import asyncio
 import gc
 import os
-import uuid
 import warnings
 
 from elasticsearch_async import AsyncElasticsearch
 
 import pytest
 
-from elasticmagic import Document, Field
 from elasticmagic.ext.asyncio.cluster import AsyncCluster
-from elasticmagic.types import Text
 
-
-class Car(Document):
-    __doc_type__ = 'car'
-
-    name = Field(Text())
+from ..conftest import Car
 
 
 @pytest.yield_fixture
@@ -58,8 +51,7 @@ def es_cluster(es_client):
 
 
 @pytest.fixture
-async def es_index(es_cluster, es_client):
-    index_name = 'test-{}'.format(str(uuid.uuid4()).split('-')[0])
+async def es_index(es_cluster, es_client, index_name):
     await es_client.indices.create(index=index_name)
     es_index = es_cluster[index_name]
     await es_index.put_mapping(Car)
@@ -68,29 +60,12 @@ async def es_index(es_cluster, es_client):
 
 
 @pytest.fixture
-async def cars(es_index):
-    cars = [
-        Car(_id=1, name='Lightning McQueen'),
-        Car(_id=2, name='Sally Carerra'),
-    ]
-    await es_index.add(cars, refresh=True)
-    yield cars
+async def cars(es_index, car_docs):
+    await es_index.add(car_docs, refresh=True)
+    yield car_docs
 
 
 @pytest.fixture
-async def all_cars(es_index):
-    cars = [
-        Car(_id=1, name='Lightning McQueen'),
-        Car(_id=2, name='Sally Carerra'),
-        Car(_id=3, name='Doc Hudson'),
-        Car(_id=4, name='Ramone'),
-        Car(_id=5, name='Luigi'),
-        Car(_id=6, name='Guido'),
-        Car(_id=7, name='Flo'),
-        Car(_id=8, name='Sarge'),
-        Car(_id=9, name='Sheriff'),
-        Car(_id=10, name='Fillmore'),
-        Car(_id=11, name='Mack'),
-    ]
-    await es_index.add(cars, refresh=True)
-    yield cars
+async def all_cars(es_index, all_car_docs):
+    await es_index.add(all_car_docs, refresh=True)
+    yield all_car_docs

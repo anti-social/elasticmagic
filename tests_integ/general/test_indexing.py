@@ -1,40 +1,6 @@
-import os
-import uuid
+from elasticmagic import SearchQuery
 
-from elasticsearch import Elasticsearch
-
-import pytest
-
-from elasticmagic import Cluster, Document, Field
-from elasticmagic.types import String
-
-
-class Car(Document):
-    __doc_type__ = 'car'
-
-    name = Field(String())
-
-
-@pytest.fixture
-def es_client():
-    es_url = os.environ.get('ES_URL', 'localhost:9200')
-    es_client = Elasticsearch([es_url])
-    yield es_client
-    if hasattr(es_client.transport, 'close'):
-        es_client.transport.close()
-
-
-@pytest.fixture
-def es_cluster(es_client):
-    yield Cluster(es_client)
-
-
-@pytest.fixture
-def es_index(es_cluster, es_client):
-    index_name = 'test-{}'.format(str(uuid.uuid4()).split('-')[0])
-    es_client.indices.create(index=index_name)
-    yield es_cluster[index_name]
-    es_client.indices.delete(index=index_name)
+from ..conftest import Car
 
 
 def test_adding_documents(es_index):
@@ -56,3 +22,22 @@ def test_adding_documents(es_index):
     assert doc._id == '2'
     assert doc._index == es_index.get_name()
     assert doc._score is None
+
+
+def test_scroll(es_index, cars):
+    search_res = es_index.search(
+        SearchQuery(), scroll='1m',
+    )
+
+    assert search_res.total == 2
+    assert len(search_res.hits) == 2
+    assert search_res.scroll_id is not None
+
+    scroll_res = es_index.scroll(search_res.scroll_id, scroll='1m')
+
+    assert scroll_res.total == 2
+    assert len(scroll_res.hits) == 0
+
+    clear_scroll_res = es_index.clear_scroll(scroll_res.scroll_id)
+
+    assert clear_scroll_res.succeeded is True
