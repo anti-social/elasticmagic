@@ -46,6 +46,16 @@ containers:
       - !Py3Requirements requirements_test.txt
       - !Py3Requirements requirements_doc.txt
 
+  bump:
+    setup:
+    - !Alpine v3.8
+    - !Install
+      - git
+    - !PipConfig
+      dependencies: true
+    - !Py3Install
+      - bumpversion
+
   bench:
     environ:
       HOME: /work
@@ -98,6 +108,11 @@ commands:
     description: Run flake8 linter
     container: py3-test
     run: [flake8, elasticmagic, tests_integ]
+
+  bump: !Command
+    description: Bump version
+    container: bump
+    run: [bumpversion]
 
   test-integ-5x: !Supervise
     options: |

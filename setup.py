@@ -1,15 +1,9 @@
-import os
 from setuptools import setup, find_packages
-
-
-def get_version():
-    with open(os.path.join('elasticmagic', 'version.py'), 'rt') as version_file:
-        return version_file.readline().split('=')[1].strip().strip("'\"")
 
 
 setup(
     name="elasticmagic",
-    version=get_version(),
+    version="0.0.9a0",
     author="Alexander Koval",
     author_email="kovalidis@gmail.com",
     description=("Python orm for elasticsearch."),
