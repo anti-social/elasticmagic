@@ -59,3 +59,13 @@ script:
 
 after_success:
 - codecov
+
+deploy:
+  provider: pypi
+  distributions: sdist bdist_wheel
+  user: anti_social
+  password: $PYPI_PASSWORD
+  on:
+    tags: true
+    condition: $TRAVIS_TAG =~ ^v.*$
+  skip_existing: true
