@@ -198,7 +198,7 @@ class BaseFilter(object):
         return search_query
 
     def _process_result(self, result, params):
-        pass
+        return BaseFilterResult(self.name, self.alias)
 
 
 class FieldFilter(BaseFilter):
@@ -347,6 +347,10 @@ class FacetFilter(SimpleFilter):
                 bucket, bucket.key in values, bool(values),
                 get_title=self._get_title,
             ))
+            if bucket.key in values:
+                self.qf._set_selected(self.name, bucket.key)
+            self.qf._set_value_data(self.name, bucket.key, {'bucket': bucket})
+            self.add_value(FacetValue(bucket.key, _filter=self))
             processed_values.add(bucket.key)
 
         for v in values:
@@ -356,11 +360,24 @@ class FacetFilter(SimpleFilter):
                     fake_agg_data, terms_agg.expr.aggs(None), terms_agg
                 )
                 terms_agg.add_bucket(fake_bucket)
+                self.qf._set_selected(self.name, fake_bucket.key)
+                self.qf._set_value_data(
+                    self.name, fake_bucket.key, {'bucket': fake_bucket}
+                )
+                self.add_value(FacetValue(fake_bucket.key).bind(self))
                 facet_result.add_value(FacetValueResult(
                     fake_bucket, True, True, get_title=self._get_title,
                 ))
 
         return facet_result
+
+    def add_value(self, fv):
+        self.all_values.append(fv)
+        self.values_map[fv.value] = fv
+        if fv.selected:
+            self.selected_values.append(fv)
+        else:
+            self.values.append(fv)
 
     def get_value(self, value):
         return self.values_map.get(value)
@@ -650,13 +667,11 @@ class RangeFilter(FieldFilter):
                 result.get_aggregation(self._enabled_agg_name).doc_count
             )
         if self._compute_min_max:
-            min = base_agg.get_aggregation(self._min_agg_name).value
-            max = base_agg.get_aggregation(self._max_agg_name).value
-        else:
-            min = max = None
+            self.min = base_agg.get_aggregation(self._min_agg_name).value
+            self.max = base_agg.get_aggregation(self._max_agg_name).value
         return RangeFilterResult(
             self.from_value, self.to_value,
-            enabled=self.enabled, min_value=min, max_value=max
+            enabled=self.enabled, min_value=self.min, max_value=self.max
         )
 
 
@@ -1296,6 +1311,10 @@ class NestedFacetFilter(BaseFilter):
         facet_result = FacetFilterResult(self.name, self.alias)
         processed_values = set()
         for bucket in terms_agg.buckets:
+            if bucket.key in values:
+                self.qf._set_selected(self.name, bucket.key)
+            self.qf._set_value_data(self.name, bucket.key, {'bucket': bucket})
+            self.add_value(FacetValue(bucket.key, _filter=self))
             facet_result.add_value(FacetValueResult(
                 bucket, bucket.key in values, bool(values),
                 get_title=self._get_title,
@@ -1309,6 +1328,11 @@ class NestedFacetFilter(BaseFilter):
                     fake_agg_data, terms_agg.expr.aggs(None), terms_agg
                 )
                 terms_agg.add_bucket(fake_bucket)
+                self.qf._set_selected(self.name, fake_bucket.key)
+                self.qf._set_value_data(
+                    self.name, fake_bucket.key, {'bucket': fake_bucket}
+                )
+                self.add_value(FacetValue(fake_bucket.key).bind(self))
                 facet_result.add_value(FacetValueResult(
                     fake_bucket, True, True, get_title=self._get_title,
                 ))
@@ -1482,13 +1506,11 @@ class NestedRangeFilter(BaseFilter):
                 .get_aggregation(self._enabled_agg_name_stat)
                 .get_aggregation(self._filter_key_agg_name)
             )
-            min = base_agg.get_aggregation(self._min_agg_name).value
-            max = base_agg.get_aggregation(self._max_agg_name).value
-        else:
-            min = max = None
+            self.min = base_agg.get_aggregation(self._min_agg_name).value
+            self.max = base_agg.get_aggregation(self._max_agg_name).value
         return RangeFilterResult(
             self.from_value, self.to_value,
             enabled=self.enabled,
-            min_value=min,
-            max_value=max,
+            min_value=self.min,
+            max_value=self.max,
         )
