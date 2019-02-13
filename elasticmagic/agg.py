@@ -814,6 +814,13 @@ class Nested(SingleBucketAgg):
         super(Nested, self).__init__(path=path, **kwargs)
 
 
+class ReverseNested(SingleBucketAgg):
+    __agg_name__ = 'reverse_nested'
+
+    def __init__(self, path, **kwargs):
+        super(ReverseNested, self).__init__(path=path, **kwargs)
+
+
 class Sampler(SingleBucketAgg):
     __agg_name__ = 'sampler'
 
