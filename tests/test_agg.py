@@ -571,6 +571,68 @@ class AggregationTest(BaseTestCase):
         )
         self.assertEqual(a.get_aggregation('min_price').value, 350)
 
+        a = agg.Nested(
+            f.resellers,
+            aggs={"resellers": agg.Terms(
+                f.resellers.id,
+                aggs={"reverse": agg.ReverseNested(
+                    f.resellers,
+                    aggs={"reseller_volume": agg.Sum(f.price)}
+                )})})
+        self.assert_expression(
+            a,
+            {
+                "nested": {"path": "resellers"},
+                "aggregations": {
+                    "resellers": {
+                        "terms": {"field": "resellers.id"},
+                        "aggregations": {
+                            "reverse": {
+                                "reverse_nested": {"path": "resellers"},
+                                "aggregations": {
+                                    "reseller_volume": {
+                                        "sum": {"field": "price"}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        )
+        a = a.build_agg_result(
+            {
+                "doc_count": 100,
+                "resellers": {
+                    "buckets": [
+                        {
+                            "key": 1122,
+                            "doc_count": 48,
+                            "reverse": {
+                                "reseller_volume": {"value": 500100}
+                            }
+                        },
+                        {
+                            "key": 2233,
+                            "doc_count": 52,
+                            "reverse": {
+                                "reseller_volume": {"value": 100500}
+                            }
+                        }
+                    ]
+                }
+            }
+        )
+        self.assertEqual(
+            a
+            .get_aggregation("resellers")
+            .buckets[1]
+            .get_aggregation("reverse")
+            .get_aggregation("reseller_volume")
+            .value,
+            100500
+        )
+
         a = agg.Sampler(shard_size=1000, aggs={'avg_price': agg.Avg(f.price)})
         self.assert_expression(
             a,
