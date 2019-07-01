@@ -4,11 +4,12 @@ import dateutil
 
 from elasticmagic.util import collect_doc_classes
 from elasticmagic.types import (
-    Type, String, Integer, Float, Boolean,
-    Date, Object, List, GeoPoint, Completion, Percolator,
+    Type, String, Text, Integer, Float, Boolean,
+    Date, Object, Nested, List, GeoPoint, Completion, Percolator,
 )
 from elasticmagic.types import ValidationError
 from elasticmagic.compat import string_types
+from elasticmagic.compiler import Compiler50, Compiler60
 from elasticmagic.document import Document, DynamicDocument
 from elasticmagic.attribute import AttributedField, DynamicAttributedField
 from elasticmagic.expression import Field, MultiMatch
@@ -49,10 +50,6 @@ class ProductDocument(Document):
 
 
 class DocumentTestCase(BaseTestCase):
-    # def test(self):
-    #     class ProductDocument(Document):
-    #         _all = Field(enable=False)
-    #     1/0
 
     def assertSameElements(self, expected_seq, actual_seq):
         first_seq = list(expected_seq)
@@ -440,6 +437,25 @@ class DocumentTestCase(BaseTestCase):
             }
         )
 
+    def test_6x_document_from_hit(self):
+        class Question(Document):
+            __doc_type__ = 'question'
+
+            name = Field(Text)
+
+        q = Question(_hit={
+            '_id': 'question#123',
+            '_source': {
+                'name': (
+                    'The Ultimate Question of Life, the Universe, '
+                    'and Everything'
+                )
+            }
+        })
+
+        self.assertEqual(q._id, '123')
+        self.assertEqual(q._type, 'question')
+
     def test_inheritance(self):
         class InheritedDocument(ProductDocument):
             description = Field(String)
@@ -540,7 +556,7 @@ class DocumentTestCase(BaseTestCase):
             name = Field(String, norms={'enabled': False})
 
         self.assertEqual(
-            ProductGroupDocument.to_mapping(),
+            ProductGroupDocument.to_mapping(compiler=Compiler50),
             {
                 "product_group": {
                     "properties": {
@@ -603,7 +619,7 @@ class DocumentTestCase(BaseTestCase):
         ProductDocument.tags = Field(List(String))
 
         self.assertEqual(
-            ProductDocument.to_mapping(),
+            ProductDocument.to_mapping(compiler=Compiler50),
             {
                 "product": {
                     "dynamic": False,
@@ -675,6 +691,69 @@ class DocumentTestCase(BaseTestCase):
             }
         )
 
+    def test_6x_to_mapping_without_doc_type(self):
+        class ProductGroupDocument(Document):
+            id = Field(Integer)
+            name = Field(String, norms={'enabled': False})
+
+        self.assertEqual(
+            ProductGroupDocument.to_mapping(compiler=Compiler60),
+            {
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string",
+                        "norms": {
+                            "enabled": False
+                        }
+                    }
+                }
+            }
+        )
+
+    def test_6x_to_mapping_with_doc_type(self):
+        class TagDocument(Document):
+            __doc_type__ = 'tag'
+
+            name = Field(Text)
+
+        class ProductGroupDocument(Document):
+            __doc_type__ = 'product_group'
+
+            id = Field(Integer)
+            name = Field(Text, norms={'enabled': False})
+            tags = Field(Nested(TagDocument))
+
+        self.assertEqual(
+            ProductGroupDocument.to_mapping(compiler=Compiler60),
+            {
+                "properties": {
+                    "_doc_type": {
+                        "type": "join"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "text",
+                        "norms": {
+                            "enabled": False
+                        }
+                    },
+                    "tags": {
+                        "type": "nested",
+                        "properties": {
+                            "name": {
+                                "type": "text"
+                            }
+                        }
+                    },
+                }
+            }
+        )
+
     def test_geo_point_document(self):
 
         class GeoPointDoc(Document):
@@ -683,7 +762,7 @@ class DocumentTestCase(BaseTestCase):
             pin = Field(GeoPoint)
 
         self.assertEqual(
-            GeoPointDoc.to_mapping(),
+            GeoPointDoc.to_mapping(compiler=Compiler50),
             {
                 "geo_data": {
                     "properties": {
@@ -703,7 +782,7 @@ class DocumentTestCase(BaseTestCase):
             suggest = Field(Completion, payloads=True)
 
         self.assertEqual(
-            CompletionDoc.to_mapping(),
+            CompletionDoc.to_mapping(compiler=Compiler50),
             {
                 'suggest': {
                     'properties': {
@@ -717,16 +796,27 @@ class DocumentTestCase(BaseTestCase):
         )
 
         doc = CompletionDoc()
-        self.assertEqual(doc.to_source(validate=True), {})
+        self.assertEqual(
+            doc.to_source(validate=True),
+            {
+                "_doc_type": {"name": "suggest"}
+            }
+        )
 
         doc = CompletionDoc(suggest='complete this')
-        self.assertEqual(doc.to_source(validate=True),
-                         {'suggest': 'complete this'})
+        self.assertEqual(
+            doc.to_source(validate=True),
+            {
+                '_doc_type': {'name': 'suggest'},
+                'suggest': 'complete this',
+            }
+        )
         doc = CompletionDoc(suggest={'input': ['complete', 'complete this'],
                                      'output': 'complete'})
         self.assertEqual(
             doc.to_source(validate=True),
             {
+                '_doc_type': {'name': 'suggest'},
                 'suggest': {
                     'input': [
                         'complete',
@@ -788,7 +878,7 @@ class DocumentTestCase(BaseTestCase):
             query = Field(Percolator)
 
         self.assertEqual(
-            QueryDocument.to_mapping(),
+            QueryDocument.to_mapping(compiler=Compiler50),
             {
                 "query": {
                     "properties": {
@@ -806,6 +896,7 @@ class DocumentTestCase(BaseTestCase):
         self.assertEqual(
             doc.to_source(),
             {
+                "_doc_type": {"name": "query"},
                 "query": {
                     "multi_match": {
                         "type": "cross_fields",
@@ -819,3 +910,37 @@ class DocumentTestCase(BaseTestCase):
         doc = QueryDocument(query='test')
         with self.assertRaises(ValidationError):
             doc.to_source(validate=True)
+
+    def test_parent_child(self):
+        class Question(Document):
+            __doc_type__ = 'question'
+
+            question = Field(String)
+
+        class Answer(Document):
+            __doc_type__ = 'answer'
+            __parent__ = Question
+
+            answer = Field(String)
+
+        amazingly_accurate_answer = Answer(
+            _id=1,
+            _parent=1,
+            answer='42'
+        )
+        self.assertEqual(
+            amazingly_accurate_answer.to_meta(),
+            {
+                '_id': 'answer#1',
+            }
+        )
+        self.assertEqual(
+            amazingly_accurate_answer.to_source(),
+            {
+                "_doc_type": {
+                    "name": "answer",
+                    "parent": "question#1",
+                },
+                "answer": "42",
+            }
+        )

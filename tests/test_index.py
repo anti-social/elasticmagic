@@ -248,11 +248,11 @@ class IndexTest(BaseTestCase):
                                 "type": "es_rejected_execution_exception",
                                 "reason": (
                                     "rejected execution of "
-                                    "org.elasticsearch.action.support.replication.TransportReplicationAction$PrimaryPhase$1@3757e902"
+                                    "org.elasticsearch.action.support.replication.TransportReplicationAction$PrimaryPhase$1@3757e902"  # noqa
                                     "on EsThreadPoolExecutor["
                                     "bulk, queue capacity = 50, "
-                                    "org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor@2a3fa7e2["
-                                    "Running, pool size = 4, active threads = 4, queued tasks = 50, completed tasks = 225]]"
+                                    "org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor@2a3fa7e2["  # noqa
+                                    "Running, pool size = 4, active threads = 4, queued tasks = 50, completed tasks = 225]]"  # noqa
                                 )
                             }
                         }
@@ -260,6 +260,7 @@ class IndexTest(BaseTestCase):
                 ]
             }
         )
+        print(self.index.get_cluster().get_es_version())
         res = self.index.bulk([actions.Delete(self.index['car'](_id=1))])
         self.client.bulk.assert_called_with(
             body=[
@@ -299,7 +300,7 @@ class IndexTest(BaseTestCase):
             AssertionError,
             lambda: self.index.delete('test_id')
         )
-        
+
     def test_delete_by_query(self):
         self.index.delete_by_query(
             self.index['car'].vendor == 'Ford', doc_type='car', routing='Ford'
@@ -314,7 +315,7 @@ class IndexTest(BaseTestCase):
             },
             routing='Ford'
         )
-        
+
     def test_refresh(self):
         self.index.refresh()
         self.client.indices.refresh.assert_called_with(index='test')
@@ -359,4 +360,3 @@ class IndexTest(BaseTestCase):
         self.assertDictEqual(settings, {
             "version": "latest"
         })
-

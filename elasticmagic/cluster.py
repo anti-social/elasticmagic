@@ -106,7 +106,7 @@ class BaseCluster(with_metaclass(ABCMeta)):
     def _get_result(self, doc_cls, raw_result):
         return doc_cls(_hit=raw_result)
 
-    def _multi_get_params(self, params):
+    def _multi_get_params(self, params, compiler):
         params, kwargs = _preprocess_params(params)
         docs_or_ids = params.pop('docs')
         doc_cls = params.pop('doc_cls', None) or DynamicDocument
@@ -122,7 +122,7 @@ class BaseCluster(with_metaclass(ABCMeta)):
         doc_classes = []
         for doc_or_id in docs_or_ids:
             if isinstance(doc_or_id, Document):
-                body['docs'].append(doc_or_id.to_meta())
+                body['docs'].append(compiler.compiled_meta(doc_or_id).params)
                 doc_classes.append(doc_or_id.__class__)
             elif isinstance(doc_or_id, Mapping):
                 body['docs'].append(doc_or_id)
@@ -271,11 +271,11 @@ class BaseCluster(with_metaclass(ABCMeta)):
 
         return [q.get_result() for q in queries]
 
-    def _put_mapping_params(self, params):
+    def _put_mapping_params(self, params, compiler):
         params, kwargs = _preprocess_params(params)
         doc_cls_or_mapping = params.pop('doc_cls_or_mapping')
         if issubclass(doc_cls_or_mapping, Document):
-            body = doc_cls_or_mapping.to_mapping()
+            body = compiler.compiled_mapping(doc_cls_or_mapping).params
         else:
             body = doc_cls_or_mapping
         if params.get('doc_type', None) is None:
@@ -326,13 +326,13 @@ class BaseCluster(with_metaclass(ABCMeta)):
     def _delete_by_query_result(self, raw_result):
         return DeleteByQueryResult(raw_result)
 
-    def _bulk_params(self, params):
+    def _bulk_params(self, params, compiler):
         params, kwargs = _preprocess_params(params)
         actions = params.pop('actions')
         body = []
         for act in actions:
-            body.append({act.__action_name__: act.get_meta()})
-            source = act.get_source()
+            body.append(compiler.compiled_meta(act).params)
+            source = compiler.compiled_source(act).params
             if source is not None:
                 body.append(source)
         return clean_params(params, body=body, **kwargs)
@@ -390,7 +390,9 @@ class Cluster(BaseCluster):
             parent=None, routing=None, preference=None, realtime=None,
             refresh=None, **kwargs
     ):
-        doc_classes, default_doc_cls, params = self._multi_get_params(locals())
+        doc_classes, default_doc_cls, params = self._multi_get_params(
+            locals(), self.get_compiler()
+        )
         return self._multi_get_result(
             doc_classes,
             default_doc_cls,
@@ -467,7 +469,7 @@ class Cluster(BaseCluster):
             ignore_conflicts=None, ignore_unavailable=None,
             master_timeout=None, timeout=None, **kwargs
     ):
-        body, params = self._put_mapping_params(locals())
+        body, params = self._put_mapping_params(locals(), self.get_compiler())
         return self._put_mapping_result(
             self._client.indices.put_mapping(body=body, **params)
         )
@@ -507,7 +509,7 @@ class Cluster(BaseCluster):
             self, actions, index=None, doc_type=None, refresh=None,
             timeout=None, consistency=None, replication=None, **kwargs
     ):
-        params = self._bulk_params(locals())
+        params = self._bulk_params(locals(), self.get_compiler())
         return self._bulk_result(
             self._client.bulk(**params)
         )
