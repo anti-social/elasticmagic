@@ -1,19 +1,20 @@
 import operator
 import collections
 
+from .document import Document
 from .expression import Bool
 from .expression import Exists
 from .expression import Filtered
 from .expression import FunctionScore
 from .expression import HighlightedField
 from .expression import Params
+from .types import ValidationError
 
 
 OPERATORS = {
     operator.and_: 'and',
     operator.or_: 'or',
 }
-
 
 ESVersion = collections.namedtuple('ESVersion', ['major', 'minor', 'patch'])
 
@@ -444,11 +445,11 @@ class QueryCompiled50(QueryCompiled20):
         return params
 
 
-class MappingCompiled(Compiled):
+class MappingCompiled10(Compiled):
     def __init__(self, expression, ordered=False):
         self._dict_type = collections.OrderedDict if ordered else dict
         self._dynamic_templates = []
-        super(MappingCompiled, self).__init__(expression)
+        super(MappingCompiled10, self).__init__(expression)
 
     def _visit_dynamic_field(self, field):
         self._dynamic_templates.append(
@@ -520,6 +521,158 @@ class MappingCompiled(Compiled):
         }
 
 
+class MappingCompiled60(MappingCompiled10):
+    def visit_document(self, doc_cls):
+        mapping = self._dict_type()
+        mapping.update(doc_cls.__mapping_options__)
+        mapping.update(self.visit(doc_cls.mapping_fields))
+        properties = self.visit(doc_cls.user_fields)
+        doc_type = getattr(doc_cls, '__doc_type__', None)
+        if doc_type:
+            properties['_doc_type'] = {'type': 'join'}
+        mapping['properties'] = properties
+        for f in doc_cls.dynamic_fields:
+            self._visit_dynamic_field(f)
+        if self._dynamic_templates:
+            mapping['dynamic_templates'] = self._dynamic_templates
+        return mapping
+
+
+class MetaCompiled10(Compiled):
+    META_FIELD_NAMES = {
+        '_id',
+        '_index',
+        '_type',
+        '_routing',
+        '_parent',
+        '_timestamp',
+        '_ttl',
+        '_version',
+    }
+
+    def __init__(self, document):
+        super(MetaCompiled10, self).__init__(document)
+
+    def visit_document(self, doc):
+        meta = {}
+        if hasattr(doc, '__doc_type__'):
+            meta['_type'] = doc.__doc_type__
+        self._populate_meta_from_document(doc, meta)
+        return meta
+
+    def visit_action(self, action):
+        if isinstance(action.doc, Document):
+            meta = self.visit_document(action.doc)
+        else:
+            meta = {}
+            self._populate_meta_from_dict(action.doc, meta)
+        meta.update(action.params)
+        return {action.__action_name__: meta}
+
+    def _populate_meta_from_document(self, doc, meta):
+        for field_name in self.META_FIELD_NAMES:
+            value = getattr(doc, field_name, None)
+            if value:
+                meta[field_name] = value
+
+    def _populate_meta_from_dict(self, doc, meta):
+        for field_name in self.META_FIELD_NAMES:
+            value = doc.get(field_name)
+            if value:
+                meta[field_name] = value
+
+
+class MetaCompiled60(MetaCompiled10):
+    META_FIELD_NAMES = {
+        '_id',
+        '_index',
+        '_routing',
+        '_timestamp',
+        '_ttl',
+        '_version',
+    }
+
+    def __init__(self, document):
+        super(MetaCompiled60, self).__init__(document)
+
+    def visit_document(self, doc):
+        doc_meta = {}
+        self._populate_meta_from_document(doc, doc_meta)
+        if hasattr(doc, '__doc_type__') and '_id' in doc_meta:
+            doc_meta['_id'] = '{}#{}'.format(doc.__doc_type__, doc_meta['_id'])
+        return doc_meta
+
+
+class SourceCompiled10(Compiled):
+    def __init__(self, document, validate=False):
+        self._validate = validate
+        super(SourceCompiled10, self).__init__(document)
+
+    def visit_document(self, doc):
+        res = {}
+        for key, value in doc.__dict__.items():
+            if key in doc.__class__.mapping_fields:
+                continue
+
+            attr_field = doc.__class__.fields.get(key)
+            if attr_field:
+                if value is None or value == '' or value == []:
+                    if (
+                        self._validate and
+                        attr_field.get_field()._mapping_options.get('required')
+                    ):
+                        raise ValidationError("'{}' is required".format(
+                            attr_field.get_attr_name()
+                        ))
+                    continue
+                value = attr_field.get_type() \
+                    .from_python(value, validate=self._validate)
+                res[attr_field._field._name] = value
+
+        for attr_field in doc._fields.values():
+            if (
+                self._validate
+                and attr_field.get_field()._mapping_options.get('required')
+                and attr_field.get_field().get_name() not in res
+            ):
+                raise ValidationError(
+                    "'{}' is required".format(attr_field.get_attr_name())
+                )
+
+        return res
+
+    def visit_action(self, action):
+        if action.__action_name__ == 'delete':
+            return None
+
+        if isinstance(action.doc, Document):
+            source = self.visit_document(action.doc)
+        else:
+            source = action.doc.copy()
+            for exclude_field in Document.mapping_fields:
+                source.pop(exclude_field.get_field().get_name(), None)
+
+        if action.__action_name__ == 'update':
+            if source:
+                source = {'doc': source}
+            source.update(action.source_params)
+
+        return source
+
+
+class SourceCompiled60(SourceCompiled10):
+    def visit_document(self, doc):
+        source = super(SourceCompiled60, self).visit_document(doc)
+        if hasattr(doc, '__doc_type__'):
+            doc_type = {'name': doc.__doc_type__}
+            if doc._parent is not None:
+                doc_type['parent'] = '{}#{}'.format(
+                    doc.__parent__.__doc_type__, doc._parent
+                )
+            source['_doc_type'] = doc_type
+        return source
+
+
 class Compiler(object):
     def compiled_expression(self, *args, **kwargs):
         raise NotImplementedError()
@@ -530,32 +683,50 @@ class Compiler(object):
     def compiled_mapping(self, *args, **kwargs):
         raise NotImplementedError()
 
+    def compiled_meta(self, *args, **kwargs):
+        raise NotImplementedError()
+
+    def compiled_source(self, *args, **kwargs):
+        raise NotImplementedError()
+
 
 class Compiler10(Compiler):
     compiled_expression = QueryCompiled.compiled_expression
-
     compiled_query = QueryCompiled
+    compiled_mapping = MappingCompiled10
+    compiled_meta = MetaCompiled10
+    compiled_source = SourceCompiled10
 
-    compiled_mapping = MappingCompiled
 
-
-class Compiler20(Compiler10):
+class Compiler20(Compiler):
     compiled_expression = QueryCompiled20.compiled_expression
-
     compiled_query = QueryCompiled20
+    compiled_mapping = MappingCompiled10
+    compiled_meta = MetaCompiled10
+    compiled_source = SourceCompiled10
 
 
-class Compiler50(Compiler20):
+class Compiler50(Compiler):
     compiled_expression = QueryCompiled50.compiled_expression
-
     compiled_query = QueryCompiled50
+    compiled_mapping = MappingCompiled10
+    compiled_meta = MetaCompiled10
+    compiled_source = SourceCompiled10
 
 
-DefaultCompiler = Compiler50
+class Compiler60(Compiler):
+    compiled_expression = QueryCompiled50.compiled_expression
+    compiled_query = QueryCompiled50
+    compiled_mapping = MappingCompiled60
+    compiled_meta = MetaCompiled60
+    compiled_source = SourceCompiled60
+
+
+DefaultCompiler = Compiler60
 
 
 def get_compiler_by_es_version(es_version):
-    if es_version.major == 1:
+    if es_version.major <= 1:
         return Compiler10
     elif es_version.major == 2:
         return Compiler20

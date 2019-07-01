@@ -38,7 +38,9 @@ class AsyncCluster(BaseCluster):
             parent=None, routing=None, preference=None, realtime=None,
             refresh=None, **kwargs
     ):
-        doc_classes, default_doc_cls, params = self._multi_get_params(locals())
+        doc_classes, default_doc_cls, params = self._multi_get_params(
+            locals(), self.get_compiler()
+        )
         return self._multi_get_result(
             doc_classes,
             default_doc_cls,
@@ -108,7 +110,9 @@ class AsyncCluster(BaseCluster):
             ignore_conflicts=None, ignore_unavailable=None,
             master_timeout=None, timeout=None, **kwargs
     ):
-        mapping, params = self._put_mapping_params(locals())
+        mapping, params = self._put_mapping_params(
+            locals(), self.get_compiler()
+        )
         return self._put_mapping_result(
             await self._client.indices.put_mapping(body=mapping, **params)
         )
@@ -148,7 +152,7 @@ class AsyncCluster(BaseCluster):
             self, actions, index=None, doc_type=None, refresh=None,
             timeout=None, consistency=None, replication=None, **kwargs
     ):
-        params = self._bulk_params(locals())
+        params = self._bulk_params(locals(), self.get_compiler())
         return self._bulk_result(
             await self._client.bulk(**params)
         )

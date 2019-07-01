@@ -1,17 +1,18 @@
 import unittest
 
-from mock import MagicMock
+from mock import MagicMock, Mock
 
 from elasticmagic import Cluster, Index
-from elasticmagic.compiler import DefaultCompiler
 
 
 class BaseTestCase(unittest.TestCase):
     maxDiff = None
 
     def setUp(self):
-        self.client = MagicMock()
-        self.cluster = Cluster(self.client, compiler=DefaultCompiler)
+        self.client = MagicMock(
+            info=Mock(return_value={'version': {'number': '5.6.2'}})
+        )
+        self.cluster = Cluster(self.client)
         self.index = Index(self.cluster, 'test')
 
     def assert_expression(self, expr, params):

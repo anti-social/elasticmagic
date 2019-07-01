@@ -1,23 +1,10 @@
-from .types import Type, String, Integer, Float, Date, ValidationError
-from .compiler import DefaultCompiler
+from .types import Type, String, Integer, Float, Date
 from .attribute import AttributedField, DynamicAttributedField
 from .attribute import _attributed_field_factory
 from .expression import Field, MappingField
 from .datastructures import OrderedAttributes
 from .util import cached_property
 from .compat import with_metaclass
-
-
-META_FIELD_NAMES = {
-    '_id',
-    '_index',
-    '_type',
-    '_routing',
-    '_parent',
-    '_timestamp',
-    '_ttl',
-    '_version',
-}
 
 
 class DocumentMeta(type):
@@ -151,6 +138,11 @@ class Document(with_metaclass(DocumentMeta)):
             for attr_field in self._mapping_fields:
                 setattr(self, attr_field._attr_name,
                         _hit.get(attr_field._field._name))
+            if hasattr(self, '__doc_type__') and '_type' not in _hit:
+                doc_type, _, doc_id = _hit['_id'].rpartition('#')
+                self._id = doc_id
+                if doc_type:
+                    self._type = doc_type
             if _hit.get('_source'):
                 for hit_key, hit_value in _hit['_source'].items():
                     setattr(
@@ -200,48 +192,17 @@ class Document(with_metaclass(DocumentMeta)):
             processed_fields[field_name] = processed_values
         return processed_fields
 
-    def to_meta(self):
-        doc_meta = {}
-        if hasattr(self, '__doc_type__'):
-            doc_meta['_type'] = self.__doc_type__
-        for field_name in META_FIELD_NAMES:
-            value = getattr(self, field_name, None)
-            if value:
-                doc_meta[field_name] = value
-        return doc_meta
+    def to_meta(self, compiler=None):
+        from .compiler import DefaultCompiler
 
-    def to_source(self, validate=False):
-        res = {}
-        for key, value in self.__dict__.items():
-            if key in self.__class__.mapping_fields:
-                continue
+        meta_compiler = (compiler or DefaultCompiler).compiled_meta
+        return meta_compiler(self).params
 
-            attr_field = self.__class__.fields.get(key)
-            if attr_field:
-                if value is None or value == '' or value == []:
-                    if (
-                        validate and
-                        attr_field.get_field()._mapping_options.get('required')
-                    ):
-                        raise ValidationError("'{}' is required".format(
-                            attr_field.get_attr_name()
-                        ))
-                    continue
-                value = attr_field.get_type() \
-                    .from_python(value, validate=validate)
-                res[attr_field._field._name] = value
+    def to_source(self, validate=False, compiler=None):
+        from .compiler import DefaultCompiler
 
-        for attr_field in self._fields.values():
-            if (
-                validate
-                and attr_field.get_field()._mapping_options.get('required')
-                and attr_field.get_field().get_name() not in res
-            ):
-                raise ValidationError(
-                    "'{}' is required".format(attr_field.get_attr_name())
-                )
-
-        return res
+        source_compiler = (compiler or DefaultCompiler).compiled_source
+        return source_compiler(self, validate=validate).params
 
     def get_highlight(self):
         return self._highlight or {}
@@ -254,6 +215,8 @@ class Document(with_metaclass(DocumentMeta)):
 
     @classmethod
     def to_mapping(cls, compiler=None, ordered=False):
+        from .compiler import DefaultCompiler
+
         mapping_compiler = (compiler or DefaultCompiler).compiled_mapping
         return mapping_compiler(cls, ordered=ordered).params
 

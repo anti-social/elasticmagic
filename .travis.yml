@@ -42,7 +42,7 @@ before_script:
 - docker ps -a
 
 script:
-- tox -- -v --cov=elasticmagic --cov-append
+- tox -- tests -v --cov=elasticmagic --cov-append
 - |
   case $TRAVIS_PYTHON_VERSION in
     3.6|3.7)
