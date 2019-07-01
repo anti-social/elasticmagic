@@ -7,7 +7,8 @@ from elasticmagic.compat import PY2
 from elasticmagic.document import DynamicDocument
 from elasticmagic.types import (
     Type, String, Byte, Short, Integer, Long, Float, Double, Date, Boolean,
-    Binary, Ip, Object, Nested, List, GeoPoint, Completion, ValidationError,
+    Binary, Ip, Object, Nested, List, GeoPoint, Completion, Join,
+    ValidationError,
 )
 
 
@@ -308,3 +309,13 @@ def test_completion():
         t.from_python({'input': 'foo', 'output': -1}, validate=True)
     with pytest.raises(ValidationError):
         t.from_python({'input': 'foo', 'payload': ''}, validate=True)
+
+
+def test_join():
+    t = Join()
+    assert t.to_python(None) is None
+    assert t.to_python('question') == {'name': 'question'}
+    assert t.to_python({'name': 'question'}) == {'name': 'question'}
+    assert t.to_python(
+        {'name': 'answer', 'parent': '1'}
+    ) == {'name': 'answer', 'parent': '1'}

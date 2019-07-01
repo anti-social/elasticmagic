@@ -358,3 +358,25 @@ class Percolator(Type):
                     'Value must be dictionary or expression: {!r}'
                     .format(value))
         return value
+
+
+class Join(Type):
+    __visit_name__ = 'join'
+
+    def to_python(self, value):
+        if value is None:
+            return None
+        if isinstance(value, string_types):
+            return {'name': value}
+        return value
+
+    def from_python(self, value, validate=False):
+        if validate:
+            if (
+                    not isinstance(value, dict) and
+                    not isinstance(value, string_types)
+            ):
+                raise ValidationError(
+                    'Value must be dictionary or string: {!r}'.format(value)
+                )
+        return value
