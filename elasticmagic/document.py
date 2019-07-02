@@ -124,6 +124,8 @@ class Document(with_metaclass(DocumentMeta)):
     _version = MappingField(Integer)
     _score = MappingField(Float)
 
+    __doc_type__ = None
+
     __dynamic_fields__ = []
 
     __mapping_options__ = {}
@@ -138,7 +140,7 @@ class Document(with_metaclass(DocumentMeta)):
             for attr_field in self._mapping_fields:
                 setattr(self, attr_field._attr_name,
                         _hit.get(attr_field._field._name))
-            if hasattr(self, '__doc_type__') and '_type' not in _hit:
+            if self.__doc_type__ and '_type' not in _hit:
                 doc_type, _, doc_id = _hit['_id'].rpartition('#')
                 self._id = doc_id
                 if doc_type:
