@@ -695,7 +695,7 @@ class ParentId(QueryExpression):
         self.parent_id = parent_id
 
     def _collect_doc_classes(self):
-        if hasattr(self.child_type, '__doc_type__'):
+        if self.child_type.__doc_type__:
             return {self.child_type}
 
         return set()

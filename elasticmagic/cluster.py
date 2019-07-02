@@ -100,7 +100,7 @@ class BaseCluster(with_metaclass(ABCMeta)):
         params, kwargs = _preprocess_params(params)
         doc_cls = params.pop('doc_cls', None) or DynamicDocument
         if params.get('doc_type') is None:
-            params['doc_type'] = getattr(doc_cls, '__doc_type__', None)
+            params['doc_type'] = doc_cls.__doc_type__
         return doc_cls, clean_params(params, **kwargs)
 
     def _get_result(self, doc_cls, raw_result):
@@ -112,7 +112,7 @@ class BaseCluster(with_metaclass(ABCMeta)):
         doc_cls = params.pop('doc_cls', None) or DynamicDocument
         if (
                 params.get('doc_type') is None and
-                getattr(doc_cls, '__doc_type__', None)
+                doc_cls.__doc_type__
         ):
             params['doc_type'] = doc_cls.__doc_type__
 

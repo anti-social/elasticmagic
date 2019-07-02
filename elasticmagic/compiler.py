@@ -242,7 +242,7 @@ class ExpressionCompiled(Compiled):
     def visit_has_parent(self, expr):
         params = self.visit(expr.params)
         parent_type = expr.parent_type
-        if hasattr(parent_type, '__doc_type__'):
+        if parent_type and parent_type.__doc_type__:
             parent_type = parent_type.__doc_type__
         if not parent_type:
             parent_doc_classes = expr.params._collect_doc_classes()
@@ -264,7 +264,7 @@ class ExpressionCompiled(Compiled):
     def visit_has_child(self, expr):
         params = self.visit(expr.params)
         child_type = expr.type
-        if hasattr(child_type, '__doc_type__'):
+        if child_type and child_type.__doc_type__:
             child_type = child_type.__doc_type__
         if not child_type:
             child_doc_classes = expr.params._collect_doc_classes()
@@ -320,7 +320,7 @@ class ExpressionCompiled50(ExpressionCompiled):
 
     def visit_parent_id(self, expr):
         child_type = expr.child_type
-        if hasattr(child_type, '__doc_type__'):
+        if child_type.__doc_type__:
             child_type = child_type.__doc_type__
         if not child_type:
             raise CompilationError(
@@ -527,8 +527,7 @@ class MappingCompiled60(MappingCompiled10):
         mapping.update(doc_cls.__mapping_options__)
         mapping.update(self.visit(doc_cls.mapping_fields))
         properties = self.visit(doc_cls.user_fields)
-        doc_type = getattr(doc_cls, '__doc_type__', None)
-        if doc_type:
+        if doc_cls.__doc_type__:
             properties['_doc_type'] = {'type': 'join'}
         mapping['properties'] = properties
         for f in doc_cls.dynamic_fields:
@@ -555,7 +554,7 @@ class MetaCompiled10(Compiled):
 
     def visit_document(self, doc):
         meta = {}
-        if hasattr(doc, '__doc_type__'):
+        if doc.__doc_type__:
             meta['_type'] = doc.__doc_type__
         self._populate_meta_from_document(doc, meta)
         return meta
@@ -598,7 +597,7 @@ class MetaCompiled60(MetaCompiled10):
     def visit_document(self, doc):
         doc_meta = {}
         self._populate_meta_from_document(doc, doc_meta)
-        if hasattr(doc, '__doc_type__') and '_id' in doc_meta:
+        if doc.__doc_type__ and '_id' in doc_meta:
             doc_meta['_id'] = '{}#{}'.format(doc.__doc_type__, doc_meta['_id'])
         return doc_meta
 
@@ -663,7 +662,7 @@ class SourceCompiled10(Compiled):
 class SourceCompiled60(SourceCompiled10):
     def visit_document(self, doc):
         source = super(SourceCompiled60, self).visit_document(doc)
-        if hasattr(doc, '__doc_type__'):
+        if doc.__doc_type__:
             doc_type = {'name': doc.__doc_type__}
             if doc._parent is not None:
                 doc_type['parent'] = '{}#{}'.format(
