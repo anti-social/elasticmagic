@@ -294,10 +294,12 @@ class Filtered(QueryExpression):
 
 
 class Ids(QueryExpression):
-    __query_name__ = 'ids'
+    __visit_name__ = 'ids'
 
     def __init__(self, values, type=None, **kwargs):
-        super(Ids, self).__init__(values=values, type=type, **kwargs)
+        self.values = values
+        self.type = type
+        super(Ids, self).__init__(**kwargs)
 
 
 class Range(FieldExpression):

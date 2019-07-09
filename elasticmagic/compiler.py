@@ -1,7 +1,7 @@
 import operator
 import collections
 
-from .document import Document
+from .document import Document, DOC_TYPE_FIELD_NAME, TYPE_ID_DELIMITER
 from .expression import Bool
 from .expression import Exists
 from .expression import Filtered
@@ -77,6 +77,19 @@ class ExpressionCompiled(Compiled):
     def visit_query_expression(self, expr):
         return {
             expr.__query_name__: self.visit(expr.params)
+        }
+
+    def visit_ids(self, expr):
+        params = self.visit(expr.params)
+        params['values'] = expr.values
+        if expr.type:
+            doc_type = getattr(expr.type, '__doc_type__', None)
+            if doc_type:
+                params['type'] = doc_type
+            else:
+                params['type'] = self.visit(expr.type)
+        return {
+            'ids': params
         }
 
     def visit_field_query(self, expr):
@@ -329,6 +342,47 @@ class ExpressionCompiled50(ExpressionCompiled):
         return {'parent_id': {'type': child_type, 'id': expr.parent_id}}
 
 
+class ExpressionCompiled60(ExpressionCompiled50):
+    def visit_ids(self, expr):
+        params = self.visit(expr.params)
+        if (
+                expr.type and
+                hasattr(expr.type, '__parent__')
+        ):
+            doc_type = expr.type.__doc_type__
+            values = [
+                '{}{}{}'.format(doc_type, TYPE_ID_DELIMITER, v)
+                for v in expr.values
+            ]
+            params['values'] = values
+        else:
+            if expr.type:
+                params['type'] = expr.type
+            params['values'] = expr.values
+        return {
+            'ids': params
+        }
+
+    def visit_parent_id(self, expr):
+        if hasattr(expr.child_type, '__parent__'):
+            parent_id = '{}{}{}'.format(
+                expr.child_type.__parent__.__doc_type__,
+                TYPE_ID_DELIMITER,
+                expr.parent_id
+            )
+        else:
+            parent_id = expr.parent_id
+
+        child_type = expr.child_type
+        if child_type.__doc_type__:
+            child_type = child_type.__doc_type__
+        if not child_type:
+            raise CompilationError(
+                "Cannot detect child type, specify 'child_type' argument")
+
+        return {'parent_id': {'type': child_type, 'id': parent_id}}
+
+
 class QueryCompiled(Compiled):
     compiled_expression = ExpressionCompiled
 
@@ -445,6 +499,10 @@ class QueryCompiled50(QueryCompiled20):
         return params
 
 
+class QueryCompiled60(QueryCompiled50):
+    compiled_expression = ExpressionCompiled60
+
+
 class MappingCompiled10(Compiled):
     def __init__(self, expression, ordered=False):
         self._dict_type = collections.OrderedDict if ordered else dict
@@ -527,8 +585,8 @@ class MappingCompiled60(MappingCompiled10):
         mapping.update(doc_cls.__mapping_options__)
         mapping.update(self.visit(doc_cls.mapping_fields))
         properties = self.visit(doc_cls.user_fields)
-        if doc_cls.__doc_type__:
-            properties['_doc_type'] = {'type': 'join'}
+        if doc_cls.__doc_type__ and hasattr(doc_cls, '__parent__'):
+            properties[DOC_TYPE_FIELD_NAME] = {'type': 'join'}
         mapping['properties'] = properties
         for f in doc_cls.dynamic_fields:
             self._visit_dynamic_field(f)
@@ -590,16 +648,22 @@ class MetaCompiled60(MetaCompiled10):
         '_ttl',
         '_version',
     }
+    DEFAULT_TYPE = '_doc'
 
     def __init__(self, document):
         super(MetaCompiled60, self).__init__(document)
 
     def visit_document(self, doc):
-        doc_meta = {}
-        self._populate_meta_from_document(doc, doc_meta)
-        if doc.__doc_type__ and '_id' in doc_meta:
-            doc_meta['_id'] = '{}#{}'.format(doc.__doc_type__, doc_meta['_id'])
-        return doc_meta
+        meta = {}
+        self._populate_meta_from_document(doc, meta)
+        if doc.__doc_type__:
+            meta['_type'] = doc.__doc_type__
+        if doc.__doc_type__ and hasattr(doc, '__parent__') and '_id' in meta:
+            meta['_id'] = '{}{}{}'.format(
+                doc.__doc_type__, TYPE_ID_DELIMITER, meta['_id']
+            )
+            meta['_type'] = self.DEFAULT_TYPE
+        return meta
 
 
 class SourceCompiled10(Compiled):
@@ -662,13 +726,13 @@ class SourceCompiled10(Compiled):
 class SourceCompiled60(SourceCompiled10):
     def visit_document(self, doc):
         source = super(SourceCompiled60, self).visit_document(doc)
-        if doc.__doc_type__:
+        if doc.__doc_type__ and hasattr(doc, '__parent__'):
             doc_type = {'name': doc.__doc_type__}
             if doc._parent is not None:
-                doc_type['parent'] = '{}#{}'.format(
-                    doc.__parent__.__doc_type__, doc._parent
+                doc_type['parent'] = '{}{}{}'.format(
+                    doc.__parent__.__doc_type__, TYPE_ID_DELIMITER, doc._parent
                 )
-            source['_doc_type'] = doc_type
+            source[DOC_TYPE_FIELD_NAME] = doc_type
         return source
 
 
@@ -714,8 +778,8 @@ class Compiler50(Compiler):
 
 
 class Compiler60(Compiler):
-    compiled_expression = QueryCompiled50.compiled_expression
-    compiled_query = QueryCompiled50
+    compiled_query = QueryCompiled60
+    compiled_expression = compiled_query.compiled_expression
     compiled_mapping = MappingCompiled60
     compiled_meta = MetaCompiled60
     compiled_source = SourceCompiled60

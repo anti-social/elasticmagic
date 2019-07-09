@@ -4,7 +4,12 @@ from .attribute import _attributed_field_factory
 from .expression import Field, MappingField
 from .datastructures import OrderedAttributes
 from .util import cached_property
-from .compat import with_metaclass
+from .compat import string_types, with_metaclass
+
+
+DOC_TYPE_FIELD_NAME = '_doc_type'
+
+TYPE_ID_DELIMITER = '~'
 
 
 class DocumentMeta(type):
@@ -137,28 +142,42 @@ class Document(with_metaclass(DocumentMeta)):
         self._matched_queries = None
         if _hit:
             self._score = _hit.get('_score')
+            source = _hit.get('_source')
+            doc_type = source.get(DOC_TYPE_FIELD_NAME) if source else None
+
             for attr_field in self._mapping_fields:
                 setattr(self, attr_field._attr_name,
                         _hit.get(attr_field._field._name))
-            if self.__doc_type__ and '_type' not in _hit:
-                doc_type, _, doc_id = _hit['_id'].rpartition('#')
-                self._id = doc_id
-                if doc_type:
+
+            if doc_type:
+                _, _, self._id = _hit['_id'].rpartition(TYPE_ID_DELIMITER)
+                if isinstance(doc_type, string_types):
                     self._type = doc_type
-            if _hit.get('_source'):
-                for hit_key, hit_value in _hit['_source'].items():
+                else:
+                    self._type = doc_type['name']
+                    parent_id = doc_type.get('parent')
+                    if parent_id:
+                        _, _, self._parent = parent_id.rpartition(
+                            TYPE_ID_DELIMITER
+                        )
+
+            if source:
+                for hit_key, hit_value in source.items():
                     setattr(
                         self,
                         *self._process_source_key_value(hit_key, hit_value)
                     )
+
             if _hit.get('fields'):
                 # we cannot construct document from fields
                 # in next example we cannot decide
                 # which tag has name and which has not:
                 # {"tags.id": [1, 2], "tags.name": ["Test"]}
                 self._hit_fields = self._process_fields(_hit['fields'])
+
             if _hit.get('highlight'):
                 self._highlight = _hit['highlight']
+
             if _hit.get('matched_queries'):
                 self._matched_queries = _hit['matched_queries']
 

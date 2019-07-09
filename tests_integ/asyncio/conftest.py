@@ -52,7 +52,17 @@ def es_cluster(es_client):
 
 @pytest.fixture
 async def es_index(es_cluster, es_client, index_name):
-    await es_client.indices.create(index=index_name)
+    await es_client.indices.create(
+        index=index_name,
+        body={
+            'settings': {
+                'index': {
+                    'number_of_shards': 1,
+                    'number_of_replicas': 0
+                }
+            }
+        }
+    )
     es_index = es_cluster[index_name]
     await es_index.put_mapping(Car)
     yield es_index

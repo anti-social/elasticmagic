@@ -8,12 +8,14 @@ from .conftest import Car
 @pytest.mark.asyncio
 async def test_get(es_index, cars):
     doc = await es_index.get(1, doc_cls=Car)
+    assert isinstance(doc, Car)
     assert doc.name == 'Lightning McQueen'
     assert doc._id == '1'
     assert doc._index == es_index.get_name()
     assert doc._score is None
 
     doc = await es_index.get(2, doc_cls=Car)
+    assert isinstance(doc, Car)
     assert doc.name == 'Sally Carerra'
     assert doc._id == '2'
     assert doc._index == es_index.get_name()
@@ -27,12 +29,14 @@ async def test_multi_get_by_ids(es_index, cars):
     assert len(docs) == 3
 
     doc = docs[0]
+    assert isinstance(doc, Car)
     assert doc.name == 'Lightning McQueen'
     assert doc._id == '1'
     assert doc._index == es_index.get_name()
     assert doc._score is None
 
     doc = docs[1]
+    assert isinstance(doc, Car)
     assert doc.name == 'Sally Carerra'
     assert doc._id == '2'
     assert doc._index == es_index.get_name()
@@ -42,17 +46,20 @@ async def test_multi_get_by_ids(es_index, cars):
     assert doc is None
 
 
+@pytest.mark.skip(reason='Multiple doc types are not supported in 6.x')
 @pytest.mark.asyncio
 async def test_multi_get_by_ids_with_doc_cls_as_list(es_index, cars):
     docs = await es_index.multi_get([1, 2], doc_cls=[Car])
 
     doc = docs[0]
+    assert isinstance(doc, Car)
     assert doc.name == 'Lightning McQueen'
     assert doc._id == '1'
     assert doc._index == es_index.get_name()
     assert doc._score is None
 
     doc = docs[1]
+    assert isinstance(doc, Car)
     assert doc.name == 'Sally Carerra'
     assert doc._id == '2'
     assert doc._index == es_index.get_name()
@@ -64,12 +71,14 @@ async def test_multi_get_by_docs(es_index, cars):
     docs = await es_index.multi_get([Car(_id=1), Car(_id=2)])
 
     doc = docs[0]
+    assert isinstance(doc, Car)
     assert doc.name == 'Lightning McQueen'
     assert doc._id == '1'
     assert doc._index == es_index.get_name()
     assert doc._score is None
 
     doc = docs[1]
+    assert isinstance(doc, Car)
     assert doc.name == 'Sally Carerra'
     assert doc._id == '2'
     assert doc._index == es_index.get_name()

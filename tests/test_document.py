@@ -445,6 +445,7 @@ class DocumentTestCase(BaseTestCase):
 
         q = Question(_hit={
             '_id': 'question#123',
+            '_type': '_doc',
             '_source': {
                 'name': (
                     'The Ultimate Question of Life, the Universe, '
@@ -453,8 +454,9 @@ class DocumentTestCase(BaseTestCase):
             }
         })
 
-        self.assertEqual(q._id, '123')
-        self.assertEqual(q._type, 'question')
+        self.assertEqual(q._id, 'question#123')
+        self.assertEqual(q._type, '_doc')
+        self.assertTrue(q.name.startswith('The Ultimate Question of Life'))
 
     def test_inheritance(self):
         class InheritedDocument(ProductDocument):
@@ -730,9 +732,6 @@ class DocumentTestCase(BaseTestCase):
             ProductGroupDocument.to_mapping(compiler=Compiler60),
             {
                 "properties": {
-                    "_doc_type": {
-                        "type": "join"
-                    },
                     "id": {
                         "type": "integer"
                     },
@@ -797,26 +796,34 @@ class DocumentTestCase(BaseTestCase):
 
         doc = CompletionDoc()
         self.assertEqual(
-            doc.to_source(validate=True),
+            doc.to_meta(compiler=Compiler50),
             {
-                "_doc_type": {"name": "suggest"}
+                '_type': 'suggest',
             }
+        )
+        self.assertEqual(
+            doc.to_source(validate=True, compiler=Compiler50),
+            {}
         )
 
         doc = CompletionDoc(suggest='complete this')
         self.assertEqual(
-            doc.to_source(validate=True),
+            doc.to_meta(compiler=Compiler50),
             {
-                '_doc_type': {'name': 'suggest'},
+                '_type': 'suggest',
+            }
+        )
+        self.assertEqual(
+            doc.to_source(validate=True, compiler=Compiler50),
+            {
                 'suggest': 'complete this',
             }
         )
         doc = CompletionDoc(suggest={'input': ['complete', 'complete this'],
                                      'output': 'complete'})
         self.assertEqual(
-            doc.to_source(validate=True),
+            doc.to_source(validate=True, compiler=Compiler50),
             {
-                '_doc_type': {'name': 'suggest'},
                 'suggest': {
                     'input': [
                         'complete',
@@ -896,7 +903,6 @@ class DocumentTestCase(BaseTestCase):
         self.assertEqual(
             doc.to_source(),
             {
-                "_doc_type": {"name": "query"},
                 "query": {
                     "multi_match": {
                         "type": "cross_fields",
@@ -910,37 +916,3 @@ class DocumentTestCase(BaseTestCase):
         doc = QueryDocument(query='test')
         with self.assertRaises(ValidationError):
             doc.to_source(validate=True)
-
-    def test_parent_child(self):
-        class Question(Document):
-            __doc_type__ = 'question'
-
-            question = Field(String)
-
-        class Answer(Document):
-            __doc_type__ = 'answer'
-            __parent__ = Question
-
-            answer = Field(String)
-
-        amazingly_accurate_answer = Answer(
-            _id=1,
-            _parent=1,
-            answer='42'
-        )
-        self.assertEqual(
-            amazingly_accurate_answer.to_meta(),
-            {
-                '_id': 'answer#1',
-            }
-        )
-        self.assertEqual(
-            amazingly_accurate_answer.to_source(),
-            {
-                "_doc_type": {
-                    "name": "answer",
-                    "parent": "question#1",
-                },
-                "answer": "42",
-            }
-        )
