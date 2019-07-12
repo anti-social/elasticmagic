@@ -1009,6 +1009,9 @@ def test_match_phrase():
         'Ha-ha (c)',
         slop=2, boost=10, analyzer='name_text'
     )
+    field_expr = Field('name', Text()).match_phrase(
+        'Ha-ha (c)', slop=2, boost=10, analyzer='name_text'
+    )
     assert expr.to_elastic(compiler=Compiler60) == {
         'match_phrase': {
             'name': {
@@ -1019,6 +1022,13 @@ def test_match_phrase():
             }
         }
     }
+
+    field_expr = Field('name', Text()).match_phrase(
+        'Ha-ha (c)',
+        slop=2, boost=10, analyzer='name_text'
+    )
+    assert expr.to_elastic(compiler=Compiler60) == \
+        field_expr.to_elastic(compiler=Compiler60)
 
 
 def test_match_phrase_prefix():
@@ -1048,3 +1058,9 @@ def test_match_phrase_prefix():
             }
         }
     }
+
+    field_expr = Field('name', Text()).match_phrase_prefix(
+        'Hi ther', slop=2, boost=10, analyzer='name_text', max_expansions=100
+    )
+    assert expr.to_elastic(compiler=Compiler60) == \
+        field_expr.to_elastic(compiler=Compiler60)

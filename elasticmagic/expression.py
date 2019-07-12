@@ -514,6 +514,12 @@ class FieldOperators(object):
     def match(self, query, **kwargs):
         return Match(self, query, **kwargs)
 
+    def match_phrase(self, query, **kwargs):
+        return MatchPhrase(self, query, **kwargs)
+
+    def match_phrase_prefix(self, query, **kwargs):
+        return MatchPhrasePrefix(self, query, **kwargs)
+
     def range(self, gte=None, lte=None, gt=None, lt=None, **kwargs):
         return Range(self, gte=gte, lte=lte, gt=gt, lt=lt, **kwargs)
 
