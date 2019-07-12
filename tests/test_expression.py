@@ -1,14 +1,16 @@
 from elasticmagic import DynamicDocument
 from elasticmagic import (
-    Params, Term, Terms, Exists, Missing, Match, MatchAll, MultiMatch, Range,
+    Params, Term, Terms, Exists, Missing,
+    Match, MatchPhrase, MatchPhrasePrefix, MatchAll, MultiMatch, Range,
     Bool, Query, And, Or, Not, Sort, Field, Limit,
     Boosting, Common, ConstantScore, FunctionScore, DisMax, Filtered, Ids, Prefix,
     SpanFirst, SpanMulti, SpanNear, SpanNot, SpanOr, SpanTerm, 
     Nested, HasParent, HasChild,
 )
+from elasticmagic.compiler import Compiler60
 from elasticmagic.expression import BooleanExpression
 from elasticmagic.types import (
-    Type, String, Integer, List, GeoPoint, Completion,
+    Type, String, Text, Integer, List, GeoPoint, Completion,
 )
 
 from .base import BaseTestCase
@@ -989,3 +991,60 @@ class ExpressionTestCase(BaseTestCase):
                 }
             }
         )
+
+
+def test_match_phrase():
+    expr = MatchPhrase(
+        Field('name', Text()),
+        'Ha-ha (c)'
+    )
+    assert expr.to_elastic(compiler=Compiler60) == {
+        'match_phrase': {
+            'name': 'Ha-ha (c)'
+        }
+    }
+
+    expr = MatchPhrase(
+        Field('name', Text()),
+        'Ha-ha (c)',
+        slop=2, boost=10, analyzer='name_text'
+    )
+    assert expr.to_elastic(compiler=Compiler60) == {
+        'match_phrase': {
+            'name': {
+                'query': 'Ha-ha (c)',
+                'slop': 2,
+                'boost': 10,
+                'analyzer': 'name_text',
+            }
+        }
+    }
+
+
+def test_match_phrase_prefix():
+    expr = MatchPhrasePrefix(
+        Field('name', Text()),
+        'Hi ther'
+    )
+    assert expr.to_elastic(compiler=Compiler60) == {
+        'match_phrase_prefix': {
+            'name': 'Hi ther'
+        }
+    }
+
+    expr = MatchPhrasePrefix(
+        Field('name', Text()),
+        'Hi ther',
+        slop=2, boost=10, analyzer='name_text', max_expansions=100
+    )
+    assert expr.to_elastic(compiler=Compiler60) == {
+        'match_phrase_prefix': {
+            'name': {
+                'query': 'Hi ther',
+                'slop': 2,
+                'boost': 10,
+                'analyzer': 'name_text',
+                'max_expansions': 100,
+            }
+        }
+    }

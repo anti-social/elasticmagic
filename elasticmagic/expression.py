@@ -150,6 +150,36 @@ class Match(FieldQueryExpression):
         )
 
 
+class MatchPhrase(FieldQueryExpression):
+    __query_name__ = 'match_phrase'
+
+    def __init__(
+            self, field, query, slop=None, analyzer=None, boost=None,
+            **kwargs
+    ):
+        super(MatchPhrase, self).__init__(
+            field, query,
+            slop=slop, analyzer=analyzer, boost=boost,
+            **kwargs
+        )
+
+
+class MatchPhrasePrefix(FieldQueryExpression):
+    __query_name__ = 'match_phrase_prefix'
+
+    def __init__(
+            self, field, query, slop=None, analyzer=None, boost=None,
+            max_expansions=None,
+            **kwargs
+    ):
+        super(MatchPhrasePrefix, self).__init__(
+            field, query,
+            slop=slop, analyzer=analyzer, boost=boost,
+            max_expansions=max_expansions,
+            **kwargs
+        )
+
+
 class MultiMatch(QueryExpression):
     __visit_name__ = 'multi_match'
 
