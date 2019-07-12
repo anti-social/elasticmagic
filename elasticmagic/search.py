@@ -670,12 +670,15 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         """
         return (compiler or DefaultCompiler).compiled_query(self).params
 
-    def _prepare_search_params(self):
+    def _prepare_search_params(self, es_version):
         if not self._index and not self._cluster:
             raise ValueError("Search query is not bound to index or cluster")
 
-        doc_cls = self._get_doc_cls()
-        doc_type = self._get_doc_type(doc_cls)
+        if es_version.major < 6:
+            doc_cls = self._get_doc_cls()
+            doc_type = self._get_doc_type(doc_cls)
+        else:
+            doc_type = '_doc'
         search_params = self._search_params or {}
         return dict(doc_type=doc_type, **search_params)
 
@@ -767,8 +770,9 @@ class SearchQuery(BaseSearchQuery):
         if self._cached_result is not None:
             return self._cached_result
 
+        es_version = self._index_or_cluster.get_es_version()
         self._cached_result = self._index_or_cluster.search(
-            self, **self._prepare_search_params()
+            self, **self._prepare_search_params(es_version)
         )
         return self._cached_result
 
@@ -792,8 +796,9 @@ class SearchQuery(BaseSearchQuery):
         """Executes current query and returns number of documents matched the
         query. Uses `count api <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-count.html>`_.
         """  # noqa:E501
+        es_version = self._index_or_cluster.get_es_version()
         return self._index_or_cluster.count(
-            self, **self._prepare_search_params()
+            self, **self._prepare_search_params(es_version)
         ).count
 
     def exists(self):
