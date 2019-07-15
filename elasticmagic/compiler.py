@@ -60,6 +60,10 @@ class Compiled(object):
 
 
 class ExpressionCompiled(Compiled):
+    def __init__(self, expr, doc_classes=None):
+        self._doc_classes = doc_classes or []
+        super(ExpressionCompiled, self).__init__(expr)
+
     def visit_literal(self, expr):
         return expr.obj
 
@@ -383,9 +387,22 @@ class ExpressionCompiled60(ExpressionCompiled50):
 
         return {'parent_id': {'type': child_type, 'id': parent_id}}
 
+    def visit_agg(self, agg):
+        params = super(ExpressionCompiled60, self).visit_agg(agg)
+        if 'top_hits' in params:
+            params['top_hits'] = QueryCompiled60._patch_docvalue_fields(
+                params['top_hits'], self._doc_classes
+            )
+            print(params['top_hits'])
+        return params
+
 
 class QueryCompiled(Compiled):
     compiled_expression = ExpressionCompiled
+
+    def __init__(self, query):
+        self._doc_classes = query._collect_doc_classes()
+        super(QueryCompiled, self).__init__(query)
 
     @classmethod
     def get_query(cls, query_context, wrap_function_score=True):
@@ -430,7 +447,7 @@ class QueryCompiled(Compiled):
             return Bool.must(*post_filters)
 
     def visit_expression(self, expr):
-        return self.compiled_expression(expr).params
+        return self.compiled_expression(expr, self._doc_classes).params
 
     def visit_search_query(self, query):
         params = {}
@@ -503,22 +520,33 @@ class QueryCompiled50(QueryCompiled20):
 class QueryCompiled60(QueryCompiled50):
     compiled_expression = ExpressionCompiled60
 
+    @classmethod
+    def _patch_docvalue_fields(cls, params, doc_classes):
+        docvalue_fields = params.get('docvalue_fields')
+        # Wildcards in docvalue_fields aren't supported by top_hits aggregation
+        # doc_type_field = '{}*'.format(DOC_TYPE_FIELD_NAME)
+        parent_doc_types = {
+            doc_cls.__doc_type__
+            for doc_cls in doc_classes
+            if hasattr(doc_cls, '__parent__') and doc_cls.__doc_type__
+        }
+        doc_type_field_names = []
+        doc_type_field_names.append(DOC_TYPE_FIELD_NAME)
+        for doc_type in parent_doc_types:
+            doc_type_field_names.append(
+                '{}#{}'.format(DOC_TYPE_FIELD_NAME, doc_type)
+            )
+        if not docvalue_fields:
+            params['docvalue_fields'] = doc_type_field_names
+        elif isinstance(docvalue_fields, string_types):
+            params['docvalue_fields'] = [docvalue_fields] + doc_type_field_names
+        elif isinstance(docvalue_fields, list):
+            docvalue_fields.extend(doc_type_field_names)
+        return params
+
     def visit_search_query(self, query):
         params = super(QueryCompiled60, self).visit_search_query(query)
-        source = params.get('_source')
-        if not source:
-            params['_source'] = [DOC_TYPE_FIELD_NAME]
-        elif isinstance(source, string_types):
-            params['_source'] = [source, DOC_TYPE_FIELD_NAME]
-        elif isinstance(source, list):
-            source.append(DOC_TYPE_FIELD_NAME)
-        elif isinstance(source, dict):
-            includes = source.get('includes')
-            if not includes:
-                source['includes'] = [DOC_TYPE_FIELD_NAME]
-            elif isinstance(includes, list):
-                includes.append(DOC_TYPE_FIELD_NAME)
-        return params
+        return self._patch_docvalue_fields(params, self._doc_classes)
 
 
 class MappingCompiled10(Compiled):
@@ -628,21 +656,23 @@ class MetaCompiled10(Compiled):
     def __init__(self, document):
         super(MetaCompiled10, self).__init__(document)
 
-    def visit_document(self, doc):
+    def visit_document(self, doc, meta_params):
         meta = {}
-        if doc.__doc_type__:
-            meta['_type'] = doc.__doc_type__
-        self._populate_meta_from_document(doc, meta)
+        if isinstance(doc, Document):
+            self._populate_meta_from_document(doc, meta)
+            if doc.__doc_type__:
+                meta['_type'] = doc.__doc_type__
+        else:
+            self._populate_meta_from_dict(doc, meta)
+        meta.update(meta_params)
         return meta
 
     def visit_action(self, action):
-        if isinstance(action.doc, Document):
-            meta = self.visit_document(action.doc)
-        else:
-            meta = {}
-            self._populate_meta_from_dict(action.doc, meta)
-        meta.update(action.params)
-        return {action.__action_name__: meta}
+        return {
+            action.__action_name__: self.visit_document(
+                action.doc, action.params
+            )
+        }
 
     def _populate_meta_from_document(self, doc, meta):
         for field_name in self.META_FIELD_NAMES:
@@ -666,21 +696,23 @@ class MetaCompiled60(MetaCompiled10):
         '_ttl',
         '_version',
     }
-    DEFAULT_TYPE = '_doc'
+    DEFAULT_DOC_TYPE = '_doc'
 
     def __init__(self, document):
         super(MetaCompiled60, self).__init__(document)
 
-    def visit_document(self, doc):
-        meta = {}
-        self._populate_meta_from_document(doc, meta)
-        if doc.__doc_type__:
-            meta['_type'] = doc.__doc_type__
-        if doc.__doc_type__ and hasattr(doc, '__parent__') and '_id' in meta:
+    def visit_document(self, doc, meta_params):
+        meta = super(MetaCompiled60, self).visit_document(doc, meta_params)
+        meta['_type'] = self.DEFAULT_DOC_TYPE
+        if (
+                isinstance(doc, Document) and
+                doc.__doc_type__ and
+                hasattr(doc, '__parent__') and
+                '_id' in meta
+        ):
             meta['_id'] = '{}{}{}'.format(
                 doc.__doc_type__, TYPE_ID_DELIMITER, meta['_id']
             )
-            meta['_type'] = self.DEFAULT_TYPE
         return meta
 
 

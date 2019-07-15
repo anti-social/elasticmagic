@@ -45,8 +45,12 @@ class SearchResult(Result):
         self.max_score = hits.get('max_score')
         self.hits = []
         for hit in hits.get('hits', []):
-            source = hit.get('_source', {})
-            doc_type = source.get(DOC_TYPE_FIELD_NAME, {}).get('name', hit['_type'])
+            fields = hit.get('fields', {})
+            custom_doc_type = fields.get(DOC_TYPE_FIELD_NAME)
+            if custom_doc_type:
+                doc_type = custom_doc_type[0]
+            else:
+                doc_type = hit['_type']
             doc_cls = self._doc_cls_map.get(doc_type, DynamicDocument)
             self.hits.append(doc_cls(_hit=hit, _result=self))
 

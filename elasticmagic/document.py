@@ -143,24 +143,30 @@ class Document(with_metaclass(DocumentMeta)):
         if _hit:
             self._score = _hit.get('_score')
             source = _hit.get('_source')
-            stored_fields = _hit.get('fields')
-            doc_type = source.get(DOC_TYPE_FIELD_NAME) if source else None
+            fields = _hit.get('fields')
+            custom_doc_type = fields.get(DOC_TYPE_FIELD_NAME) \
+                if fields else None
 
             for attr_field in self._mapping_fields:
                 setattr(self, attr_field._attr_name,
                         _hit.get(attr_field._field._name))
 
-            if doc_type:
+            if custom_doc_type:
+                doc_type = custom_doc_type[0]
                 _, _, self._id = _hit['_id'].rpartition(TYPE_ID_DELIMITER)
-                if isinstance(doc_type, string_types):
-                    self._type = doc_type
-                else:
-                    self._type = doc_type['name']
-                    parent_id = doc_type.get('parent')
-                    if parent_id:
-                        _, _, self._parent = parent_id.rpartition(
-                            TYPE_ID_DELIMITER
-                        )
+                self._type = doc_type
+
+                parent_doc_cls = getattr(self, '__parent__', None)
+                parent_doc_type = parent_doc_cls.__doc_type__ \
+                    if parent_doc_cls else None
+                custom_parent_id = fields.get(
+                    '{}#{}'.format(DOC_TYPE_FIELD_NAME, parent_doc_type)
+                )
+                if custom_parent_id:
+                    parent_id = custom_parent_id[0]
+                    _, _, self._parent = parent_id.rpartition(
+                        TYPE_ID_DELIMITER
+                    )
 
             if source:
                 for hit_key, hit_value in source.items():
@@ -169,12 +175,12 @@ class Document(with_metaclass(DocumentMeta)):
                         *self._process_source_key_value(hit_key, hit_value)
                     )
 
-            if stored_fields:
+            if fields:
                 # we cannot construct document from fields
                 # in next example we cannot decide
                 # which tag has name and which has not:
                 # {"tags.id": [1, 2], "tags.name": ["Test"]}
-                self._hit_fields = self._process_fields(stored_fields)
+                self._hit_fields = self._process_fields(fields)
 
             if _hit.get('highlight'):
                 self._highlight = _hit['highlight']

@@ -27,7 +27,7 @@
 """
 from itertools import chain
 
-from .document import DynamicDocument
+from .document import DynamicDocument, DOC_TYPE_FIELD_NAME
 from .expression import ParamsExpression, Params
 from .compat import force_unicode
 from .types import instantiate, Type
@@ -249,7 +249,13 @@ class TopHitsResult(AggResult):
 
         self.hits = []
         for hit in hits_data['hits']:
-            doc_cls = doc_cls_map.get(hit['_type'], DynamicDocument)
+            fields = hit.get('fields', {})
+            custom_doc_type = fields.get(DOC_TYPE_FIELD_NAME)
+            if custom_doc_type:
+                doc_type = custom_doc_type[0]
+            else:
+                doc_type = hit['_type']
+            doc_cls = doc_cls_map.get(doc_type, DynamicDocument)
             self.hits.append(doc_cls(_hit=hit, _result=self))
 
         if isinstance(instance_mapper, dict):

@@ -32,7 +32,8 @@ class Action(object):
         from .compiler import DefaultCompiler
 
         meta_compiler = (compiler or DefaultCompiler).compiled_meta
-        return meta_compiler(self).params
+        meta = meta_compiler(self).params
+        return next(iter(meta.values()))
 
     def get_source(self, compiler=None):
         from .compiler import DefaultCompiler
