@@ -1,7 +1,7 @@
 import collections
 
 from .compat import string_types
-from .document import DynamicDocument
+from .document import DOC_TYPE_FIELD_NAME, DynamicDocument
 
 
 class Result(object):
@@ -45,7 +45,9 @@ class SearchResult(Result):
         self.max_score = hits.get('max_score')
         self.hits = []
         for hit in hits.get('hits', []):
-            doc_cls = self._doc_cls_map.get(hit['_type'], DynamicDocument)
+            source = hit.get('_source', {})
+            doc_type = source.get(DOC_TYPE_FIELD_NAME, {}).get('name', hit['_type'])
+            doc_cls = self._doc_cls_map.get(doc_type, DynamicDocument)
             self.hits.append(doc_cls(_hit=hit, _result=self))
 
         self.aggregations = {}

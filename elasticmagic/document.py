@@ -143,6 +143,7 @@ class Document(with_metaclass(DocumentMeta)):
         if _hit:
             self._score = _hit.get('_score')
             source = _hit.get('_source')
+            stored_fields = _hit.get('fields')
             doc_type = source.get(DOC_TYPE_FIELD_NAME) if source else None
 
             for attr_field in self._mapping_fields:
@@ -168,12 +169,12 @@ class Document(with_metaclass(DocumentMeta)):
                         *self._process_source_key_value(hit_key, hit_value)
                     )
 
-            if _hit.get('fields'):
+            if stored_fields:
                 # we cannot construct document from fields
                 # in next example we cannot decide
                 # which tag has name and which has not:
                 # {"tags.id": [1, 2], "tags.name": ["Test"]}
-                self._hit_fields = self._process_fields(_hit['fields'])
+                self._hit_fields = self._process_fields(stored_fields)
 
             if _hit.get('highlight'):
                 self._highlight = _hit['highlight']

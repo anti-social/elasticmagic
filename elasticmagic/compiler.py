@@ -1,6 +1,7 @@
 import operator
 import collections
 
+from .compat import string_types
 from .document import Document, DOC_TYPE_FIELD_NAME, TYPE_ID_DELIMITER
 from .expression import Bool
 from .expression import Exists
@@ -501,6 +502,23 @@ class QueryCompiled50(QueryCompiled20):
 
 class QueryCompiled60(QueryCompiled50):
     compiled_expression = ExpressionCompiled60
+
+    def visit_search_query(self, query):
+        params = super(QueryCompiled60, self).visit_search_query(query)
+        source = params.get('_source')
+        if not source:
+            params['_source'] = [DOC_TYPE_FIELD_NAME]
+        elif isinstance(source, string_types):
+            params['_source'] = [source, DOC_TYPE_FIELD_NAME]
+        elif isinstance(source, list):
+            source.append(DOC_TYPE_FIELD_NAME)
+        elif isinstance(source, dict):
+            includes = source.get('includes')
+            if not includes:
+                source['includes'] = [DOC_TYPE_FIELD_NAME]
+            elif isinstance(includes, list):
+                includes.append(DOC_TYPE_FIELD_NAME)
+        return params
 
 
 class MappingCompiled10(Compiled):
