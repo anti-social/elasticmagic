@@ -1,5 +1,6 @@
-import operator
 import collections
+import operator
+import warnings
 
 from .compat import string_types
 from .document import Document, DOC_TYPE_FIELD_NAME, TYPE_ID_DELIMITER
@@ -10,6 +11,7 @@ from .expression import FunctionScore
 from .expression import HighlightedField
 from .expression import Params
 from .types import ValidationError
+from .util import clean_params, collect_doc_classes
 
 
 OPERATORS = {
@@ -22,6 +24,12 @@ ESVersion = collections.namedtuple('ESVersion', ['major', 'minor', 'patch'])
 
 class CompilationError(Exception):
     pass
+
+
+def prepare_doc_type(doc_classes):
+    return ','.join(set(
+        d.__doc_type__ for d in doc_classes if d and d.__doc_type__
+    ))
 
 
 class Compiled(object):
@@ -61,7 +69,7 @@ class Compiled(object):
 
 class ExpressionCompiled(Compiled):
     def __init__(self, expr, doc_classes=None):
-        self._doc_classes = doc_classes or []
+        self.doc_classes = doc_classes or collect_doc_classes(expr)
         super(ExpressionCompiled, self).__init__(expr)
 
     def visit_literal(self, expr):
@@ -391,18 +399,41 @@ class ExpressionCompiled60(ExpressionCompiled50):
         params = super(ExpressionCompiled60, self).visit_agg(agg)
         if 'top_hits' in params:
             params['top_hits'] = QueryCompiled60._patch_docvalue_fields(
-                params['top_hits'], self._doc_classes
+                params['top_hits'], self.doc_classes
             )
-            print(params['top_hits'])
         return params
 
 
 class QueryCompiled(Compiled):
     compiled_expression = ExpressionCompiled
 
-    def __init__(self, query):
-        self._doc_classes = query._collect_doc_classes()
-        super(QueryCompiled, self).__init__(query)
+    def __init__(self, query, search_params=None):
+        self.context = query.get_context()
+
+        self.doc_classes = self.context.doc_classes
+        if not self.doc_classes:
+            self.doc_classes = query._collect_doc_classes()
+        if not isinstance(self.doc_classes, collections.Iterable):
+            self.doc_classes = [self.doc_classes]
+        if not self.doc_classes:
+            warnings.warn(
+                'Cannot determine a document class from search query. '
+                'DynamicDocument will be used for hits representation.'
+            )
+
+        doc_type = self.context.doc_type
+        if not doc_type:
+            doc_type = prepare_doc_type(self.doc_classes)
+
+        self.search_params = dict(self.context.search_params)
+        if doc_type:
+            self.search_params['doc_type'] = doc_type
+
+        self.search_params = clean_params(
+            self.search_params, **(search_params or {})
+        )
+
+        super(QueryCompiled, self).__init__(self.context)
 
     @classmethod
     def get_query(cls, query_context, wrap_function_score=True):
@@ -447,11 +478,10 @@ class QueryCompiled(Compiled):
             return Bool.must(*post_filters)
 
     def visit_expression(self, expr):
-        return self.compiled_expression(expr, self._doc_classes).params
+        return self.compiled_expression(expr, self.doc_classes).params
 
-    def visit_search_query(self, query):
+    def visit_search_query_context(self, query_ctx):
         params = {}
-        query_ctx = query.get_context()
 
         q = self.get_filtered_query(query_ctx)
         if q is not None:
@@ -509,8 +539,10 @@ class QueryCompiled20(QueryCompiled):
 class QueryCompiled50(QueryCompiled20):
     compiled_expression = ExpressionCompiled50
 
-    def visit_search_query(self, query):
-        params = super(QueryCompiled50, self).visit_search_query(query)
+    def visit_search_query_context(self, query_ctx):
+        params = super(QueryCompiled50, self).visit_search_query_context(
+            query_ctx
+        )
         stored_fields = params.pop('fields', None)
         if stored_fields:
             params['stored_fields'] = stored_fields
@@ -519,6 +551,10 @@ class QueryCompiled50(QueryCompiled20):
 
 class QueryCompiled60(QueryCompiled50):
     compiled_expression = ExpressionCompiled60
+
+    def __init__(self, query, search_params=None):
+        super(QueryCompiled60, self).__init__(query, search_params=search_params)
+        self.search_params['doc_type'] = Compiler60.DEFAULT_DOC_TYPE
 
     @classmethod
     def _patch_docvalue_fields(cls, params, doc_classes):
@@ -530,6 +566,8 @@ class QueryCompiled60(QueryCompiled50):
             for doc_cls in doc_classes
             if hasattr(doc_cls, '__parent__') and doc_cls.__doc_type__
         }
+        if not parent_doc_types:
+            return params
         doc_type_field_names = []
         doc_type_field_names.append(DOC_TYPE_FIELD_NAME)
         for doc_type in parent_doc_types:
@@ -546,7 +584,7 @@ class QueryCompiled60(QueryCompiled50):
 
     def visit_search_query(self, query):
         params = super(QueryCompiled60, self).visit_search_query(query)
-        return self._patch_docvalue_fields(params, self._doc_classes)
+        return self._patch_docvalue_fields(params, self.doc_classes)
 
 
 class MappingCompiled10(Compiled):
@@ -656,7 +694,7 @@ class MetaCompiled10(Compiled):
     def __init__(self, document):
         super(MetaCompiled10, self).__init__(document)
 
-    def visit_document(self, doc, meta_params):
+    def visit_document(self, doc, meta_params=None):
         meta = {}
         if isinstance(doc, Document):
             self._populate_meta_from_document(doc, meta)
@@ -664,7 +702,8 @@ class MetaCompiled10(Compiled):
                 meta['_type'] = doc.__doc_type__
         else:
             self._populate_meta_from_dict(doc, meta)
-        meta.update(meta_params)
+        if meta_params:
+            meta.update(meta_params)
         return meta
 
     def visit_action(self, action):
@@ -696,14 +735,15 @@ class MetaCompiled60(MetaCompiled10):
         '_ttl',
         '_version',
     }
-    DEFAULT_DOC_TYPE = '_doc'
 
     def __init__(self, document):
         super(MetaCompiled60, self).__init__(document)
 
-    def visit_document(self, doc, meta_params):
-        meta = super(MetaCompiled60, self).visit_document(doc, meta_params)
-        meta['_type'] = self.DEFAULT_DOC_TYPE
+    def visit_document(self, doc, meta_params=None):
+        meta = super(MetaCompiled60, self).visit_document(
+            doc, meta_params=meta_params
+        )
+        meta['_type'] = Compiler60.DEFAULT_DOC_TYPE
         if (
                 isinstance(doc, Document) and
                 doc.__doc_type__ and
@@ -828,6 +868,8 @@ class Compiler50(Compiler):
 
 
 class Compiler60(Compiler):
+    DEFAULT_DOC_TYPE = '_doc'
+
     compiled_query = QueryCompiled60
     compiled_expression = compiled_query.compiled_expression
     compiled_mapping = MappingCompiled60

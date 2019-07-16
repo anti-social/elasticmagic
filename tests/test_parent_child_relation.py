@@ -80,10 +80,10 @@ def test_document_from_hit():
     q = Question(_hit={
         '_id': 'question~1',
         '_type': '_doc',
+        'fields': {
+            '_doc_type': ['question'],
+        },
         '_source': {
-            '_doc_type': {
-                'name': 'question'
-            },
             'question': 'The Ultimate Question',
         }
     })
@@ -94,11 +94,11 @@ def test_document_from_hit():
     a = Answer(_hit={
         '_id': 'answer~1',
         '_type': '_doc',
+        'fields': {
+            '_doc_type': ['answer'],
+            '_doc_type#question': ['question~1'],
+        },
         '_source': {
-            '_doc_type': {
-                'name': 'answer',
-                'parent': 'question~1'
-            },
             'answer': '42',
         }
     })

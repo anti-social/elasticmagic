@@ -1,5 +1,5 @@
-import warnings
 import collections
+import warnings
 from abc import ABCMeta
 
 from .compat import zip, with_metaclass
@@ -13,8 +13,6 @@ __all__ = ['BaseSearchQuery', 'SearchQuery']
 
 
 class BaseSearchQuery(with_metaclass(ABCMeta)):
-    __visit_name__ = 'search_query'
-
     _q = None
     _source = None
     _fields = None
@@ -638,26 +636,24 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
     def _index_or_cluster(self):
         return self._index or self._cluster
 
-    def _get_doc_cls(self):
-        if self._doc_cls:
-            doc_cls = self._doc_cls
-        else:
-            doc_cls = self._collect_doc_classes()
+    # def _get_doc_cls(self):
+    #     if self._doc_cls:
+    #         doc_cls = self._doc_cls
+    #     else:
+    #         doc_cls = self._collect_doc_classes()
+    #     if not doc_cls:
+    #         warnings.warn('Cannot determine document class')
+    #         return None
+    #     return doc_cls
 
-        if not doc_cls:
-            warnings.warn('Cannot determine document class')
-            return None
-
-        return doc_cls
-
-    def _get_doc_type(self, doc_cls=None):
-        doc_cls = doc_cls or self._get_doc_cls()
-        if isinstance(doc_cls, collections.Iterable):
-            return ','.join(set(d.__doc_type__ for d in doc_cls))
-        elif self._doc_type:
-            return self._doc_type
-        elif doc_cls:
-            return doc_cls.__doc_type__
+    # def _get_doc_type(self, doc_cls=None):
+    #     doc_cls = doc_cls or self._get_doc_cls()
+    #     if isinstance(doc_cls, collections.Iterable):
+    #         return ','.join(set(d.__doc_type__ for d in doc_cls))
+    #     elif self._doc_type:
+    #         return self._doc_type
+    #     elif doc_cls:
+    #         return doc_cls.__doc_type__
 
     def get_compiler_context(self):
         return SearchQueryContext(self)
@@ -670,17 +666,13 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         """
         return (compiler or DefaultCompiler).compiled_query(self).params
 
-    def _prepare_search_params(self, es_version):
-        if not self._index and not self._cluster:
-            raise ValueError("Search query is not bound to index or cluster")
-
-        if es_version.major < 6:
-            doc_cls = self._get_doc_cls()
-            doc_type = self._get_doc_type(doc_cls)
-        else:
-            doc_type = '_doc'
-        search_params = self._search_params or {}
-        return dict(doc_type=doc_type, **search_params)
+    # def _prepare_search_params(self):
+    #     if not self._index and not self._cluster:
+    #         raise ValueError("Search query is not bound to index or cluster")
+    #     doc_cls = self._get_doc_cls()
+    #     doc_type = self._get_doc_type(doc_cls)
+    #     search_params = self._search_params or {}
+    #     return dict(doc_type=doc_type, **search_params)
 
     def _exists_query(self):
         return (
@@ -770,10 +762,7 @@ class SearchQuery(BaseSearchQuery):
         if self._cached_result is not None:
             return self._cached_result
 
-        es_version = self._index_or_cluster.get_es_version()
-        self._cached_result = self._index_or_cluster.search(
-            self, **self._prepare_search_params(es_version)
-        )
+        self._cached_result = self._index_or_cluster.search(self)
         return self._cached_result
 
     @property
@@ -796,10 +785,7 @@ class SearchQuery(BaseSearchQuery):
         """Executes current query and returns number of documents matched the
         query. Uses `count api <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-count.html>`_.
         """  # noqa:E501
-        es_version = self._index_or_cluster.get_es_version()
-        return self._index_or_cluster.count(
-            self, **self._prepare_search_params(es_version)
-        ).count
+        return self._index_or_cluster.count(self).count
 
     def exists(self):
         """Executes current query optimized for checking that
@@ -823,7 +809,6 @@ class SearchQuery(BaseSearchQuery):
         """  # noqa:E501
         return self._index_or_cluster.delete_by_query(
             self,
-            doc_type=self._get_doc_type(),
             conflicts=conflicts,
             refresh=refresh,
             timeout=timeout,
@@ -846,6 +831,8 @@ class SearchQuery(BaseSearchQuery):
 
 
 class SearchQueryContext(object):
+    __visit_name__ = 'search_query_context'
+
     def __init__(self, search_query):
         self.q = search_query._q
         self.source = search_query._source
@@ -869,7 +856,13 @@ class SearchQueryContext(object):
 
         self.cluster = search_query._cluster
         self.index = search_query._index
-        self.doc_cls = search_query._doc_cls
+        doc_cls = search_query._doc_cls
+        if not doc_cls:
+            self.doc_classes = None
+        elif not isinstance(doc_cls, collections.Iterable):
+            self.doc_classes = [doc_cls]
+        else:
+            self.doc_classes = doc_cls
         self.doc_type = search_query._doc_type
         self.script_fields = search_query._script_fields
 

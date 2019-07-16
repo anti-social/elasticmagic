@@ -7,6 +7,7 @@ from .compat import with_metaclass
 from .compiler import (
     ESVersion,
     get_compiler_by_es_version,
+    prepare_doc_type,
 )
 from .document import (
     Document,
@@ -160,15 +161,17 @@ class BaseCluster(with_metaclass(ABCMeta)):
         params, kwargs = _preprocess_params(params)
         q = params.pop('q')
 
-        body = q.to_dict(compiler)
-        params = clean_params(params, **kwargs)
-        return body, params
+        compiled_query = compiler.compiled_query(
+            q, search_params=clean_params(params, **kwargs)
+        )
+        return compiled_query
 
-    def _search_result(self, q, raw_result):
+    def _search_result(self, compiled_query, raw_result):
         return SearchResult(
-            raw_result, q._aggregations,
-            doc_cls=q._get_doc_cls(),
-            instance_mapper=q._instance_mapper,
+            raw_result,
+            aggregations=compiled_query.context.aggregations,
+            doc_cls=compiled_query.doc_classes,
+            instance_mapper=compiled_query.context.instance_mapper,
         )
 
     def _prepare_query(self, q, compiler):
@@ -178,31 +181,31 @@ class BaseCluster(with_metaclass(ABCMeta)):
             query = query_compiler.get_filtered_query(
                 query_ctx, wrap_function_score=False
             )
+            doc_classes = query_ctx.doc_classes
         else:
             query = q
-
-        if query is None:
-            return None
+            doc_classes = None
 
         query = Params(query=query)
-        return query.to_elastic(compiler=query_compiler)
+        compiled_query = compiler.compiled_expression(
+            query, doc_classes=doc_classes
+        )
+        return (
+            compiled_query.params or None,
+            prepare_doc_type(compiled_query.doc_classes)
+        )
 
-    def _count_params(self, params, compiler):
+    def _query_params(self, params, compiler):
         params, kwargs = _preprocess_params(params)
         q = params.pop('q')
 
-        body = self._prepare_query(q, compiler)
+        body, doc_type = self._prepare_query(q, compiler)
+        if doc_type:
+            params['doc_type'] = doc_type
         return body, clean_params(params, **kwargs)
 
     def _count_result(self, raw_result):
         return CountResult(raw_result)
-
-    def _exists_params(self, params, compiler):
-        params, kwargs = _preprocess_params(params)
-        q = params.pop('q')
-
-        body = self._prepare_query(q, compiler)
-        return body, clean_params(params, **kwargs)
 
     def _exists_result(self, raw_result):
         return ExistsResult(raw_result)
@@ -238,26 +241,31 @@ class BaseCluster(with_metaclass(ABCMeta)):
         queries = params.pop('queries')
 
         params = clean_params(params, **kwargs)
+        compiled_queries = []
         body = []
         for q in queries:
-            query_header = {}
-            if q._index:
-                query_header['index'] = q._index._name
-            doc_type = q._get_doc_type()
-            if doc_type:
-                query_header['type'] = doc_type
-            query_header.update(q._search_params)
-            body += [query_header, q.to_dict(compiler)]
-        return body, raise_on_error, params
-
-    def _multi_search_result(self, queries, raise_on_error, raw_results):
-        errors = []
-        for raw, q in zip(raw_results, queries):
-            result = SearchResult(
-                raw, q._aggregations,
-                doc_cls=q._get_doc_cls(),
-                instance_mapper=q._instance_mapper,
+            compiled_query = compiler.compiled_query(
+                q, search_params=clean_params(params, **kwargs)
             )
+            compiled_queries.append(compiled_query)
+
+            search_params = compiled_query.search_params
+            if compiled_query.context.index:
+                search_params['index'] = compiled_query.context.index.get_name()
+            doc_type = search_params.pop('doc_type', None)
+            if doc_type:
+                search_params['type'] = doc_type
+            body.append(search_params)
+            body.append(compiled_query.params)
+
+        return compiled_queries, body, raise_on_error, params
+
+    def _multi_search_result(
+            self, queries, compiled_queries, raise_on_error, raw_results
+    ):
+        errors = []
+        for raw, q, compiled_query in zip(raw_results, queries, compiled_queries):
+            result = self._search_result(compiled_query, raw)
             q._cached_result = result
             if result.error:
                 errors.append(result.error)
@@ -307,6 +315,7 @@ class BaseCluster(with_metaclass(ABCMeta)):
             doc_cls = doc_cls or doc_or_id.__class__
         else:
             doc_id = doc_or_id
+
         assert doc_type or (doc_cls and doc_cls.__doc_type__), \
             'Cannot evaluate doc_type: you must specify doc_type or doc_cls'
         params['doc_type'] = doc_type or doc_cls.__doc_type__
@@ -315,13 +324,6 @@ class BaseCluster(with_metaclass(ABCMeta)):
 
     def _delete_result(self, raw_result):
         return DeleteResult(raw_result)
-
-    def _delete_by_query_params(self, params, compiler):
-        params, kwargs = _preprocess_params(params)
-        q = params.pop('q')
-
-        params['body'] = self._prepare_query(q, compiler)
-        return clean_params(params, **kwargs)
 
     def _delete_by_query_result(self, raw_result):
         return DeleteByQueryResult(raw_result)
@@ -406,17 +408,21 @@ class Cluster(BaseCluster):
             timeout=None, search_type=None, query_cache=None,
             terminate_after=None, scroll=None, **kwargs
     ):
-        body, params = self._search_params(locals(), self.get_compiler())
+        compiled_query = self._search_params(
+            locals(), self.get_compiler()
+        )
         return self._search_result(
-            q,
-            self._client.search(body=body, **params),
+            compiled_query,
+            self._client.search(
+                body=compiled_query.params, **compiled_query.search_params
+            ),
         )
 
     def count(
             self, q=None, index=None, doc_type=None, routing=None,
             preference=None, **kwargs
     ):
-        body, params = self._count_params(locals(), self.get_compiler())
+        body, params = self._query_params(locals(), self.get_compiler())
         return self._count_result(
             self._client.count(body=body, **params)
         )
@@ -425,7 +431,7 @@ class Cluster(BaseCluster):
             self, q, index=None, doc_type=None, refresh=None, routing=None,
             **kwargs
     ):
-        body, params = self._exists_params(locals(), self.get_compiler())
+        body, params = self._query_params(locals(), self.get_compiler())
         return self._exists_result(
             self._client.search_exists(body=body, **params)
         )
@@ -452,11 +458,12 @@ class Cluster(BaseCluster):
             routing=None, preference=None, search_type=None,
             raise_on_error=None, **kwargs
     ):
-        body, raise_on_error, params = self._multi_search_params(
+        compiled_queries, body, raise_on_error, params = self._multi_search_params(
             locals(), self.get_compiler()
         )
         return self._multi_search_result(
             queries,
+            compiled_queries,
             raise_on_error,
             self._client.msearch(body=body, **params)['responses'],
         )
@@ -500,9 +507,9 @@ class Cluster(BaseCluster):
             wait_for_completion=None, requests_per_second=None,
             **kwargs
     ):
-        params = self._delete_by_query_params(locals(), self.get_compiler())
+        body, params = self._query_params(locals(), self.get_compiler())
         return self._delete_result(
-            self._client.delete_by_query(**params)
+            self._client.delete_by_query(body=body, **params)
         )
 
     def bulk(

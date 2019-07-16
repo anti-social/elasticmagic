@@ -25,7 +25,7 @@ class SearchResult(Result):
         else:
             doc_classes = doc_cls
         self._doc_cls_map = {
-            doc_cls.__doc_type__: doc_cls for doc_cls in doc_classes
+            doc_cls.__doc_type__: doc_cls for doc_cls in doc_classes if doc_cls
         }
 
         self._mapper_registry = {}

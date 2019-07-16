@@ -1530,7 +1530,7 @@ def test_page(index, client):
             }
         }
     )
-    with pytest.warns(UserWarning, match='Cannot determine document class'):
+    with pytest.warns(UserWarning, match='Cannot determine a document class'):
         qf_res = qf.process_results(sq.get_result())
     assert qf_res.page.offset == 20
     assert qf_res.page.limit == 10
