@@ -27,12 +27,21 @@ def es_cluster(es_client):
 def es_index(es_cluster, es_client, index_name):
     es_client.indices.create(
         index=index_name,
-        body={'settings': {'index': {'number_of_replicas': 0}}}
+        body={
+            'settings': {
+                'index': {
+                    'number_of_shards': 1,
+                    'number_of_replicas': 0
+                }
+            }
+        }
     )
-    es_index = es_cluster[index_name]
-    es_index.put_mapping(Car)
-    yield es_index
-    es_client.indices.delete(index=index_name)
+    try:
+        es_index = es_cluster[index_name]
+        es_index.put_mapping(Car)
+        yield es_index
+    finally:
+        es_client.indices.delete(index=index_name)
 
 
 @pytest.fixture

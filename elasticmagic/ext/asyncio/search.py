@@ -12,17 +12,11 @@ class AsyncSearchQuery(BaseSearchQuery):
         if self._cached_result is not None:
             return self._cached_result
 
-        self._cached_result = await self._index_or_cluster.search(
-            self, **self._prepare_search_params()
-        )
+        self._cached_result = await self._index_or_cluster.search(self)
         return self._cached_result
 
     async def count(self):
-        return (
-            await self._index_or_cluster.count(
-                self, **self._prepare_search_params()
-            )
-        ).count
+        return (await self._index_or_cluster.count(self)).count
 
     async def exists(self):
         return (await self._exists_query().get_result()).total >= 1

@@ -6,12 +6,15 @@ from ..conftest import Car
 
 
 def test_adding_documents(es_index):
-    es_index.add(
+    bulk_res = es_index.add(
         [
             Car(_id=1, name='Lightning McQueen'),
             Car(_id=2, name='Sally Carerra'),
         ]
     )
+
+    assert not bulk_res.errors, \
+        'There were some errors: {}'.format(bulk_res.raw)
 
     doc = es_index.get(1, doc_cls=Car)
     assert doc.name == 'Lightning McQueen'
@@ -27,7 +30,7 @@ def test_adding_documents(es_index):
 
 
 def test_scroll(es_index, cars):
-    with pytest.warns(UserWarning, match='Cannot determine document class'):
+    with pytest.warns(UserWarning, match='Cannot determine a document class'):
         search_res = es_index.search(
             SearchQuery(), scroll='1m',
         )

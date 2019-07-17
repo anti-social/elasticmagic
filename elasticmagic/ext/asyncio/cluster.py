@@ -54,19 +54,21 @@ class AsyncCluster(BaseCluster):
             timeout=None, search_type=None, query_cache=None,
             terminate_after=None, scroll=None, **kwargs
     ):
-        body, params = self._search_params(
+        compiled_query = self._search_params(
             locals(), await self.get_compiler()
         )
         return self._search_result(
-            q,
-            await self._client.search(body=body, **params),
+            compiled_query,
+            await self._client.search(
+                body=compiled_query.params, **compiled_query.search_params
+            ),
         )
 
     async def count(
             self, q=None, index=None, doc_type=None, routing=None,
             preference=None, **kwargs
     ):
-        body, params = self._count_params(locals(), await self.get_compiler())
+        body, params = self._query_params(locals(), await self.get_compiler())
         return self._count_result(
             await self._client.count(body=body, **params)
         )
@@ -93,11 +95,11 @@ class AsyncCluster(BaseCluster):
             routing=None, preference=None, search_type=None,
             raise_on_error=None, **kwargs
     ):
-        body, raise_on_error, params = self._multi_search_params(
-            locals(), await self.get_compiler()
-        )
+        compiled_queries, body, raise_on_error, params = \
+            self._multi_search_params(locals(), await self.get_compiler())
         return self._multi_search_result(
             queries,
+            compiled_queries,
             raise_on_error,
             (await self._client.msearch(body=body, **params))['responses'],
         )
@@ -141,11 +143,11 @@ class AsyncCluster(BaseCluster):
             timeout=None, consistency=None, replication=None, routing=None,
             **kwargs
     ):
-        params = self._delete_by_query_params(
+        body, params = self._query_params(
             locals(), await self.get_compiler()
         )
         return self._delete_by_query_result(
-            await self._client.delete_by_query(**params)
+            await self._client.delete_by_query(body=body, **params)
         )
 
     async def bulk(

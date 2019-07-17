@@ -4,7 +4,7 @@ from .attribute import _attributed_field_factory
 from .expression import Field, MappingField
 from .datastructures import OrderedAttributes
 from .util import cached_property
-from .compat import string_types, with_metaclass
+from .compat import with_metaclass
 
 
 DOC_TYPE_FIELD_NAME = '_doc_type'

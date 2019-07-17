@@ -66,14 +66,14 @@ async def test_getitem(es_index, cars):
     with pytest.raises(ValueError):
         await sq[::2]
 
-    with pytest.warns(UserWarning, match='Cannot determine document class'):
+    with pytest.warns(UserWarning, match='Cannot determine a document class'):
         docs = await sq[1:2]
         assert len(docs) == 1
 
-    with pytest.warns(UserWarning, match='Cannot determine document class'):
+    with pytest.warns(UserWarning, match='Cannot determine a document class'):
         docs = await sq[:2]
         assert len(docs) == 2
 
-    with pytest.warns(UserWarning, match='Cannot determine document class'):
+    with pytest.warns(UserWarning, match='Cannot determine a document class'):
         doc = await sq[0]
         assert doc is not None

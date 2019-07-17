@@ -552,10 +552,6 @@ class QueryCompiled50(QueryCompiled20):
 class QueryCompiled60(QueryCompiled50):
     compiled_expression = ExpressionCompiled60
 
-    def __init__(self, query, search_params=None):
-        super(QueryCompiled60, self).__init__(query, search_params=search_params)
-        self.search_params['doc_type'] = Compiler60.DEFAULT_DOC_TYPE
-
     @classmethod
     def _patch_docvalue_fields(cls, params, doc_classes):
         docvalue_fields = params.get('docvalue_fields')
@@ -568,30 +564,37 @@ class QueryCompiled60(QueryCompiled50):
         }
         if not parent_doc_types:
             return params
-        doc_type_field_names = []
-        doc_type_field_names.append(DOC_TYPE_FIELD_NAME)
+        doc_type_fields = []
+        doc_type_fields.append(DOC_TYPE_FIELD_NAME)
         for doc_type in parent_doc_types:
-            doc_type_field_names.append(
+            doc_type_fields.append(
                 '{}#{}'.format(DOC_TYPE_FIELD_NAME, doc_type)
             )
         if not docvalue_fields:
-            params['docvalue_fields'] = doc_type_field_names
+            params['docvalue_fields'] = doc_type_fields
         elif isinstance(docvalue_fields, string_types):
-            params['docvalue_fields'] = [docvalue_fields] + doc_type_field_names
+            params['docvalue_fields'] = [docvalue_fields] + doc_type_fields
         elif isinstance(docvalue_fields, list):
-            docvalue_fields.extend(doc_type_field_names)
+            docvalue_fields.extend(doc_type_fields)
         return params
 
-    def visit_search_query(self, query):
-        params = super(QueryCompiled60, self).visit_search_query(query)
+    def visit_search_query_context(self, query_ctx):
+        params = super(QueryCompiled60, self).visit_search_query_context(
+            query_ctx
+        )
         return self._patch_docvalue_fields(params, self.doc_classes)
 
 
 class MappingCompiled10(Compiled):
-    def __init__(self, expression, ordered=False):
+    def __init__(self, doc_cls, ordered=False, mapping_params=None):
         self._dict_type = collections.OrderedDict if ordered else dict
         self._dynamic_templates = []
-        super(MappingCompiled10, self).__init__(expression)
+        self.mapping_params = mapping_params or {}
+        if not self.mapping_params.get('doc_type', None):
+            self.mapping_params['doc_type'] = getattr(
+                doc_cls, '__doc_type__', None
+            )
+        super(MappingCompiled10, self).__init__(doc_cls)
 
     def _visit_dynamic_field(self, field):
         self._dynamic_templates.append(
@@ -743,7 +746,6 @@ class MetaCompiled60(MetaCompiled10):
         meta = super(MetaCompiled60, self).visit_document(
             doc, meta_params=meta_params
         )
-        meta['_type'] = Compiler60.DEFAULT_DOC_TYPE
         if (
                 isinstance(doc, Document) and
                 doc.__doc_type__ and
@@ -753,6 +755,7 @@ class MetaCompiled60(MetaCompiled10):
             meta['_id'] = '{}{}{}'.format(
                 doc.__doc_type__, TYPE_ID_DELIMITER, meta['_id']
             )
+            meta['_type'] = Compiler60.DEFAULT_DOC_TYPE
         return meta
 
 

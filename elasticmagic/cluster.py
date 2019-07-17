@@ -250,8 +250,9 @@ class BaseCluster(with_metaclass(ABCMeta)):
             compiled_queries.append(compiled_query)
 
             search_params = compiled_query.search_params
-            if compiled_query.context.index:
-                search_params['index'] = compiled_query.context.index.get_name()
+            index = compiled_query.context.index
+            if index:
+                search_params['index'] = index.get_name()
             doc_type = search_params.pop('doc_type', None)
             if doc_type:
                 search_params['type'] = doc_type
@@ -264,7 +265,9 @@ class BaseCluster(with_metaclass(ABCMeta)):
             self, queries, compiled_queries, raise_on_error, raw_results
     ):
         errors = []
-        for raw, q, compiled_query in zip(raw_results, queries, compiled_queries):
+        for raw, q, compiled_query in zip(
+                raw_results, queries, compiled_queries
+        ):
             result = self._search_result(compiled_query, raw)
             q._cached_result = result
             if result.error:
@@ -280,17 +283,19 @@ class BaseCluster(with_metaclass(ABCMeta)):
         return [q.get_result() for q in queries]
 
     def _put_mapping_params(self, params, compiler):
+        print(compiler)
         params, kwargs = _preprocess_params(params)
         doc_cls_or_mapping = params.pop('doc_cls_or_mapping')
+        mapping_params = clean_params(params, **kwargs)
         if issubclass(doc_cls_or_mapping, Document):
-            body = compiler.compiled_mapping(doc_cls_or_mapping).params
+            compiled_mapping = compiler.compiled_mapping(
+                doc_cls_or_mapping, mapping_params=mapping_params
+            )
+            body = compiled_mapping.params
+            mapping_params = compiled_mapping.mapping_params
         else:
             body = doc_cls_or_mapping
-        if params.get('doc_type', None) is None:
-            params['doc_type'] = getattr(
-                doc_cls_or_mapping, '__doc_type__', None
-            )
-        return body, clean_params(params, **kwargs)
+        return body, mapping_params
 
     def _put_mapping_result(self, raw_result):
         # TODO Convert to nice result object
@@ -458,9 +463,8 @@ class Cluster(BaseCluster):
             routing=None, preference=None, search_type=None,
             raise_on_error=None, **kwargs
     ):
-        compiled_queries, body, raise_on_error, params = self._multi_search_params(
-            locals(), self.get_compiler()
-        )
+        compiled_queries, body, raise_on_error, params = \
+            self._multi_search_params(locals(), self.get_compiler())
         return self._multi_search_result(
             queries,
             compiled_queries,
@@ -477,6 +481,7 @@ class Cluster(BaseCluster):
             master_timeout=None, timeout=None, **kwargs
     ):
         body, params = self._put_mapping_params(locals(), self.get_compiler())
+        print(body, params)
         return self._put_mapping_result(
             self._client.indices.put_mapping(body=body, **params)
         )
@@ -517,8 +522,11 @@ class Cluster(BaseCluster):
             timeout=None, consistency=None, replication=None, **kwargs
     ):
         params = self._bulk_params(locals(), self.get_compiler())
+        print(params)
+        raw_result = self._client.bulk(**params)
+        print(raw_result)
         return self._bulk_result(
-            self._client.bulk(**params)
+            raw_result
         )
 
     def refresh(self, index=None, **kwargs):
