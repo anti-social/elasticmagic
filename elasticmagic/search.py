@@ -99,7 +99,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         elasticsearch. Can be one of the following types:
 
            - field expression, for example: ``PostDocument.title``
-           - ``str`` means field name or glob pattern. For example: 
+           - ``str`` means field name or glob pattern. For example:
              ``"title"``, ``"user.*"``
            - ``False`` disables retrieving source
            - ``True`` enables retrieving all source document
@@ -635,25 +635,6 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
     @property
     def _index_or_cluster(self):
         return self._index or self._cluster
-
-    # def _get_doc_cls(self):
-    #     if self._doc_cls:
-    #         doc_cls = self._doc_cls
-    #     else:
-    #         doc_cls = self._collect_doc_classes()
-    #     if not doc_cls:
-    #         warnings.warn('Cannot determine document class')
-    #         return None
-    #     return doc_cls
-
-    # def _get_doc_type(self, doc_cls=None):
-    #     doc_cls = doc_cls or self._get_doc_cls()
-    #     if isinstance(doc_cls, collections.Iterable):
-    #         return ','.join(set(d.__doc_type__ for d in doc_cls))
-    #     elif self._doc_type:
-    #         return self._doc_type
-    #     elif doc_cls:
-    #         return doc_cls.__doc_type__
 
     def get_compiler_context(self):
         return SearchQueryContext(self)

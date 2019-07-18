@@ -11,6 +11,15 @@ Quick Start
    from elasticsearch import Elasticsearch
    from elasticsearch.client import IndicesClient
 
+   info_patch = patch.object(Elasticsearch, 'info',
+       return_value={
+           'version': {
+               'number': '6.0.0'
+           }
+       }
+   )
+   info_patch.__enter__()
+
    put_mapping_patch = patch.object(IndicesClient, 'put_mapping')
 
    index_patch = patch.object(Elasticsearch, 'bulk',

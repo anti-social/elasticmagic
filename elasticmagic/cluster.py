@@ -283,7 +283,6 @@ class BaseCluster(with_metaclass(ABCMeta)):
         return [q.get_result() for q in queries]
 
     def _put_mapping_params(self, params, compiler):
-        print(compiler)
         params, kwargs = _preprocess_params(params)
         doc_cls_or_mapping = params.pop('doc_cls_or_mapping')
         mapping_params = clean_params(params, **kwargs)
@@ -481,7 +480,6 @@ class Cluster(BaseCluster):
             master_timeout=None, timeout=None, **kwargs
     ):
         body, params = self._put_mapping_params(locals(), self.get_compiler())
-        print(body, params)
         return self._put_mapping_result(
             self._client.indices.put_mapping(body=body, **params)
         )
@@ -522,9 +520,7 @@ class Cluster(BaseCluster):
             timeout=None, consistency=None, replication=None, **kwargs
     ):
         params = self._bulk_params(locals(), self.get_compiler())
-        print(params)
         raw_result = self._client.bulk(**params)
-        print(raw_result)
         return self._bulk_result(
             raw_result
         )
