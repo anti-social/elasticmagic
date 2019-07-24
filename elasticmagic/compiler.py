@@ -552,6 +552,18 @@ class QueryCompiled50(QueryCompiled20):
 class QueryCompiled60(QueryCompiled50):
     compiled_expression = ExpressionCompiled60
 
+    def __init__(self, query, search_params=None):
+        super(QueryCompiled60, self).__init__(
+            query, search_params=search_params
+        )
+        should_use_default_type = False
+        for doc_cls in self.doc_classes:
+            if hasattr(doc_cls, '__parent__'):
+                should_use_default_type = True
+                break
+        if should_use_default_type and 'doc_type' in self.search_params:
+            self.search_params['doc_type'] = Compiler60.DEFAULT_DOC_TYPE
+
     @classmethod
     def _patch_docvalue_fields(cls, params, doc_classes):
         docvalue_fields = params.get('docvalue_fields')
@@ -562,6 +574,7 @@ class QueryCompiled60(QueryCompiled50):
             for doc_cls in doc_classes
             if hasattr(doc_cls, '__parent__') and doc_cls.__doc_type__
         }
+        # return params
         if not parent_doc_types:
             return params
         doc_type_fields = []

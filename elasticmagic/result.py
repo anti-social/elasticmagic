@@ -15,6 +15,9 @@ class SearchResult(Result):
             instance_mapper=None,
     ):
         super(SearchResult, self).__init__(raw_result)
+        import yaml
+        print('---')
+        print(yaml.dump(raw_result))
 
         self._query_aggs = aggregations or {}
 

@@ -415,6 +415,10 @@ class Cluster(BaseCluster):
         compiled_query = self._search_params(
             locals(), self.get_compiler()
         )
+        print(compiled_query.search_params)
+        import yaml
+        print('---')
+        print(yaml.dump(compiled_query.params))
         return self._search_result(
             compiled_query,
             self._client.search(
@@ -427,6 +431,10 @@ class Cluster(BaseCluster):
             preference=None, **kwargs
     ):
         body, params = self._query_params(locals(), self.get_compiler())
+        print(params)
+        import yaml
+        print('---')
+        print(yaml.dump(body))
         return self._count_result(
             self._client.count(body=body, **params)
         )
