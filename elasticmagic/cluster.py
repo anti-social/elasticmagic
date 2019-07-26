@@ -7,7 +7,6 @@ from .compat import with_metaclass
 from .compiler import (
     ESVersion,
     get_compiler_by_es_version,
-    prepare_doc_type,
 )
 from .document import (
     Document,
@@ -174,35 +173,12 @@ class BaseCluster(with_metaclass(ABCMeta)):
             instance_mapper=compiled_query.context.instance_mapper,
         )
 
-    def _prepare_query(self, q, compiler):
-        query_compiler = compiler.compiled_query
-        if isinstance(q, BaseSearchQuery):
-            query_ctx = q.get_context()
-            query = query_compiler.get_filtered_query(
-                query_ctx, wrap_function_score=False
-            )
-            doc_classes = query_ctx.doc_classes
-        else:
-            query = q
-            doc_classes = None
-
-        query = Params(query=query)
-        compiled_query = compiler.compiled_expression(
-            query, doc_classes=doc_classes
-        )
-        return (
-            compiled_query.params or None,
-            prepare_doc_type(compiled_query.doc_classes)
-        )
-
-    def _query_params(self, params, compiler):
+    def _scalar_query_params(self, params, compiler):
         params, kwargs = _preprocess_params(params)
         q = params.pop('q')
-
-        body, doc_type = self._prepare_query(q, compiler)
-        if doc_type:
-            params['doc_type'] = doc_type
-        return body, clean_params(params, **kwargs)
+        return compiler.compiled_scalar_query(
+            q, search_params=clean_params(params, **kwargs)
+        )
 
     def _count_result(self, raw_result):
         return CountResult(raw_result)
@@ -430,20 +406,24 @@ class Cluster(BaseCluster):
             self, q=None, index=None, doc_type=None, routing=None,
             preference=None, **kwargs
     ):
-        body, params = self._query_params(locals(), self.get_compiler())
+        compiled_query = self._scalar_query_params(locals(), self.get_compiler())
+        body = compiled_query.params
+        params = compiled_query.search_params
         print(params)
         import yaml
         print('---')
         print(yaml.dump(body))
         return self._count_result(
-            self._client.count(body=body, **params)
+            self._client.count(
+                body=compiled_query.params, **compiled_query.search_params
+            )
         )
 
     def exists(
             self, q, index=None, doc_type=None, refresh=None, routing=None,
             **kwargs
     ):
-        body, params = self._query_params(locals(), self.get_compiler())
+        body, params = self._scalar_query_params(locals(), self.get_compiler())
         return self._exists_result(
             self._client.search_exists(body=body, **params)
         )

@@ -297,7 +297,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
     @_with_clone
     def order_by(self, *orders):
-        """Apply sorting criterion to the search query. 
+        """Apply sorting criterion to the search query.
         Corresponds elasticsearch's
         `sort <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-sort.html>`_.
 
@@ -647,24 +647,6 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         """
         return (compiler or DefaultCompiler).compiled_query(self).params
 
-    # def _prepare_search_params(self):
-    #     if not self._index and not self._cluster:
-    #         raise ValueError("Search query is not bound to index or cluster")
-    #     doc_cls = self._get_doc_cls()
-    #     doc_type = self._get_doc_type(doc_cls)
-    #     search_params = self._search_params or {}
-    #     return dict(doc_type=doc_type, **search_params)
-
-    def _exists_query(self):
-        return (
-            self.with_terminate_after(1)
-                .limit(0)
-                .function_score(None)
-                .boost_score(None)
-                .aggs(None)
-                .rescore(None)
-        )
-
     def slice(self, offset, limit):
         """Applies offset and limit to the query."""
         sliced_query, _ = self._prepare_slice(slice(offset, limit))
@@ -773,7 +755,7 @@ class SearchQuery(BaseSearchQuery):
         there are at least 1 matching document. This method is an analogue of
         the old `exists search api <https://www.elastic.co/guide/en/elasticsearch/reference/2.4/search-exists.html>`_
         """  # noqa:E501
-        return self._exists_query().get_result().total >= 1
+        return self._index_or_cluster.exists(self).total >= 1
 
     def delete(
             self, conflicts=None, refresh=None, timeout=None,
@@ -839,7 +821,7 @@ class SearchQueryContext(object):
         self.index = search_query._index
         doc_cls = search_query._doc_cls
         if not doc_cls:
-            self.doc_classes = None
+            self.doc_classes = search_query._collect_doc_classes()
         elif not isinstance(doc_cls, collections.Iterable):
             self.doc_classes = [doc_cls]
         else:

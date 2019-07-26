@@ -404,36 +404,8 @@ class ExpressionCompiled60(ExpressionCompiled50):
         return params
 
 
-class QueryCompiled(Compiled):
+class _QueryCompiledMixin(object):
     compiled_expression = ExpressionCompiled
-
-    def __init__(self, query, search_params=None):
-        self.context = query.get_context()
-
-        self.doc_classes = self.context.doc_classes
-        if not self.doc_classes:
-            self.doc_classes = query._collect_doc_classes()
-        if not isinstance(self.doc_classes, collections.Iterable):
-            self.doc_classes = [self.doc_classes]
-        if not self.doc_classes:
-            warnings.warn(
-                'Cannot determine a document class from search query. '
-                'DynamicDocument will be used for hits representation.'
-            )
-
-        doc_type = self.context.doc_type
-        if not doc_type:
-            doc_type = prepare_doc_type(self.doc_classes)
-
-        self.search_params = dict(self.context.search_params)
-        if doc_type:
-            self.search_params['doc_type'] = doc_type
-
-        self.search_params = clean_params(
-            self.search_params, **(search_params or {})
-        )
-
-        super(QueryCompiled, self).__init__(self.context)
 
     @classmethod
     def get_query(cls, query_context, wrap_function_score=True):
@@ -480,6 +452,32 @@ class QueryCompiled(Compiled):
     def visit_expression(self, expr):
         return self.compiled_expression(expr, self.doc_classes).params
 
+
+class QueryCompiled(_QueryCompiledMixin, Compiled):
+    def __init__(self, query, search_params=None):
+        self.context = query.get_context()
+
+        self.doc_classes = self.context.doc_classes
+        if not self.doc_classes:
+            warnings.warn(
+                'Cannot determine a document class from search query. '
+                'DynamicDocument will be used for hits representation.'
+            )
+
+        doc_type = self.context.doc_type
+        if not doc_type:
+            doc_type = prepare_doc_type(self.doc_classes)
+
+        self.search_params = dict(self.context.search_params)
+        if doc_type:
+            self.search_params['doc_type'] = doc_type
+
+        self.search_params = clean_params(
+            self.search_params, **(search_params or {})
+        )
+
+        super(QueryCompiled, self).__init__(self.context)
+
     def visit_search_query_context(self, query_ctx):
         params = {}
 
@@ -524,7 +522,7 @@ class QueryCompiled(Compiled):
         return params
 
 
-class QueryCompiled20(QueryCompiled):
+class _QueryCompiledMixin20(_QueryCompiledMixin):
     @classmethod
     def get_filtered_query(cls, query_context, wrap_function_score=True):
         q = cls.get_query(
@@ -534,6 +532,10 @@ class QueryCompiled20(QueryCompiled):
                 must=q, filter=Bool.must(*query_context.iter_filters())
             )
         return q
+
+
+class QueryCompiled20(_QueryCompiledMixin20, QueryCompiled):
+    pass
 
 
 class QueryCompiled50(QueryCompiled20):
@@ -556,16 +558,20 @@ class QueryCompiled60(QueryCompiled50):
         super(QueryCompiled60, self).__init__(
             query, search_params=search_params
         )
+        self._patch_doc_type(self.search_params, self.doc_classes)
+
+    @staticmethod
+    def _patch_doc_type(search_params, doc_classes):
         should_use_default_type = False
-        for doc_cls in self.doc_classes:
+        for doc_cls in doc_classes:
             if hasattr(doc_cls, '__parent__'):
                 should_use_default_type = True
                 break
-        if should_use_default_type and 'doc_type' in self.search_params:
-            self.search_params['doc_type'] = Compiler60.DEFAULT_DOC_TYPE
+        if should_use_default_type and 'doc_type' in search_params:
+            search_params['doc_type'] = Compiler60.DEFAULT_DOC_TYPE
 
-    @classmethod
-    def _patch_docvalue_fields(cls, params, doc_classes):
+    @staticmethod
+    def _patch_docvalue_fields(params, doc_classes):
         docvalue_fields = params.get('docvalue_fields')
         # Wildcards in docvalue_fields aren't supported by top_hits aggregation
         # doc_type_field = '{}*'.format(DOC_TYPE_FIELD_NAME)
@@ -596,6 +602,37 @@ class QueryCompiled60(QueryCompiled50):
             query_ctx
         )
         return self._patch_docvalue_fields(params, self.doc_classes)
+
+
+class ScalarQueryCompiled10(QueryCompiled):
+    def visit_search_query_context(self, query_ctx):
+        params = {}
+
+        q = self.get_filtered_query(query_ctx)
+        if q is not None:
+            params['query'] = self.visit_expression(q)
+
+        post_filter = self.get_post_filter(query_ctx)
+        if post_filter:
+            params['post_filter'] = self.visit_expression(post_filter)
+
+        if query_ctx.min_score is not None:
+            params['min_score'] = query_ctx.min_score
+        return params
+
+
+class ScalarQueryCompiled50(_QueryCompiledMixin20, ScalarQueryCompiled10):
+    pass
+
+
+class ScalarQueryCompiled60(ScalarQueryCompiled50):
+    compiled_expression = ExpressionCompiled60
+
+    def __init__(self, query, search_params=None):
+        super(ScalarQueryCompiled60, self).__init__(
+            query, search_params=search_params
+        )
+        QueryCompiled60._patch_doc_type(self.search_params, self.doc_classes)
 
 
 class MappingCompiled10(Compiled):
@@ -849,6 +886,9 @@ class Compiler(object):
     def compiled_query(self, *args, **kwargs):
         raise NotImplementedError()
 
+    def compiled_scalar_query(self, *args, **kwargs):
+        raise NotImplementedError()
+
     def compiled_mapping(self, *args, **kwargs):
         raise NotImplementedError()
 
@@ -876,8 +916,9 @@ class Compiler20(Compiler):
 
 
 class Compiler50(Compiler):
-    compiled_expression = QueryCompiled50.compiled_expression
     compiled_query = QueryCompiled50
+    compiled_scalar_query = ScalarQueryCompiled50
+    compiled_expression = QueryCompiled50.compiled_expression
     compiled_mapping = MappingCompiled10
     compiled_meta = MetaCompiled10
     compiled_source = SourceCompiled10
@@ -887,6 +928,7 @@ class Compiler60(Compiler):
     DEFAULT_DOC_TYPE = '_doc'
 
     compiled_query = QueryCompiled60
+    compiled_scalar_query = ScalarQueryCompiled60
     compiled_expression = compiled_query.compiled_expression
     compiled_mapping = MappingCompiled60
     compiled_meta = MetaCompiled60
