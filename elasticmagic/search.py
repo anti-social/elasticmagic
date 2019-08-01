@@ -1,6 +1,7 @@
 import warnings
 import collections
 from abc import ABCMeta
+from collections import namedtuple, OrderedDict
 
 from .compat import zip, with_metaclass
 from .util import _with_clone
@@ -9,7 +10,36 @@ from .compiler import DefaultCompiler
 from .expression import Params, Source, Highlight, Rescore
 
 
-__all__ = ['BaseSearchQuery', 'SearchQuery']
+__all__ = [
+    'BaseSearchQuery', 'SearchQuery', 'FunctionScoreSettings',
+    'GENERAL_FUNCTION_SCORE', 'BOOST_FUNCTION_SCORE'
+]
+
+
+_FunctionScore = namedtuple('_FunctionScore', ['functions', 'params'])
+
+
+class FunctionScoreSettings(object):
+    def __init__(
+            self, name, score_mode=None, boost_mode=None, boost=None,
+            max_boost=None, min_score=None, **kwargs
+    ):
+        self.name = name
+        self.settings = Params(
+            score_mode=score_mode, boost_mode=boost_mode, boost=boost,
+            max_boost=max_boost, min_score=min_score, **kwargs
+        )
+
+
+GENERAL_FUNCTION_SCORE = FunctionScoreSettings(
+    'GENERAL',
+    # TODO: Should we specify default settings explicitly?
+    # score_mode='multiply', boost_mode='multiply'
+)
+
+BOOST_FUNCTION_SCORE = FunctionScoreSettings(
+    'BOOST', score_mode='sum', boost_mode='sum'
+)
 
 
 class BaseSearchQuery(with_metaclass(ABCMeta)):
@@ -24,10 +54,16 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
     _post_filters_meta = ()
     _order_by = ()
     _aggregations = Params()
-    _function_score = ()
-    _function_score_params = Params()
-    _boost_score = ()
-    _boost_score_params = Params()
+    _function_scores = OrderedDict([
+        (
+            BOOST_FUNCTION_SCORE.name,
+            _FunctionScore((), BOOST_FUNCTION_SCORE.settings)
+        ),
+        (
+            GENERAL_FUNCTION_SCORE.name,
+            _FunctionScore((), GENERAL_FUNCTION_SCORE.settings)
+        ),
+    ])
     _limit = None
     _offset = None
     _min_score = None
@@ -369,6 +405,25 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         return self.aggregations(*args, **kwargs)
 
     @_with_clone
+    def function_score_settings(self, *function_score_settings):
+        """Adds or updates function score level.
+        Levels will be inserted before existing.
+        """
+        function_scores = OrderedDict()
+        for fs_settings in function_score_settings:
+            if fs_settings.name in self._function_scores:
+                fs = self._function_score[fs_settings.name]
+                self._function_score[fs_settings.name] = _FunctionScore(
+                    fs.functions, fs_settings.settings
+                )
+            else:
+                function_scores[fs_settings.name] = _FunctionScore(
+                    (), fs_settings.settings
+                )
+        function_scores.update(self._function_scores)
+        self._function_scores = function_scores
+
+    @_with_clone
     def function_score(self, *args, **kwargs):
         """Adds `function scores <https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-function-score-query.html>`_
         to the search query.
@@ -403,15 +458,10 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
                                 'factor': 1.2,
                                  'modifier': 'sqrt'}}]}}}
         """  # noqa:E501
-
-        if args == (None,):
-            if '_function_score' in self.__dict__:
-                del self._function_score
-                del self._function_score_params
+        if len(args) >= 1 and isinstance(args[0], FunctionScoreSettings):
+            self._function_score(args[0].name, args[1:], kwargs)
         else:
-            self._function_score = self._function_score + args
-            self._function_score_params = Params(
-                dict(self._function_score_params), **kwargs)
+            self._function_score(GENERAL_FUNCTION_SCORE.name, args, kwargs)
 
     @_with_clone
     def boost_score(self, *args, **kwargs):
@@ -459,14 +509,22 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
                        'boost_mode': 'sum',
                        'score_mode': 'sum'}}}
         """
-        if args == (None,):
-            if '_boost_score' in self.__dict__:
-                del self._boost_score
-                del self._boost_score_params
+        self._function_score(BOOST_FUNCTION_SCORE.name, args, kwargs)
+
+    def _function_score(self, key, functions, kwargs):
+        if key not in self._function_scores:
+            raise ValueError(
+                'Cannot find function score: [{}]'.format(key)
+            )
+        self._function_scores = OrderedDict(self._function_scores)
+        if functions == (None,):
+            fs = self._function_scores[key]
+            self._function_scores[key] = _FunctionScore((), fs.params)
         else:
-            self._boost_score = self._boost_score + args
-            self._boost_score_params = Params(
-                dict(self._boost_score_params), **kwargs)
+            self._function_scores[key] = _FunctionScore(
+                self._function_scores[key].functions + functions,
+                Params(dict(self._function_scores[key].params), **kwargs)
+            )
 
     @_with_clone
     def limit(self, limit):
@@ -851,10 +909,7 @@ class SearchQueryContext(object):
         self.post_filters_meta = search_query._post_filters_meta
         self.order_by = search_query._order_by
         self.aggregations = search_query._aggregations
-        self.function_score = search_query._function_score
-        self.function_score_params = search_query._function_score_params
-        self.boost_score = search_query._boost_score
-        self.boost_score_params = search_query._boost_score_params
+        self.function_scores = search_query._function_scores
         self.limit = search_query._limit
         self.offset = search_query._offset
         self.min_score = search_query._min_score

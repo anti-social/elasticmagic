@@ -6,7 +6,9 @@ from elasticmagic import (
     SearchQuery, Params, Term, MultiMatch,
     FunctionScore, Sort, QueryRescorer, agg
 )
+from elasticmagic.search import FunctionScoreSettings
 from elasticmagic.compiler import QueryCompiled20
+from elasticmagic.function import FieldValueFactor, Weight
 from elasticmagic.util import collect_doc_classes
 from elasticmagic.types import String, Integer, Float, Object
 from elasticmagic.expression import Field
@@ -658,7 +660,7 @@ class SearchQueryTest(BaseTestCase):
                         }
                     }
                 }
-            }  
+            }
         )
         self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
 
@@ -701,6 +703,139 @@ class SearchQueryTest(BaseTestCase):
             }
         )
         self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
+
+    def test_custom_function_scores(self):
+        AD_ONLY_FUNCTION_SCORE = FunctionScoreSettings(
+            'AD_ONLY', score_mode='min', boost_mode='replace', min_score=1e-6
+        )
+        sq = SearchQuery()
+        sq = sq.function_score_settings(AD_ONLY_FUNCTION_SCORE)
+        self.assert_expression(
+            sq,
+            {}
+        )
+        self.assert_expression(
+            sq.function_score(
+                AD_ONLY_FUNCTION_SCORE,
+                FieldValueFactor(DynamicDocument.ad_price, missing=0.0)
+            ),
+            {
+                "query": {
+                    "function_score": {
+                        "functions": [
+                            {
+                                "field_value_factor": {
+                                    "field": "ad_price",
+                                    "missing": 0.0
+                                }
+                            }
+                        ],
+                        "score_mode": "min",
+                        "boost_mode": "replace",
+                        "min_score": 1e-6
+                    }
+                }
+            }
+        )
+        self.assert_expression(
+            (
+                sq
+                .function_score(
+                    AD_ONLY_FUNCTION_SCORE,
+                    FieldValueFactor(DynamicDocument.ad_price, missing=0.0)
+                )
+                .function_score(FieldValueFactor(DynamicDocument.rank))
+            ),
+            {
+                "query": {
+                    "function_score": {
+                        "query": {
+                            "function_score": {
+                                "functions": [
+                                    {
+                                        "field_value_factor": {
+                                            "field": "rank"
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        "functions": [
+                            {
+                                "field_value_factor": {
+                                    "field": "ad_price",
+                                    "missing": 0.0
+                                }
+                            }
+                        ],
+                        "score_mode": "min",
+                        "boost_mode": "replace",
+                        "min_score": 1e-6
+                    }
+                }
+            }
+        )
+        self.assert_expression(
+            (
+                sq
+                .function_score(
+                    AD_ONLY_FUNCTION_SCORE,
+                    FieldValueFactor(DynamicDocument.ad_price, missing=0.0)
+                )
+                .function_score(FieldValueFactor(DynamicDocument.rank))
+                .boost_score(
+                    Weight(
+                        filter=DynamicDocument.presence == 'available',
+                        weight=1000
+                    )
+                )
+            ),
+            {
+                "query": {
+                    "function_score": {
+                        "query": {
+                            "function_score": {
+                                "query": {
+                                    "function_score": {
+                                        "functions": [
+                                            {
+                                                "field_value_factor": {
+                                                    "field": "rank"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                "functions": [
+                                    {
+                                        "filter": {
+                                            "term": {"presence": "available"}
+                                        },
+                                        "weight": 1000
+                                    }
+                                ],
+                                "score_mode": "sum",
+                                "boost_mode": "sum"
+                            }
+                        },
+                        "functions": [
+                            {
+                                "field_value_factor": {
+                                    "field": "ad_price",
+                                    "missing": 0.0
+                                }
+                            }
+                        ],
+                        "score_mode": "min",
+                        "boost_mode": "replace",
+                        "min_score": 1e-6
+                    }
+                }
+            }
+        )
+        with self.assertRaises(ValueError):
+            ANOTHER_FUNCTION_SCORE = FunctionScoreSettings('ANOTHER')
+            sq.function_score(ANOTHER_FUNCTION_SCORE, Weight(1))
 
     def test_count(self):
         self.client.count.return_value = {

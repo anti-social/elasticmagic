@@ -6,7 +6,6 @@ from .expression import Exists
 from .expression import Filtered
 from .expression import FunctionScore
 from .expression import HighlightedField
-from .expression import Params
 
 
 OPERATORS = {
@@ -335,24 +334,16 @@ class QueryCompiled(Compiled):
     def get_query(cls, query_context, wrap_function_score=True):
         q = query_context.q
         if wrap_function_score:
-            if query_context.function_score:
+            for (functions, params) in reversed(
+                    # Without wrapping in list it fails on Python 3.4
+                    list(query_context.function_scores.values())
+            ):
+                if not functions:
+                    continue
                 q = FunctionScore(
                     query=q,
-                    functions=query_context.function_score,
-                    **query_context.function_score_params
-                )
-            if query_context.boost_score:
-                boost_score_params = Params(
-                    dict(
-                        score_mode='sum',
-                        boost_mode='sum',
-                    ),
-                    **query_context.boost_score_params
-                )
-                q = FunctionScore(
-                    query=q,
-                    functions=query_context.boost_score,
-                    **boost_score_params
+                    functions=functions,
+                    **params
                 )
         return q
 
