@@ -16,15 +16,34 @@ OPERATORS = {
 
 ESVersion = collections.namedtuple('ESVersion', ['major', 'minor', 'patch'])
 
+ExpressionFeatures = collections.namedtuple(
+    'ExpressionFeatures',
+    [
+        'supports_missing_query',
+        'supports_parent_id_query',
+    ]
+)
+
+SearchQueryFeatures = collections.namedtuple(
+    'SearchQueryFeatures',
+    [
+        ''
+        'supports_bool_filter',
+        'stored_fields_param',
+    ]
+)
+
 
 class CompilationError(Exception):
     pass
 
 
 class Compiled(object):
-    def __init__(self, expression):
+    features = None
+
+    def __init__(self, expression, **kwargs):
         self.expression = expression
-        self.params = self.visit(self.expression)
+        self.params = self.visit(expression, **kwargs)
 
     def visit(self, expr, **kwargs):
         visit_name = None
@@ -56,7 +75,7 @@ class Compiled(object):
         return [self.visit(v) for v in lst]
 
 
-class ExpressionCompiled(Compiled):
+class CompiledExpression(Compiled):
     def visit_literal(self, expr):
         return expr.obj
 
@@ -109,9 +128,13 @@ class ExpressionCompiled(Compiled):
         }
 
     def visit_missing(self, expr):
-        return {
-            'missing': self.visit(expr.params)
-        }
+        if self.features.supports_missing_query:
+            return {
+                'missing': self.visit(expr.params)
+            }
+        return self.visit(
+            Bool.must_not(Exists(**expr.params))
+        )
 
     def visit_multi_match(self, expr):
         params = {
@@ -237,6 +260,22 @@ class ExpressionCompiled(Compiled):
                 params['fields'] = compiled_fields
         return params
 
+    def visit_parent_id(self, expr):
+        if not self.features.supports_parent_id_query:
+            raise CompilationError(
+                'Elasticsearch before 5.x does not have support for '
+                'parent_id query'
+            )
+        child_type = expr.child_type
+        if hasattr(child_type, '__doc_type__'):
+            child_type = child_type.__doc_type__
+        if not child_type:
+            raise CompilationError(
+                "Cannot detect child type, specify 'child_type' argument"
+            )
+
+        return {'parent_id': {'type': child_type, 'id': expr.parent_id}}
+
     def visit_has_parent(self, expr):
         params = self.visit(expr.params)
         parent_type = expr.parent_type
@@ -310,25 +349,9 @@ class ExpressionCompiled(Compiled):
         return params
 
 
-class ExpressionCompiled50(ExpressionCompiled):
-    def visit_missing(self, expr):
-        return self.visit(
-            Bool.must_not(Exists(**expr.params))
-        )
-
-    def visit_parent_id(self, expr):
-        child_type = expr.child_type
-        if hasattr(child_type, '__doc_type__'):
-            child_type = child_type.__doc_type__
-        if not child_type:
-            raise CompilationError(
-                "Cannot detect child type, specify 'child_type' argument")
-
-        return {'parent_id': {'type': child_type, 'id': expr.parent_id}}
-
-
-class QueryCompiled(Compiled):
-    compiled_expression = ExpressionCompiled
+class CompiledSearchQuery(Compiled):
+    compiled_expression = None
+    features = None
 
     @classmethod
     def get_query(cls, query_context, wrap_function_score=True):
@@ -353,13 +376,16 @@ class QueryCompiled(Compiled):
             query_context, wrap_function_score=wrap_function_score
         )
         if query_context.filters:
+            filter_clauses = list(query_context.iter_filters())
+            if cls.features.supports_bool_filter:
+                return Bool(must=q, filter=Bool.must(*filter_clauses))
             return Filtered(
-                query=q, filter=Bool.must(*query_context.iter_filters())
+                query=q, filter=Bool.must(*filter_clauses)
             )
         return q
 
     @classmethod
-    def get_post_filter(self, query_context):
+    def get_post_filter(cls, query_context):
         post_filters = list(query_context.iter_post_filters())
         if post_filters:
             return Bool.must(*post_filters)
@@ -384,15 +410,19 @@ class QueryCompiled(Compiled):
         if query_ctx.source:
             params['_source'] = self.visit_expression(query_ctx.source)
         if query_ctx.fields is not None:
+            stored_fields_param = self.features.stored_fields_param
             if query_ctx.fields is True:
-                params['fields'] = '*'
+                params[stored_fields_param] = '*'
             elif query_ctx.fields is False:
-                params['fields'] = []
+                pass
             else:
-                params['fields'] = self.visit_expression(query_ctx.fields)
+                params[stored_fields_param] = self.visit_expression(
+                    query_ctx.fields
+                )
         if query_ctx.aggregations:
             params['aggregations'] = self.visit_expression(
-                query_ctx.aggregations)
+                query_ctx.aggregations
+            )
         if query_ctx.limit is not None:
             params['size'] = query_ctx.limit
         if query_ctx.offset is not None:
@@ -412,34 +442,11 @@ class QueryCompiled(Compiled):
         return params
 
 
-class QueryCompiled20(QueryCompiled):
-    @classmethod
-    def get_filtered_query(cls, query_context, wrap_function_score=True):
-        q = cls.get_query(
-            query_context, wrap_function_score=wrap_function_score)
-        if query_context.filters:
-            return Bool(
-                must=q, filter=Bool.must(*query_context.iter_filters())
-            )
-        return q
-
-
-class QueryCompiled50(QueryCompiled20):
-    compiled_expression = ExpressionCompiled50
-
-    def visit_search_query(self, query):
-        params = super(QueryCompiled50, self).visit_search_query(query)
-        stored_fields = params.pop('fields', None)
-        if stored_fields:
-            params['stored_fields'] = stored_fields
-        return params
-
-
-class MappingCompiled(Compiled):
+class CompiledMapping(Compiled):
     def __init__(self, expression, ordered=False):
         self._dict_type = collections.OrderedDict if ordered else dict
         self._dynamic_templates = []
-        super(MappingCompiled, self).__init__(expression)
+        super(CompiledMapping, self).__init__(expression)
 
     def _visit_dynamic_field(self, field):
         self._dynamic_templates.append(
@@ -512,44 +519,93 @@ class MappingCompiled(Compiled):
 
 
 class Compiler(object):
-    def compiled_expression(self, *args, **kwargs):
+    def expression_compiler(self, *args, **kwargs):
         raise NotImplementedError()
 
-    def compiled_query(self, *args, **kwargs):
+    def search_query_compiler(self, *args, **kwargs):
         raise NotImplementedError()
 
-    def compiled_mapping(self, *args, **kwargs):
+    def mapping_compiler(self, *args, **kwargs):
         raise NotImplementedError()
 
 
-class Compiler10(Compiler):
-    compiled_expression = QueryCompiled.compiled_expression
-
-    compiled_query = QueryCompiled
-
-    compiled_mapping = MappingCompiled
-
-
-class Compiler20(Compiler10):
-    compiled_expression = QueryCompiled20.compiled_expression
-
-    compiled_query = QueryCompiled20
+class CompiledExpression_1_0(CompiledExpression):
+    features = ExpressionFeatures(
+        supports_missing_query=True,
+        supports_parent_id_query=False,
+    )
 
 
-class Compiler50(Compiler20):
-    compiled_expression = QueryCompiled50.compiled_expression
+class CompiledSearchQuery_1_0(CompiledSearchQuery):
+    compiled_expression = CompiledExpression_1_0
+    features = SearchQueryFeatures(
+        supports_bool_filter=False,
+        stored_fields_param='fields',
+    )
 
-    compiled_query = QueryCompiled50
+
+class Compiler_1_0(Compiler):
+    compiled_expression = CompiledExpression_1_0
+    compiled_query = CompiledExpression_1_0
+    compiled_mapping = CompiledMapping
 
 
-DefaultCompiler = Compiler50
+class CompiledExpression_2_0(CompiledExpression):
+    features = ExpressionFeatures(
+        supports_missing_query=True,
+        supports_parent_id_query=False,
+    )
+
+
+class CompiledSearchQuery_2_0(CompiledSearchQuery):
+    compiled_expression = CompiledExpression_2_0
+    features = SearchQueryFeatures(
+        supports_bool_filter=True,
+        stored_fields_param='fields',
+    )
+
+
+class Compiler_2_0(Compiler):
+    compiled_expression = CompiledExpression_2_0
+    compiled_query = CompiledSearchQuery_2_0
+    compiled_mapping = CompiledMapping
+
+
+class CompiledExpression_5_0(CompiledExpression):
+    features = ExpressionFeatures(
+        supports_missing_query=False,
+        supports_parent_id_query=True,
+    )
+
+
+class CompiledSearchQuery_5_0(CompiledSearchQuery):
+    compiled_expression = CompiledExpression_5_0
+    features = SearchQueryFeatures(
+        supports_bool_filter=True,
+        stored_fields_param='stored_fields',
+    )
+
+
+class Compiler_5_0(Compiler):
+    compiled_expression = CompiledExpression_5_0
+    compiled_query = CompiledSearchQuery_5_0
+    compiled_mapping = CompiledMapping
+
+
+Compiler10 = Compiler_1_0
+
+Compiler20 = Compiler_2_0
+
+Compiler50 = Compiler_5_0
+
+DefaultCompiler = Compiler_5_0
 
 
 def get_compiler_by_es_version(es_version):
-    if es_version.major == 1:
-        return Compiler10
+    if es_version.major <= 1:
+        return Compiler_1_0
     elif es_version.major == 2:
-        return Compiler20
+        return Compiler_2_0
     elif es_version.major == 5:
-        return Compiler50
-    return DefaultCompiler
+        return Compiler_5_0
+    return Compiler_5_0

@@ -7,7 +7,6 @@ from elasticmagic import (
     FunctionScore, Sort, QueryRescorer, agg
 )
 from elasticmagic.search import FunctionScoreSettings
-from elasticmagic.compiler import QueryCompiled20
 from elasticmagic.function import FieldValueFactor, Weight
 from elasticmagic.util import collect_doc_classes
 from elasticmagic.types import String, Integer, Float, Object
@@ -57,7 +56,10 @@ class SearchQueryTest(BaseTestCase):
         )
         self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
 
-        sq = SearchQuery(Term(f.user, 'kimchy'), _compiler=QueryCompiled20).filter(f.age >= 16)
+        sq = (
+            SearchQuery(Term(f.user, 'kimchy'))
+            .filter(f.age >= 16)
+        )
         self.assert_expression(
             sq,
             {
