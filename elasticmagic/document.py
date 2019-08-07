@@ -1,5 +1,4 @@
 from .types import Type, String, Integer, Float, Date, ValidationError
-from .compiler import DefaultCompiler
 from .attribute import AttributedField, DynamicAttributedField
 from .attribute import _attributed_field_factory
 from .expression import Field, MappingField
@@ -254,8 +253,10 @@ class Document(with_metaclass(DocumentMeta)):
 
     @classmethod
     def to_mapping(cls, compiler=None, ordered=False):
+        from .compiler import DefaultCompiler
+
         mapping_compiler = (compiler or DefaultCompiler).compiled_mapping
-        return mapping_compiler(cls, ordered=ordered).params
+        return mapping_compiler(cls, ordered=ordered).body
 
     @cached_property
     def instance(self):

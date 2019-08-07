@@ -20,7 +20,7 @@ class Expression(object):
         return compiler.compiled_expression(self)
 
     def to_elastic(self, compiler=None):
-        return self.compile(compiler=compiler).params
+        return self.compile(compiler=compiler).body
 
     to_dict = to_elastic
 
@@ -593,7 +593,7 @@ class Field(Expression, FieldOperators):
         from .compiler import DefaultCompiler
 
         mapping_compiler = (compiler or DefaultCompiler).compiled_mapping
-        return mapping_compiler(self).params
+        return mapping_compiler(self).body
 
 
 class MappingField(Field):

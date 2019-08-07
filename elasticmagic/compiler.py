@@ -6,6 +6,7 @@ from .expression import Exists
 from .expression import Filtered
 from .expression import FunctionScore
 from .expression import HighlightedField
+from .result import SearchResult
 
 
 OPERATORS = {
@@ -43,7 +44,14 @@ class Compiled(object):
 
     def __init__(self, expression, **kwargs):
         self.expression = expression
-        self.params = self.visit(expression, **kwargs)
+        self.body = self.visit(expression)
+        self.params = self.prepare_params(kwargs)
+
+    def prepare_params(self, params):
+        return params
+
+    def process_result(self, raw_result):
+        raise NotImplementedError
 
     def visit(self, expr, **kwargs):
         visit_name = None
@@ -353,6 +361,27 @@ class CompiledSearchQuery(Compiled):
     compiled_expression = None
     features = None
 
+    def __init__(self, query, **kwargs):
+        self.query = query
+        super(CompiledSearchQuery, self).__init__(
+            query.get_context(), **kwargs
+        )
+
+    def prepare_params(self, params):
+        search_params = dict(self.expression.search_params)
+        search_params.update(params)
+        if self.expression.doc_type:
+            search_params['doc_type'] = self.expression.doc_type
+        return search_params
+
+    def process_result(self, raw_result):
+        return SearchResult(
+            raw_result,
+            aggregations=self.expression.aggregations,
+            doc_cls=self.expression.doc_classes,
+            instance_mapper=self.expression.instance_mapper,
+        )
+
     @classmethod
     def get_query(cls, query_context, wrap_function_score=True):
         q = query_context.q
@@ -391,11 +420,10 @@ class CompiledSearchQuery(Compiled):
             return Bool.must(*post_filters)
 
     def visit_expression(self, expr):
-        return self.compiled_expression(expr).params
+        return self.compiled_expression(expr).body
 
-    def visit_search_query(self, query):
+    def visit_search_query_context(self, query_ctx):
         params = {}
-        query_ctx = query.get_context()
 
         q = self.get_filtered_query(query_ctx)
         if q is not None:

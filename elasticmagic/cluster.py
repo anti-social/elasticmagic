@@ -156,20 +156,10 @@ class BaseCluster(with_metaclass(ABCMeta)):
 
         return result_docs
 
-    def _search_params(self, params, compiler):
+    def _search_params(self, params):
         params, kwargs = _preprocess_params(params)
-        q = params.pop('q')
-
-        body = q.to_dict(compiler)
-        params = clean_params(params, **kwargs)
-        return body, params
-
-    def _search_result(self, q, raw_result):
-        return SearchResult(
-            raw_result, q._aggregations,
-            doc_cls=q._get_doc_cls(),
-            instance_mapper=q._instance_mapper,
-        )
+        params.pop('q')
+        return clean_params(params, **kwargs)
 
     def _prepare_query(self, q, compiler):
         query_compiler = compiler.compiled_query
@@ -404,10 +394,12 @@ class Cluster(BaseCluster):
             timeout=None, search_type=None, query_cache=None,
             terminate_after=None, scroll=None, **kwargs
     ):
-        body, params = self._search_params(locals(), self.get_compiler())
-        return self._search_result(
-            q,
-            self._client.search(body=body, **params),
+        params = self._search_params(locals())
+        compiled_query = self.get_compiler().compiled_query(q, **params)
+        return compiled_query.process_result(
+            self._client.search(
+                body=compiled_query.body, **compiled_query.params
+            ),
         )
 
     def count(

@@ -52,12 +52,13 @@ class AsyncCluster(BaseCluster):
             timeout=None, search_type=None, query_cache=None,
             terminate_after=None, scroll=None, **kwargs
     ):
-        body, params = self._search_params(
-            locals(), await self.get_compiler()
-        )
-        return self._search_result(
-            q,
-            await self._client.search(body=body, **params),
+        params=self._search_params(locals())
+        compiled_query = (await self.get_compiler()) \
+            .compiled_query(q, **params)
+        return compiled_query.process_result(
+            await self._client.search(
+                body=compiled_query.body, **compiled_query.params
+            ),
         )
 
     async def count(

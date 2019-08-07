@@ -43,8 +43,6 @@ BOOST_FUNCTION_SCORE = FunctionScoreSettings(
 
 
 class BaseSearchQuery(with_metaclass(ABCMeta)):
-    __visit_name__ = 'search_query'
-
     _q = None
     _source = None
     _fields = None
@@ -702,16 +700,14 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         else:
             doc_cls = self._collect_doc_classes()
 
-        if not doc_cls:
-            warnings.warn('Cannot determine document class')
-            return None
-
         return doc_cls
 
     def _get_doc_type(self, doc_cls=None):
         doc_cls = doc_cls or self._get_doc_cls()
         if isinstance(doc_cls, collections.Iterable):
-            return ','.join(set(d.__doc_type__ for d in doc_cls))
+            return ','.join(set(
+                d.__doc_type__ for d in doc_cls if hasattr(d, '__doc_type__')
+            ))
         elif self._doc_type:
             return self._doc_type
         elif doc_cls:
@@ -726,7 +722,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         """Compiles the query and returns python dictionary that can be
         serialized to json.
         """
-        return (compiler or DefaultCompiler).compiled_query(self).params
+        return (compiler or DefaultCompiler).compiled_query(self).body
 
     def _prepare_search_params(self):
         if not self._index and not self._cluster:
@@ -825,9 +821,7 @@ class SearchQuery(BaseSearchQuery):
         if self._cached_result is not None:
             return self._cached_result
 
-        self._cached_result = self._index_or_cluster.search(
-            self, **self._prepare_search_params()
-        )
+        self._cached_result = self._index_or_cluster.search(self)
         return self._cached_result
 
     @property
@@ -899,6 +893,8 @@ class SearchQuery(BaseSearchQuery):
 
 
 class SearchQueryContext(object):
+    __visit_name__ = 'search_query_context'
+
     def __init__(self, search_query):
         self.q = search_query._q
         self.source = search_query._source
@@ -919,8 +915,14 @@ class SearchQueryContext(object):
 
         self.cluster = search_query._cluster
         self.index = search_query._index
-        self.doc_cls = search_query._doc_cls
-        self.doc_type = search_query._doc_type
+        doc_cls = search_query._doc_cls
+        if not doc_cls:
+            self.doc_classes = search_query._collect_doc_classes()
+        elif not isinstance(doc_cls, collections.Iterable):
+            self.doc_classes = [doc_cls]
+        else:
+            self.doc_classes = doc_cls
+        self.doc_type = search_query._get_doc_type(self.doc_classes)
         self.script_fields = search_query._script_fields
 
         self.search_params = search_query._search_params
