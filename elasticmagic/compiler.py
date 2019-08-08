@@ -3,6 +3,7 @@ import collections
 
 from elasticsearch import ElasticsearchException
 
+from .document import DynamicDocument
 from .expression import Bool
 from .expression import Exists
 from .expression import Filtered
@@ -653,34 +654,59 @@ class CompiledMapping(Compiled):
         }
 
 
+class CompiledGet(Compiled):
+    api_method = 'get'
+
+    def __init__(self, doc_or_id, **kwargs):
+        self.doc_cls = kwargs.pop('doc_cls', None) or DynamicDocument
+        self.body = None
+        self.params = kwargs
+        if self.params.get('doc_type') is None:
+            self.params['doc_type'] = getattr(
+                self.doc_cls, '__doc_type__', None
+            )
+        self.params['id'] = doc_or_id
+
+    def process_result(self, raw_result):
+        return self.doc_cls(_hit=raw_result)
+
+
+features_1_0 = ElasticsearchFeatures(
+    supports_missing_query=True,
+    supports_parent_id_query=False,
+    supports_bool_filter=False,
+    supports_search_exists_api=True,
+    stored_fields_param='fields',
+)
+
+
 class CompiledExpression_1_0(CompiledExpression):
-    features = ElasticsearchFeatures(
-        supports_missing_query=True,
-        supports_parent_id_query=False,
-        supports_bool_filter=False,
-        supports_search_exists_api=True,
-        stored_fields_param='fields',
-    )
+    features = features_1_0
 
 
 class CompiledSearchQuery_1_0(CompiledSearchQuery):
-    features = CompiledExpression_1_0.features
+    features = features_1_0
 
 
 class CompiledCountQuery_1_0(CompiledCountQuery):
-    features = CompiledExpression_1_0.features
+    features = features_1_0
 
 
 class CompiledExistsQuery_1_0(CompiledExistsQuery):
-    features = CompiledExpression_1_0.features
+    features = features_1_0
 
 
 class CompiledDeleteByQuery_1_0(CompiledDeleteByQuery):
-    features = CompiledExpression_1_0.features
+    features = features_1_0
 
 
 class CompiledMultiSearch_1_0(CompiledMultiSearch):
+    features = features_1_0
     compiled_search = CompiledSearchQuery_1_0
+
+
+class CompiledGet_1_0(CompiledGet):
+    features = features_1_0
 
 
 class Compiler_1_0(object):
@@ -692,36 +718,44 @@ class Compiler_1_0(object):
     compiled_delete_by_query = CompiledDeleteByQuery_1_0
     compiled_multi_search = CompiledMultiSearch_1_0
     compiled_mapping = CompiledMapping
+    compiled_get = CompiledGet_1_0
 
+
+features_2_0 = ElasticsearchFeatures(
+    supports_missing_query=True,
+    supports_parent_id_query=False,
+    supports_bool_filter=True,
+    supports_search_exists_api=True,
+    stored_fields_param='fields',
+)
 
 class CompiledExpression_2_0(CompiledExpression):
-    features = ElasticsearchFeatures(
-        supports_missing_query=True,
-        supports_parent_id_query=False,
-        supports_bool_filter=True,
-        supports_search_exists_api=True,
-        stored_fields_param='fields',
-    )
+    features = features_2_0
 
 
 class CompiledSearchQuery_2_0(CompiledSearchQuery):
-    features = CompiledExpression_2_0.features
+    features = features_2_0
 
 
 class CompiledCountQuery_2_0(CompiledCountQuery):
-    features = CompiledExpression_2_0.features
+    features = features_2_0
 
 
 class CompiledExistsQuery_2_0(CompiledExistsQuery):
-    features = CompiledExpression_2_0.features
+    features = features_2_0
 
 
 class CompiledDeleteByQuery_2_0(CompiledDeleteByQuery):
-    features = CompiledExpression_2_0.features
+    features = features_2_0
 
 
 class CompiledMultiSearch_2_0(CompiledMultiSearch):
+    features = features_2_0
     compiled_search = CompiledSearchQuery_2_0
+
+
+class CompiledGet_2_0(CompiledGet):
+    features = features_2_0
 
 
 class Compiler_2_0(object):
@@ -733,36 +767,44 @@ class Compiler_2_0(object):
     compiled_delete_by_query = CompiledDeleteByQuery_2_0
     compiled_multi_search = CompiledMultiSearch_2_0
     compiled_mapping = CompiledMapping
+    compiled_get = CompiledGet_2_0
+
+
+features_5_0 = ElasticsearchFeatures(
+    supports_missing_query=False,
+    supports_parent_id_query=True,
+    supports_bool_filter=True,
+    supports_search_exists_api=False,
+    stored_fields_param='stored_fields',
+)
 
 
 class CompiledExpression_5_0(CompiledExpression):
-    features = ElasticsearchFeatures(
-        supports_missing_query=False,
-        supports_parent_id_query=True,
-        supports_bool_filter=True,
-        supports_search_exists_api=False,
-        stored_fields_param='stored_fields',
-    )
+    features = features_5_0
 
 
 class CompiledSearchQuery_5_0(CompiledSearchQuery):
-    features = CompiledExpression_5_0.features
+    features = features_5_0
 
 
 class CompiledCountQuery_5_0(CompiledCountQuery):
-    features = CompiledExpression_5_0.features
+    features = features_5_0
 
 
 class CompiledExistsQuery_5_0(CompiledExistsQuery):
-    features = CompiledExpression_5_0.features
+    features = features_5_0
 
 
 class CompiledDeleteByQuery_5_0(CompiledDeleteByQuery):
-    features = CompiledExpression_5_0.features
+    features = features_5_0
 
 
 class CompiledMultiSearch_5_0(CompiledMultiSearch):
     compiled_search = CompiledSearchQuery_5_0
+
+
+class CompiledGet_5_0(CompiledGet):
+    features = features_5_0
 
 
 class Compiler_5_0(object):
@@ -774,6 +816,7 @@ class Compiler_5_0(object):
     compiled_delete_by_query = CompiledDeleteByQuery_5_0
     compiled_multi_search = CompiledMultiSearch_5_0
     compiled_mapping = CompiledMapping
+    compiled_get = CompiledGet_5_0
 
 
 Compiler10 = Compiler_1_0

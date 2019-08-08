@@ -11,8 +11,13 @@ class AsyncCluster(BaseCluster):
 
     async def _do_request(self, compiler, *args, **kwargs):
         compiled_query = compiler(*args, **kwargs)
+        api_method = getattr(self._client, compiled_query.api_method)
+        if compiled_query.body is None:
+            return compiled_query.process_result(
+                await api_method(**compiled_query.params)
+            )
         return compiled_query.process_result(
-            await getattr(self._client, compiled_query.api_method)(
+            await api_method(
                 body=compiled_query.body, **compiled_query.params
             )
         )
@@ -31,14 +36,14 @@ class AsyncCluster(BaseCluster):
             return get_compiler_by_es_version(await self.get_es_version())
 
     async def get(
-            self, index, id, doc_cls=None, doc_type=None, source=None,
-            realtime=None, routing=None, parent=None, preference=None,
-            refresh=None, version=None, version_type=None, **kwargs
+            self, doc_or_id, index=None, doc_cls=None, doc_type=None,
+            source=None, realtime=None, routing=None, parent=None,
+            preference=None, refresh=None, version=None, version_type=None,
+            **kwargs
     ):
-        doc_cls, params = self._get_params(locals())
-        return self._get_result(
-            doc_cls,
-            await self._client.get(**params),
+        return await self._do_request(
+            (await self.get_compiler()).compiled_get,
+            doc_or_id, **self._get_params(locals())
         )
 
     async def multi_get(

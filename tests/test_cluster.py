@@ -283,7 +283,7 @@ class ClusterTest(BaseTestCase):
                 }
             }
         )
-        doc = self.cluster.get('twitter', 111, doc_type='tweet')
+        doc = self.cluster.get(111, index='twitter', doc_type='tweet')
         self.client.get.assert_called_with(
             index='twitter',
             doc_type='tweet',
@@ -298,7 +298,10 @@ class ClusterTest(BaseTestCase):
         self.assertEqual(doc.post_date, '2009-11-15T14:12:12')
         self.assertEqual(doc.message, 'trying out Elasticsearch')
 
-        doc = self.cluster.get('twitter', 111, doc_cls=self.cluster['twitter']['tweet'], routing=111)
+        doc = self.cluster.get(
+            111, index='twitter', doc_cls=self.cluster['twitter']['tweet'],
+            routing=111
+        )
         self.client.get.assert_called_with(
             index='twitter',
             doc_type='tweet',

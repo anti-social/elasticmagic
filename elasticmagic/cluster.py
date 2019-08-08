@@ -85,13 +85,8 @@ class BaseCluster(with_metaclass(ABCMeta)):
 
     def _get_params(self, params):
         params, kwargs = _preprocess_params(params)
-        doc_cls = params.pop('doc_cls', None) or DynamicDocument
-        if params.get('doc_type') is None:
-            params['doc_type'] = getattr(doc_cls, '__doc_type__', None)
-        return doc_cls, clean_params(params, **kwargs)
-
-    def _get_result(self, doc_cls, raw_result):
-        return doc_cls(_hit=raw_result)
+        params.pop('doc_or_id')
+        return clean_params(params, **kwargs)
 
     def _multi_get_params(self, params):
         params, kwargs = _preprocess_params(params)
@@ -257,10 +252,13 @@ class Cluster(BaseCluster):
 
     def _do_request(self, compiler, *args, **kwargs):
         compiled_query = compiler(*args, **kwargs)
-        return compiled_query.process_result(
-            getattr(self._client, compiled_query.api_method)(
-                body=compiled_query.body, **compiled_query.params
+        api_method = getattr(self._client, compiled_query.api_method)
+        if compiled_query.body is None:
+            return compiled_query.process_result(
+                api_method(**compiled_query.params)
             )
+        return compiled_query.process_result(
+            api_method(body=compiled_query.body, **compiled_query.params)
         )
 
     def get_compiler(self):
@@ -277,14 +275,14 @@ class Cluster(BaseCluster):
         return self._es_version
 
     def get(
-            self, index, id, doc_cls=None, doc_type=None, routing=None,
-            source=None, realtime=None, parent=None, preference=None,
-            refresh=None, version=None, version_type=None, **kwargs
+            self, doc_or_id, index=None, doc_cls=None, doc_type=None,
+            routing=None, source=None, realtime=None, parent=None,
+            preference=None, refresh=None, version=None, version_type=None,
+            **kwargs
     ):
-        doc_cls, params = self._get_params(locals())
-        return self._get_result(
-            doc_cls,
-            self._client.get(**params),
+        return self._do_request(
+            self.get_compiler().compiled_get,
+            doc_or_id, **self._get_params(locals())
         )
 
     def multi_get(
