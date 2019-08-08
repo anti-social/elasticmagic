@@ -9,6 +9,14 @@ class AsyncCluster(BaseCluster):
     _index_cls = AsyncIndex
     _search_query_cls = AsyncSearchQuery
 
+    async def _do_request(self, compiler, *args, **kwargs):
+        compiled_query = compiler(*args, **kwargs)
+        return compiled_query.process_result(
+            await getattr(self._client, compiled_query.api_method)(
+                body=compiled_query.body, **compiled_query.params
+            )
+        )
+
     async def get_es_version(self):
         if not self._es_version:
             self._es_version = self._es_version_result(
@@ -52,22 +60,27 @@ class AsyncCluster(BaseCluster):
             timeout=None, search_type=None, query_cache=None,
             terminate_after=None, scroll=None, **kwargs
     ):
-        params=self._search_params(locals())
-        compiled_query = (await self.get_compiler()) \
-            .compiled_query(q, **params)
-        return compiled_query.process_result(
-            await self._client.search(
-                body=compiled_query.body, **compiled_query.params
-            ),
+        return await self._do_request(
+            (await self.get_compiler()).compiled_search_query,
+            q, **self._search_params(locals())
         )
 
     async def count(
             self, q=None, index=None, doc_type=None, routing=None,
             preference=None, **kwargs
     ):
-        body, params = self._count_params(locals(), await self.get_compiler())
-        return self._count_result(
-            await self._client.count(body=body, **params)
+        return await self._do_request(
+            (await self.get_compiler()).compiled_count_query,
+            q, **self._search_params(locals())
+        )
+
+    async def exists(
+            self, q=None, index=None, doc_type=None, refresh=None, routing=None,
+            **kwargs
+    ):
+        return await self._do_request(
+            (await self.get_compiler()).compiled_exists_query,
+            q, **self._search_params(locals())
         )
 
     async def scroll(
@@ -138,11 +151,9 @@ class AsyncCluster(BaseCluster):
             timeout=None, consistency=None, replication=None, routing=None,
             **kwargs
     ):
-        params = self._delete_by_query_params(
-            locals(), await self.get_compiler()
-        )
-        return self._delete_by_query_result(
-            await self._client.delete_by_query(**params)
+        return await self._do_request(
+            (await self.get_compiler()).compiled_delete_by_query,
+            q, **self._search_params(locals())
         )
 
     async def bulk(

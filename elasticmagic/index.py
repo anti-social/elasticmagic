@@ -111,7 +111,7 @@ class Index(BaseIndex):
         )
 
     def exists(
-            self, q, doc_type=None, refresh=None, routing=None, **kwargs
+            self, q=None, doc_type=None, refresh=None, routing=None, **kwargs
     ):
         return self._cluster.exists(
             q, index=self._name, doc_type=doc_type, refresh=refresh,

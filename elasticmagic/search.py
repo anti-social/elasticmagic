@@ -6,7 +6,6 @@ from collections import namedtuple, OrderedDict
 from .compat import zip, with_metaclass
 from .util import _with_clone
 from .util import merge_params, collect_doc_classes
-from .compiler import DefaultCompiler
 from .expression import Params, Source, Highlight, Rescore
 
 
@@ -692,6 +691,8 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
     @property
     def _index_or_cluster(self):
+        if not self._index and not self._cluster:
+            raise ValueError('Search query is not bound to index or cluster')
         return self._index or self._cluster
 
     def _get_doc_cls(self):
@@ -722,26 +723,9 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         """Compiles the query and returns python dictionary that can be
         serialized to json.
         """
+        from .compiler import DefaultCompiler
+
         return (compiler or DefaultCompiler).compiled_query(self).body
-
-    def _prepare_search_params(self):
-        if not self._index and not self._cluster:
-            raise ValueError("Search query is not bound to index or cluster")
-
-        doc_cls = self._get_doc_cls()
-        doc_type = self._get_doc_type(doc_cls)
-        search_params = self._search_params or {}
-        return dict(doc_type=doc_type, **search_params)
-
-    def _exists_query(self):
-        return (
-            self.with_terminate_after(1)
-                .limit(0)
-                .function_score(None)
-                .boost_score(None)
-                .aggs(None)
-                .rescore(None)
-        )
 
     def slice(self, offset, limit):
         """Applies offset and limit to the query."""
@@ -844,16 +828,16 @@ class SearchQuery(BaseSearchQuery):
         """Executes current query and returns number of documents matched the
         query. Uses `count api <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-count.html>`_.
         """  # noqa:E501
-        return self._index_or_cluster.count(
-            self, **self._prepare_search_params()
-        ).count
+        return self._index_or_cluster.count(self).count
 
     def exists(self):
         """Executes current query optimized for checking that
         there are at least 1 matching document. This method is an analogue of
         the old `exists search api <https://www.elastic.co/guide/en/elasticsearch/reference/2.4/search-exists.html>`_
+        For Elasticsearch 5.x and more it emulates the exists API using
+        `size=0` and `terminate_after=1`.
         """  # noqa:E501
-        return self._exists_query().get_result().total >= 1
+        return self._index_or_cluster.exists(self).exists
 
     def delete(
             self, conflicts=None, refresh=None, timeout=None,
@@ -870,7 +854,6 @@ class SearchQuery(BaseSearchQuery):
         """  # noqa:E501
         return self._index_or_cluster.delete_by_query(
             self,
-            doc_type=self._get_doc_type(),
             conflicts=conflicts,
             refresh=refresh,
             timeout=timeout,

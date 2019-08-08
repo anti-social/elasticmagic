@@ -856,7 +856,7 @@ class SearchQueryTest(BaseTestCase):
         self.client.count.assert_called_with(
             index='test',
             doc_type='car',
-            body=None,
+            body={},
         )
 
         self.client.count.return_value = {
@@ -880,6 +880,15 @@ class SearchQueryTest(BaseTestCase):
             body={
                 "query": {
                     "bool": {
+                        "must": {
+                            "function_score": {
+                                "functions": [
+                                    {
+                                        "boost_factor": 3
+                                    }
+                                ]
+                            }
+                        },
                         "filter": {
                             "term": {"status": 1}
                         }
@@ -899,8 +908,10 @@ class SearchQueryTest(BaseTestCase):
         self.client.search.assert_called_with(
             index='test',
             doc_type='car',
-            body={'size': 0},
-            terminate_after=1,
+            body={
+                'size': 0,
+                'terminate_after': 1,
+            },
         )
 
         self.client.search.return_value = {
@@ -918,15 +929,24 @@ class SearchQueryTest(BaseTestCase):
             doc_type='car',
             body={
                 "size": 0,
+                "terminate_after": 1,
                 "query": {
                     "bool": {
                         "filter": {
                             "term": {"status": 1}
+                        },
+                        "must": {
+                            "function_score": {
+                                "functions": [
+                                    {
+                                        "boost_factor": 3
+                                    }
+                                ]
+                            }
                         }
                     }
                 }
             },
-            terminate_after=1,
         )
 
     def test_search(self):

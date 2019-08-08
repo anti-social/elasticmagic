@@ -6,6 +6,11 @@ from .expression import Exists
 from .expression import Filtered
 from .expression import FunctionScore
 from .expression import HighlightedField
+from .search import BaseSearchQuery
+from .search import SearchQueryContext
+from .result import CountResult
+from .result import DeleteByQueryResult
+from .result import ExistsResult
 from .result import SearchResult
 
 
@@ -17,19 +22,13 @@ OPERATORS = {
 
 ESVersion = collections.namedtuple('ESVersion', ['major', 'minor', 'patch'])
 
-ExpressionFeatures = collections.namedtuple(
+ElasticsearchFeatures = collections.namedtuple(
     'ExpressionFeatures',
     [
         'supports_missing_query',
         'supports_parent_id_query',
-    ]
-)
-
-SearchQueryFeatures = collections.namedtuple(
-    'SearchQueryFeatures',
-    [
-        ''
         'supports_bool_filter',
+        'supports_search_exists_api',
         'stored_fields_param',
     ]
 )
@@ -357,21 +356,33 @@ class CompiledExpression(Compiled):
         return params
 
 
-class CompiledSearchQuery(Compiled):
+class CompiledSearchQuery(CompiledExpression):
     compiled_expression = None
     features = None
+    api_method = 'search'
 
     def __init__(self, query, **kwargs):
+        if isinstance(query, BaseSearchQuery):
+            expression = query.get_context()
+        elif query is None:
+            expression = None
+        else:
+            expression = {
+                'query': query,
+            }
         self.query = query
         super(CompiledSearchQuery, self).__init__(
-            query.get_context(), **kwargs
+            expression, **kwargs
         )
 
     def prepare_params(self, params):
-        search_params = dict(self.expression.search_params)
-        search_params.update(params)
-        if self.expression.doc_type:
-            search_params['doc_type'] = self.expression.doc_type
+        if isinstance(self.expression, SearchQueryContext):
+            search_params = dict(self.expression.search_params)
+            search_params.update(params)
+            if self.expression.doc_type:
+                search_params['doc_type'] = self.expression.doc_type
+        else:
+            search_params = params
         return search_params
 
     def process_result(self, raw_result):
@@ -419,24 +430,21 @@ class CompiledSearchQuery(Compiled):
         if post_filters:
             return Bool.must(*post_filters)
 
-    def visit_expression(self, expr):
-        return self.compiled_expression(expr).body
-
     def visit_search_query_context(self, query_ctx):
         params = {}
 
         q = self.get_filtered_query(query_ctx)
         if q is not None:
-            params['query'] = self.visit_expression(q)
+            params['query'] = self.visit(q)
 
         post_filter = self.get_post_filter(query_ctx)
         if post_filter:
-            params['post_filter'] = self.visit_expression(post_filter)
+            params['post_filter'] = self.visit(post_filter)
 
         if query_ctx.order_by:
-            params['sort'] = self.visit_expression(query_ctx.order_by)
+            params['sort'] = self.visit(query_ctx.order_by)
         if query_ctx.source:
-            params['_source'] = self.visit_expression(query_ctx.source)
+            params['_source'] = self.visit(query_ctx.source)
         if query_ctx.fields is not None:
             stored_fields_param = self.features.stored_fields_param
             if query_ctx.fields is True:
@@ -444,11 +452,11 @@ class CompiledSearchQuery(Compiled):
             elif query_ctx.fields is False:
                 pass
             else:
-                params[stored_fields_param] = self.visit_expression(
+                params[stored_fields_param] = self.visit(
                     query_ctx.fields
                 )
         if query_ctx.aggregations:
-            params['aggregations'] = self.visit_expression(
+            params['aggregations'] = self.visit(
                 query_ctx.aggregations
             )
         if query_ctx.limit is not None:
@@ -458,16 +466,67 @@ class CompiledSearchQuery(Compiled):
         if query_ctx.min_score is not None:
             params['min_score'] = query_ctx.min_score
         if query_ctx.rescores:
-            params['rescore'] = self.visit_expression(query_ctx.rescores)
+            params['rescore'] = self.visit(query_ctx.rescores)
         if query_ctx.suggest:
-            params['suggest'] = self.visit_expression(query_ctx.suggest)
+            params['suggest'] = self.visit(query_ctx.suggest)
         if query_ctx.highlight:
-            params['highlight'] = self.visit_expression(query_ctx.highlight)
+            params['highlight'] = self.visit(query_ctx.highlight)
         if query_ctx.script_fields:
-            params['script_fields'] = self.visit_expression(
+            params['script_fields'] = self.visit(
                 query_ctx.script_fields
             )
         return params
+
+
+class CompiledScalarQuery(CompiledSearchQuery):
+    def visit_search_query_context(self, query_ctx):
+        params = {}
+
+        q = self.get_filtered_query(query_ctx)
+        if q is not None:
+            params['query'] = self.visit(q)
+
+        post_filter = self.get_post_filter(query_ctx)
+        if post_filter:
+            params['post_filter'] = self.visit(post_filter)
+
+        if query_ctx.min_score is not None:
+            params['min_score'] = query_ctx.min_score
+        return params
+
+
+class CompiledCountQuery(CompiledScalarQuery):
+    api_method = 'count'
+
+    def process_result(self, raw_result):
+        return CountResult(raw_result)
+
+
+class CompiledExistsQuery(CompiledScalarQuery):
+    def __init__(self, query, **kwargs):
+        super(CompiledExistsQuery, self).__init__(query, **kwargs)
+        if self.features.supports_search_exists_api:
+            self.api_method = 'exists'
+        else:
+            self.api_method = 'search'
+            if self.body is None:
+                self.body = {}
+            self.body['size'] = 0
+            self.body['terminate_after'] = 1
+
+    def process_result(self, raw_result):
+        if self.features.supports_search_exists_api:
+            return ExistsResult(raw_result)
+        return ExistsResult({
+            'exists': SearchResult(raw_result).total >= 1
+        })
+
+
+class CompiledDeleteByQuery(CompiledScalarQuery):
+    api_method = 'delete_by_query'
+
+    def process_result(self, raw_result):
+        return DeleteByQueryResult(raw_result)
 
 
 class CompiledMapping(Compiled):
@@ -547,76 +606,145 @@ class CompiledMapping(Compiled):
 
 
 class Compiler(object):
-    def expression_compiler(self, *args, **kwargs):
+    @classmethod
+    def compiled_expression(cls, *args, **kwargs):
         raise NotImplementedError()
 
-    def search_query_compiler(self, *args, **kwargs):
+    @classmethod
+    def compiled_search_query(cls, *args, **kwargs):
         raise NotImplementedError()
 
-    def mapping_compiler(self, *args, **kwargs):
+    @classmethod
+    def compiled_query(cls, *args, **kwargs):
+        return cls.compiled_search_query(*args, **kwargs)
+
+    @classmethod
+    def compiled_count_query(cls, *args, **kwargs):
+        raise NotImplementedError()
+
+    @classmethod
+    def compiled_exists_query(cls, *args, **kwargs):
+        raise NotImplementedError()
+
+    @classmethod
+    def compiled_mapping(cls, *args, **kwargs):
         raise NotImplementedError()
 
 
 class CompiledExpression_1_0(CompiledExpression):
-    features = ExpressionFeatures(
+    features = ElasticsearchFeatures(
         supports_missing_query=True,
         supports_parent_id_query=False,
+        supports_bool_filter=False,
+        supports_search_exists_api=True,
+        stored_fields_param='fields',
     )
 
 
 class CompiledSearchQuery_1_0(CompiledSearchQuery):
     compiled_expression = CompiledExpression_1_0
-    features = SearchQueryFeatures(
-        supports_bool_filter=False,
-        stored_fields_param='fields',
-    )
+    features = CompiledExpression_1_0.features
+
+
+class CompiledCountQuery_1_0(CompiledCountQuery):
+    compiled_expression = CompiledExpression_1_0
+    features = CompiledExpression_1_0.features
+
+
+class CompiledExistsQuery_1_0(CompiledExistsQuery):
+    compiled_expression = CompiledExpression_1_0
+    features = CompiledExpression_1_0.features
+
+
+class CompiledDeleteByQuery_1_0(CompiledDeleteByQuery):
+    compiled_expression = CompiledExpression_1_0
+    features = CompiledExpression_1_0.features
 
 
 class Compiler_1_0(Compiler):
     compiled_expression = CompiledExpression_1_0
-    compiled_query = CompiledExpression_1_0
+    compiled_search_query = CompiledExpression_1_0
+    compiled_count_query = CompiledCountQuery_1_0
+    compiled_exists_query = CompiledExistsQuery_1_0
+    compiled_delete_by_query = CompiledDeleteByQuery_1_0
     compiled_mapping = CompiledMapping
 
 
 class CompiledExpression_2_0(CompiledExpression):
-    features = ExpressionFeatures(
+    features = ElasticsearchFeatures(
         supports_missing_query=True,
         supports_parent_id_query=False,
+        supports_bool_filter=True,
+        supports_search_exists_api=True,
+        stored_fields_param='fields',
     )
 
 
 class CompiledSearchQuery_2_0(CompiledSearchQuery):
     compiled_expression = CompiledExpression_2_0
-    features = SearchQueryFeatures(
-        supports_bool_filter=True,
-        stored_fields_param='fields',
-    )
+    features = CompiledExpression_2_0.features
+
+
+class CompiledCountQuery_2_0(CompiledCountQuery):
+    compiled_expression = CompiledExpression_2_0
+    features = CompiledExpression_2_0.features
+
+
+class CompiledExistsQuery_2_0(CompiledExistsQuery):
+    compiled_expression = CompiledExpression_2_0
+    features = CompiledExpression_2_0.features
+
+
+class CompiledDeleteByQuery_2_0(CompiledDeleteByQuery):
+    compiled_expression = CompiledExpression_2_0
+    features = CompiledExpression_2_0.features
 
 
 class Compiler_2_0(Compiler):
     compiled_expression = CompiledExpression_2_0
-    compiled_query = CompiledSearchQuery_2_0
+    compiled_search_query = CompiledSearchQuery_2_0
+    compiled_count_query = CompiledCountQuery_2_0
+    compiled_exists_query = CompiledExistsQuery_2_0
+    compiled_delete_by_query = CompiledDeleteByQuery_2_0
     compiled_mapping = CompiledMapping
 
 
 class CompiledExpression_5_0(CompiledExpression):
-    features = ExpressionFeatures(
+    features = ElasticsearchFeatures(
         supports_missing_query=False,
         supports_parent_id_query=True,
+        supports_bool_filter=True,
+        supports_search_exists_api=False,
+        stored_fields_param='stored_fields',
     )
 
 
 class CompiledSearchQuery_5_0(CompiledSearchQuery):
     compiled_expression = CompiledExpression_5_0
-    features = SearchQueryFeatures(
-        supports_bool_filter=True,
-        stored_fields_param='stored_fields',
-    )
+    features = CompiledExpression_5_0.features
+
+
+class CompiledCountQuery_5_0(CompiledCountQuery):
+    compiled_expression = CompiledExpression_5_0
+    features = CompiledExpression_5_0.features
+
+
+class CompiledExistsQuery_5_0(CompiledExistsQuery):
+    compiled_expression = CompiledExpression_5_0
+    features = CompiledExpression_5_0.features
+
+
+class CompiledDeleteByQuery_5_0(CompiledDeleteByQuery):
+    compiled_expression = CompiledExpression_5_0
+    features = CompiledExpression_5_0.features
 
 
 class Compiler_5_0(Compiler):
     compiled_expression = CompiledExpression_5_0
-    compiled_query = CompiledSearchQuery_5_0
+    compiled_search_query = CompiledSearchQuery_5_0
+    compiled_count_query = CompiledCountQuery_5_0
+    compiled_exists_query = CompiledExistsQuery_5_0
+    compiled_delete_by_query = CompiledDeleteByQuery_5_0
     compiled_mapping = CompiledMapping
 
 

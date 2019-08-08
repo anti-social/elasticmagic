@@ -17,10 +17,7 @@ from .index import Index
 from .result import (
     BulkResult,
     ClearScrollResult,
-    CountResult,
-    DeleteByQueryResult,
     DeleteResult,
-    ExistsResult,
     FlushResult,
     RefreshResult,
     SearchResult,
@@ -161,42 +158,6 @@ class BaseCluster(with_metaclass(ABCMeta)):
         params.pop('q')
         return clean_params(params, **kwargs)
 
-    def _prepare_query(self, q, compiler):
-        query_compiler = compiler.compiled_query
-        if isinstance(q, BaseSearchQuery):
-            query_ctx = q.get_context()
-            query = query_compiler.get_filtered_query(
-                query_ctx, wrap_function_score=False
-            )
-        else:
-            query = q
-
-        if query is None:
-            return None
-
-        query = Params(query=query)
-        return query.to_elastic(compiler=query_compiler)
-
-    def _count_params(self, params, compiler):
-        params, kwargs = _preprocess_params(params)
-        q = params.pop('q')
-
-        body = self._prepare_query(q, compiler)
-        return body, clean_params(params, **kwargs)
-
-    def _count_result(self, raw_result):
-        return CountResult(raw_result)
-
-    def _exists_params(self, params, compiler):
-        params, kwargs = _preprocess_params(params)
-        q = params.pop('q')
-
-        body = self._prepare_query(q, compiler)
-        return body, clean_params(params, **kwargs)
-
-    def _exists_result(self, raw_result):
-        return ExistsResult(raw_result)
-
     def _scroll_params(self, params):
         params, kwargs = _preprocess_params(params)
         doc_cls = params.pop('doc_cls', None)
@@ -306,16 +267,6 @@ class BaseCluster(with_metaclass(ABCMeta)):
     def _delete_result(self, raw_result):
         return DeleteResult(raw_result)
 
-    def _delete_by_query_params(self, params, compiler):
-        params, kwargs = _preprocess_params(params)
-        q = params.pop('q')
-
-        params['body'] = self._prepare_query(q, compiler)
-        return clean_params(params, **kwargs)
-
-    def _delete_by_query_result(self, raw_result):
-        return DeleteByQueryResult(raw_result)
-
     def _bulk_params(self, params):
         params, kwargs = _preprocess_params(params)
         actions = params.pop('actions')
@@ -350,6 +301,14 @@ class BaseCluster(with_metaclass(ABCMeta)):
 class Cluster(BaseCluster):
     _index_cls = Index
     _search_query_cls = SearchQuery
+
+    def _do_request(self, compiler, *args, **kwargs):
+        compiled_query = compiler(*args, **kwargs)
+        return compiled_query.process_result(
+            getattr(self._client, compiled_query.api_method)(
+                body=compiled_query.body, **compiled_query.params
+            )
+        )
 
     def get_compiler(self):
         if self._compiler:
@@ -394,30 +353,27 @@ class Cluster(BaseCluster):
             timeout=None, search_type=None, query_cache=None,
             terminate_after=None, scroll=None, **kwargs
     ):
-        params = self._search_params(locals())
-        compiled_query = self.get_compiler().compiled_query(q, **params)
-        return compiled_query.process_result(
-            self._client.search(
-                body=compiled_query.body, **compiled_query.params
-            ),
+        return self._do_request(
+            self.get_compiler().compiled_search_query,
+            q, **self._search_params(locals())
         )
 
     def count(
             self, q=None, index=None, doc_type=None, routing=None,
             preference=None, **kwargs
     ):
-        body, params = self._count_params(locals(), self.get_compiler())
-        return self._count_result(
-            self._client.count(body=body, **params)
+        return self._do_request(
+            self.get_compiler().compiled_count_query,
+            q, **self._search_params(locals())
         )
 
     def exists(
-            self, q, index=None, doc_type=None, refresh=None, routing=None,
-            **kwargs
+            self, q=None, index=None, doc_type=None, refresh=None,
+            routing=None, **kwargs
     ):
-        body, params = self._exists_params(locals(), self.get_compiler())
-        return self._exists_result(
-            self._client.search_exists(body=body, **params)
+        return self._do_request(
+            self.get_compiler().compiled_exists_query,
+            q, **self._search_params(locals())
         )
 
     def scroll(
@@ -490,9 +446,9 @@ class Cluster(BaseCluster):
             wait_for_completion=None, requests_per_second=None,
             **kwargs
     ):
-        params = self._delete_by_query_params(locals(), self.get_compiler())
-        return self._delete_result(
-            self._client.delete_by_query(**params)
+        return self._do_request(
+            self.get_compiler().compiled_delete_by_query,
+            q, **self._search_params(locals())
         )
 
     def bulk(

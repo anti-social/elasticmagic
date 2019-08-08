@@ -114,11 +114,28 @@ async def test_search(es_index, cars):
 
 @pytest.mark.asyncio
 async def test_count(es_index, cars):
-    res = await es_index.count(
+    assert (await es_index.count()).count == 2
+    assert (await es_index.count({
+        "match": {
+            "name": "Lightning"
+        }
+    })).count == 1
+    assert (await es_index.count(
         SearchQuery(Car.name.match("Lightning"))
-    )
+    )).count == 1
 
-    assert res.count == 1
+
+@pytest.mark.asyncio
+async def test_exists(es_index, cars):
+    assert (await es_index.exists()).exists is True
+    assert (await es_index.exists({
+        "match": {
+            "name": "Lightning"
+        }
+    })).exists is True
+    assert (await es_index.exists(
+        SearchQuery(Car.name.match("Mack"))
+    )).exists is False
 
 
 @pytest.mark.asyncio

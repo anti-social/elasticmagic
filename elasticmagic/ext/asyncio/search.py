@@ -12,20 +12,18 @@ class AsyncSearchQuery(BaseSearchQuery):
         if self._cached_result is not None:
             return self._cached_result
 
-        self._cached_result = await self._index_or_cluster.search(
-            self, **self._prepare_search_params()
-        )
+        self._cached_result = await self._index_or_cluster.search(self)
         return self._cached_result
 
     async def count(self):
         return (
-            await self._index_or_cluster.count(
-                self, **self._prepare_search_params()
-            )
+            await self._index_or_cluster.count(self)
         ).count
 
     async def exists(self):
-        return (await self._exists_query().get_result()).total >= 1
+        return (
+            await self._index_or_cluster.exists(self)
+        ).exists
 
     async def delete(
             self, conflicts=None, refresh=None, timeout=None,
@@ -35,7 +33,6 @@ class AsyncSearchQuery(BaseSearchQuery):
     ):
         return await self._index_or_cluster.delete_by_query(
             self,
-            doc_type=self._get_doc_type(),
             conflicts=conflicts,
             refresh=refresh,
             timeout=timeout,
