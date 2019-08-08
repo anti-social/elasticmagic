@@ -105,13 +105,9 @@ class AsyncCluster(BaseCluster):
             routing=None, preference=None, search_type=None,
             raise_on_error=None, **kwargs
     ):
-        body, raise_on_error, params = self._multi_search_params(
-            locals(), await self.get_compiler()
-        )
-        return self._multi_search_result(
-            queries,
-            raise_on_error,
-            (await self._client.msearch(body=body, **params))['responses'],
+        return await self._do_request(
+            (await self.get_compiler()).compiled_multi_search,
+            queries, **self._multi_search_params(locals())
         )
 
     msearch = multi_search

@@ -1,6 +1,8 @@
 import operator
 import collections
 
+from elasticsearch import ElasticsearchException
+
 from .expression import Bool
 from .expression import Exists
 from .expression import Filtered
@@ -35,6 +37,10 @@ ElasticsearchFeatures = collections.namedtuple(
 
 
 class CompilationError(Exception):
+    pass
+
+
+class MultiSearchError(ElasticsearchException):
     pass
 
 
@@ -357,7 +363,6 @@ class CompiledExpression(Compiled):
 
 
 class CompiledSearchQuery(CompiledExpression):
-    compiled_expression = None
     features = None
     api_method = 'search'
 
@@ -529,6 +534,49 @@ class CompiledDeleteByQuery(CompiledScalarQuery):
         return DeleteByQueryResult(raw_result)
 
 
+class CompiledMultiSearch(Compiled):
+    compiled_search = None
+    api_method = 'msearch'
+
+    def __init__(self, queries, raise_on_error, **kwargs):
+        self.expression = queries
+        self.raise_on_error = raise_on_error
+        self.body = []
+        self.compiled_queries = []
+        self.params = {}
+        for q in queries:
+            compiled_query = self.compiled_search(q, **kwargs)
+            self.compiled_queries.append(compiled_query)
+            params = compiled_query.params
+            if isinstance(compiled_query.expression, SearchQueryContext):
+                index = compiled_query.expression.index
+                if index:
+                    params['index'] = index.get_name()
+            if 'doc_type' in params:
+                params['type'] = params.pop('doc_type')
+            self.body.append(params)
+            self.body.append(compiled_query.body)
+
+    def process_result(self, raw_result):
+        errors = []
+        for raw, query, compiled_query in zip(
+                raw_result['responses'], self.expression, self.compiled_queries
+        ):
+            result = compiled_query.process_result(raw)
+            query._cached_result = result
+            if result.error:
+                errors.append(result.error)
+
+        if self.raise_on_error and errors:
+            if len(errors) == 1:
+                error_msg = '1 query was failed'
+            else:
+                error_msg = '{} queries were failed'.format(len(errors))
+            raise MultiSearchError(error_msg, errors)
+
+        return [q.get_result() for q in self.expression]
+
+
 class CompiledMapping(Compiled):
     def __init__(self, expression, ordered=False):
         self._dict_type = collections.OrderedDict if ordered else dict
@@ -605,32 +653,6 @@ class CompiledMapping(Compiled):
         }
 
 
-class Compiler(object):
-    @classmethod
-    def compiled_expression(cls, *args, **kwargs):
-        raise NotImplementedError()
-
-    @classmethod
-    def compiled_search_query(cls, *args, **kwargs):
-        raise NotImplementedError()
-
-    @classmethod
-    def compiled_query(cls, *args, **kwargs):
-        return cls.compiled_search_query(*args, **kwargs)
-
-    @classmethod
-    def compiled_count_query(cls, *args, **kwargs):
-        raise NotImplementedError()
-
-    @classmethod
-    def compiled_exists_query(cls, *args, **kwargs):
-        raise NotImplementedError()
-
-    @classmethod
-    def compiled_mapping(cls, *args, **kwargs):
-        raise NotImplementedError()
-
-
 class CompiledExpression_1_0(CompiledExpression):
     features = ElasticsearchFeatures(
         supports_missing_query=True,
@@ -642,31 +664,33 @@ class CompiledExpression_1_0(CompiledExpression):
 
 
 class CompiledSearchQuery_1_0(CompiledSearchQuery):
-    compiled_expression = CompiledExpression_1_0
     features = CompiledExpression_1_0.features
 
 
 class CompiledCountQuery_1_0(CompiledCountQuery):
-    compiled_expression = CompiledExpression_1_0
     features = CompiledExpression_1_0.features
 
 
 class CompiledExistsQuery_1_0(CompiledExistsQuery):
-    compiled_expression = CompiledExpression_1_0
     features = CompiledExpression_1_0.features
 
 
 class CompiledDeleteByQuery_1_0(CompiledDeleteByQuery):
-    compiled_expression = CompiledExpression_1_0
     features = CompiledExpression_1_0.features
 
 
-class Compiler_1_0(Compiler):
+class CompiledMultiSearch_1_0(CompiledMultiSearch):
+    compiled_search = CompiledSearchQuery_1_0
+
+
+class Compiler_1_0(object):
     compiled_expression = CompiledExpression_1_0
     compiled_search_query = CompiledExpression_1_0
+    compiled_query = compiled_search_query
     compiled_count_query = CompiledCountQuery_1_0
     compiled_exists_query = CompiledExistsQuery_1_0
     compiled_delete_by_query = CompiledDeleteByQuery_1_0
+    compiled_multi_search = CompiledMultiSearch_1_0
     compiled_mapping = CompiledMapping
 
 
@@ -681,31 +705,33 @@ class CompiledExpression_2_0(CompiledExpression):
 
 
 class CompiledSearchQuery_2_0(CompiledSearchQuery):
-    compiled_expression = CompiledExpression_2_0
     features = CompiledExpression_2_0.features
 
 
 class CompiledCountQuery_2_0(CompiledCountQuery):
-    compiled_expression = CompiledExpression_2_0
     features = CompiledExpression_2_0.features
 
 
 class CompiledExistsQuery_2_0(CompiledExistsQuery):
-    compiled_expression = CompiledExpression_2_0
     features = CompiledExpression_2_0.features
 
 
 class CompiledDeleteByQuery_2_0(CompiledDeleteByQuery):
-    compiled_expression = CompiledExpression_2_0
     features = CompiledExpression_2_0.features
 
 
-class Compiler_2_0(Compiler):
+class CompiledMultiSearch_2_0(CompiledMultiSearch):
+    compiled_search = CompiledSearchQuery_2_0
+
+
+class Compiler_2_0(object):
     compiled_expression = CompiledExpression_2_0
     compiled_search_query = CompiledSearchQuery_2_0
+    compiled_query = compiled_search_query
     compiled_count_query = CompiledCountQuery_2_0
     compiled_exists_query = CompiledExistsQuery_2_0
     compiled_delete_by_query = CompiledDeleteByQuery_2_0
+    compiled_multi_search = CompiledMultiSearch_2_0
     compiled_mapping = CompiledMapping
 
 
@@ -720,31 +746,33 @@ class CompiledExpression_5_0(CompiledExpression):
 
 
 class CompiledSearchQuery_5_0(CompiledSearchQuery):
-    compiled_expression = CompiledExpression_5_0
     features = CompiledExpression_5_0.features
 
 
 class CompiledCountQuery_5_0(CompiledCountQuery):
-    compiled_expression = CompiledExpression_5_0
     features = CompiledExpression_5_0.features
 
 
 class CompiledExistsQuery_5_0(CompiledExistsQuery):
-    compiled_expression = CompiledExpression_5_0
     features = CompiledExpression_5_0.features
 
 
 class CompiledDeleteByQuery_5_0(CompiledDeleteByQuery):
-    compiled_expression = CompiledExpression_5_0
     features = CompiledExpression_5_0.features
 
 
-class Compiler_5_0(Compiler):
+class CompiledMultiSearch_5_0(CompiledMultiSearch):
+    compiled_search = CompiledSearchQuery_5_0
+
+
+class Compiler_5_0(object):
     compiled_expression = CompiledExpression_5_0
     compiled_search_query = CompiledSearchQuery_5_0
+    compiled_query = compiled_search_query
     compiled_count_query = CompiledCountQuery_5_0
     compiled_exists_query = CompiledExistsQuery_5_0
     compiled_delete_by_query = CompiledDeleteByQuery_5_0
+    compiled_multi_search = CompiledMultiSearch_5_0
     compiled_mapping = CompiledMapping
 
 

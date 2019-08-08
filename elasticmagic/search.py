@@ -10,8 +10,8 @@ from .expression import Params, Source, Highlight, Rescore
 
 
 __all__ = [
-    'BaseSearchQuery', 'SearchQuery', 'FunctionScoreSettings',
-    'GENERAL_FUNCTION_SCORE', 'BOOST_FUNCTION_SCORE'
+    'BaseSearchQuery', 'SearchQuery', 'SearchQueryContext',
+    'FunctionScoreSettings', 'GENERAL_FUNCTION_SCORE', 'BOOST_FUNCTION_SCORE'
 ]
 
 

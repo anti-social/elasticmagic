@@ -1,8 +1,6 @@
 from abc import ABCMeta
 from collections import Iterable, Mapping
 
-from elasticsearch import ElasticsearchException
-
 from .compat import with_metaclass
 from .compiler import (
     ESVersion,
@@ -12,7 +10,6 @@ from .document import (
     Document,
     DynamicDocument,
 )
-from .expression import Params
 from .index import Index
 from .result import (
     BulkResult,
@@ -22,10 +19,7 @@ from .result import (
     RefreshResult,
     SearchResult,
 )
-from .search import (
-    BaseSearchQuery,
-    SearchQuery,
-)
+from .search import SearchQuery
 from .util import clean_params
 
 MAX_RESULT_WINDOW = 10000
@@ -36,10 +30,6 @@ def _preprocess_params(params):
     params.pop('self')
     kwargs = params.pop('kwargs') or {}
     return params, kwargs
-
-
-class MultiSearchError(ElasticsearchException):
-    pass
 
 
 class BaseCluster(with_metaclass(ABCMeta)):
@@ -178,49 +168,12 @@ class BaseCluster(with_metaclass(ABCMeta)):
     def _clear_scroll_result(self, raw_result):
         return ClearScrollResult(raw_result)
 
-    def _multi_search_params(self, params, compiler):
+    def _multi_search_params(self, params):
         params, kwargs = _preprocess_params(params)
-        raise_on_error = params.pop('raise_on_error', None)
-        raise_on_error = (
-            raise_on_error
-            if raise_on_error is not None
-            else self._multi_search_raise_on_error
-        )
-        queries = params.pop('queries')
-
-        params = clean_params(params, **kwargs)
-        body = []
-        for q in queries:
-            query_header = {}
-            if q._index:
-                query_header['index'] = q._index._name
-            doc_type = q._get_doc_type()
-            if doc_type:
-                query_header['type'] = doc_type
-            query_header.update(q._search_params)
-            body += [query_header, q.to_dict(compiler)]
-        return body, raise_on_error, params
-
-    def _multi_search_result(self, queries, raise_on_error, raw_results):
-        errors = []
-        for raw, q in zip(raw_results, queries):
-            result = SearchResult(
-                raw, q._aggregations,
-                doc_cls=q._get_doc_cls(),
-                instance_mapper=q._instance_mapper,
-            )
-            q._cached_result = result
-            if result.error:
-                errors.append(result.error)
-
-        if raise_on_error and errors:
-            if len(errors) == 1:
-                error_msg = '1 query was failed'
-            else:
-                error_msg = '{} queries were failed'.format(len(errors))
-            raise MultiSearchError(error_msg, errors)
-
-        return [q.get_result() for q in queries]
+        params.pop('queries')
+        if params.get('raise_on_error') is None:
+            params['raise_on_error'] = self._multi_search_raise_on_error
+        return clean_params(params, **kwargs)
 
     def _put_mapping_params(self, params):
         params, kwargs = _preprocess_params(params)
@@ -398,13 +351,9 @@ class Cluster(BaseCluster):
             routing=None, preference=None, search_type=None,
             raise_on_error=None, **kwargs
     ):
-        body, raise_on_error, params = self._multi_search_params(
-            locals(), self.get_compiler()
-        )
-        return self._multi_search_result(
-            queries,
-            raise_on_error,
-            self._client.msearch(body=body, **params)['responses'],
+        return self._do_request(
+            self.get_compiler().compiled_multi_search,
+            queries, **self._multi_search_params(locals())
         )
 
     msearch = multi_search
