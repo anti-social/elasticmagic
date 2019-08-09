@@ -1,7 +1,5 @@
 from elasticmagic import SearchQuery
 
-import pytest
-
 from ..conftest import Car
 
 

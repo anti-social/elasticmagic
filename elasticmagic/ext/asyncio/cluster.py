@@ -78,8 +78,8 @@ class AsyncCluster(BaseCluster):
         )
 
     async def exists(
-            self, q=None, index=None, doc_type=None, refresh=None, routing=None,
-            **kwargs
+            self, q=None, index=None, doc_type=None, refresh=None,
+            routing=None, **kwargs
     ):
         return await self._do_request(
             (await self.get_compiler()).compiled_exists_query,

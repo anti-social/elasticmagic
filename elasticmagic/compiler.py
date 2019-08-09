@@ -803,6 +803,7 @@ features_2_0 = ElasticsearchFeatures(
     stored_fields_param='fields',
 )
 
+
 class CompiledExpression_2_0(CompiledExpression):
     features = features_2_0
 

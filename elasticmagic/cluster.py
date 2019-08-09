@@ -1,15 +1,11 @@
 from abc import ABCMeta
-from collections import Iterable, Mapping
 
 from .compat import with_metaclass
 from .compiler import (
     ESVersion,
     get_compiler_by_es_version,
 )
-from .document import (
-    Document,
-    DynamicDocument,
-)
+from .document import Document
 from .index import Index
 from .result import (
     BulkResult,
@@ -241,9 +237,9 @@ class Cluster(BaseCluster):
         )
 
     def multi_get(
-            self, docs_or_ids, index=None, doc_cls=None, doc_type=None, source=None,
-            parent=None, routing=None, preference=None, realtime=None,
-            refresh=None, **kwargs
+            self, docs_or_ids, index=None, doc_cls=None, doc_type=None,
+            source=None, parent=None, routing=None, preference=None,
+            realtime=None, refresh=None, **kwargs
     ):
         return self._do_request(
             self.get_compiler().compiled_multi_get,
