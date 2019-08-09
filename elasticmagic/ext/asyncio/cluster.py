@@ -47,15 +47,13 @@ class AsyncCluster(BaseCluster):
         )
 
     async def multi_get(
-            self, docs, index=None, doc_cls=None, doc_type=None, source=None,
-            parent=None, routing=None, preference=None, realtime=None,
-            refresh=None, **kwargs
+            self, docs_or_ids, index=None, doc_cls=None, doc_type=None,
+            source=None, parent=None, routing=None, preference=None,
+            realtime=None, refresh=None, **kwargs
     ):
-        doc_classes, default_doc_cls, params = self._multi_get_params(locals())
-        return self._multi_get_result(
-            doc_classes,
-            default_doc_cls,
-            await self._client.mget(**params),
+        return await self._do_request(
+            (await self.get_compiler()).compiled_multi_get,
+            docs_or_ids, **self._multi_get_params(locals())
         )
 
     mget = multi_get

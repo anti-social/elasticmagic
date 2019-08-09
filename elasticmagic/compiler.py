@@ -3,6 +3,7 @@ import collections
 
 from elasticsearch import ElasticsearchException
 
+from .document import Document
 from .document import DynamicDocument
 from .expression import Bool
 from .expression import Exists
@@ -658,17 +659,85 @@ class CompiledGet(Compiled):
     api_method = 'get'
 
     def __init__(self, doc_or_id, **kwargs):
-        self.doc_cls = kwargs.pop('doc_cls', None) or DynamicDocument
         self.body = None
         self.params = kwargs
+        self.doc_cls = kwargs.pop('doc_cls', None) or DynamicDocument
+
+        if isinstance(doc_or_id, Document):
+            self.params.update(doc_or_id.to_meta())
+            self.doc_cls = doc_or_id.__class__
+        elif isinstance(doc_or_id, dict):
+            self.params.update(doc_or_id)
+            if doc_or_id.get('doc_cls'):
+                self.doc_cls = doc_or_id.pop('doc_cls')
+        else:
+            self.params.update({'id': doc_or_id})
+
         if self.params.get('doc_type') is None:
             self.params['doc_type'] = getattr(
                 self.doc_cls, '__doc_type__', None
             )
-        self.params['id'] = doc_or_id
 
     def process_result(self, raw_result):
         return self.doc_cls(_hit=raw_result)
+
+
+class CompiledMultiGet(Compiled):
+    api_method = 'mget'
+    compiled_get = None
+
+    def __init__(self, docs_or_ids, **kwargs):
+        default_doc_cls = kwargs.pop('doc_cls', None)
+        if isinstance(default_doc_cls, collections.Iterable):
+            self.doc_cls_map = {
+                doc_cls.__doc_type__: doc_cls
+                for doc_cls in default_doc_cls
+            }
+            self.default_doc_cls = DynamicDocument
+        elif default_doc_cls:
+            self.doc_cls_map = {}
+            self.default_doc_cls = default_doc_cls
+        else:
+            self.doc_cls_map = {}
+            self.default_doc_cls = DynamicDocument
+
+        self.expression = docs_or_ids
+        self.doc_classes = []
+        docs = []
+        for doc_or_id in docs_or_ids:
+            if isinstance(doc_or_id, Document):
+                doc = doc_or_id.to_meta()
+                doc_cls = doc_or_id.__class__
+            elif isinstance(doc_or_id, dict):
+                doc = doc_or_id
+                doc_cls = doc_or_id.pop('doc_cls', None)
+            else:
+                doc = {'_id': doc_or_id}
+                doc_cls = None
+
+            if not doc.get('_type') and hasattr(doc_cls, '__doc_type__'):
+                doc['_type'] = doc_cls.__doc_type__
+
+            docs.append(doc)
+            self.doc_classes.append(doc_cls)
+
+        self.body = {'docs': docs}
+        self.params = self.prepare_params(kwargs)
+
+    def process_result(self, raw_result):
+        docs = []
+        for doc_cls, raw_doc in zip(self.doc_classes, raw_result['docs']):
+            doc_type = raw_doc.get('_type')
+            if doc_cls is None and doc_type in self.doc_cls_map:
+                doc_cls = self.doc_cls_map.get(doc_type)
+            if doc_cls is None:
+                doc_cls = self.default_doc_cls
+
+            if raw_doc.get('found'):
+                docs.append(doc_cls(_hit=raw_doc))
+            else:
+                docs.append(None)
+        return docs
 
 
 features_1_0 = ElasticsearchFeatures(
@@ -709,6 +778,10 @@ class CompiledGet_1_0(CompiledGet):
     features = features_1_0
 
 
+class CompiledMultiGet_1_0(CompiledMultiGet):
+    features = features_1_0
+
+
 class Compiler_1_0(object):
     compiled_expression = CompiledExpression_1_0
     compiled_search_query = CompiledExpression_1_0
@@ -719,6 +792,7 @@ class Compiler_1_0(object):
     compiled_multi_search = CompiledMultiSearch_1_0
     compiled_mapping = CompiledMapping
     compiled_get = CompiledGet_1_0
+    compiled_multi_get = CompiledMultiGet_1_0
 
 
 features_2_0 = ElasticsearchFeatures(
@@ -758,6 +832,10 @@ class CompiledGet_2_0(CompiledGet):
     features = features_2_0
 
 
+class CompiledMultiGet_2_0(CompiledMultiGet):
+    features = features_2_0
+
+
 class Compiler_2_0(object):
     compiled_expression = CompiledExpression_2_0
     compiled_search_query = CompiledSearchQuery_2_0
@@ -768,6 +846,7 @@ class Compiler_2_0(object):
     compiled_multi_search = CompiledMultiSearch_2_0
     compiled_mapping = CompiledMapping
     compiled_get = CompiledGet_2_0
+    compiled_multi_get = CompiledMultiGet_2_0
 
 
 features_5_0 = ElasticsearchFeatures(
@@ -807,6 +886,10 @@ class CompiledGet_5_0(CompiledGet):
     features = features_5_0
 
 
+class CompiledMultiGet_5_0(CompiledMultiGet):
+    features = features_5_0
+
+
 class Compiler_5_0(object):
     compiled_expression = CompiledExpression_5_0
     compiled_search_query = CompiledSearchQuery_5_0
@@ -817,6 +900,7 @@ class Compiler_5_0(object):
     compiled_multi_search = CompiledMultiSearch_5_0
     compiled_mapping = CompiledMapping
     compiled_get = CompiledGet_5_0
+    compiled_multi_get = CompiledMultiGet_5_0
 
 
 Compiler10 = Compiler_1_0
