@@ -8,7 +8,6 @@ from .compiler import (
 from .document import Document
 from .index import Index
 from .result import (
-    BulkResult,
     ClearScrollResult,
     FlushResult,
     RefreshResult,
@@ -153,17 +152,8 @@ class BaseCluster(with_metaclass(ABCMeta)):
 
     def _bulk_params(self, params):
         params, kwargs = _preprocess_params(params)
-        actions = params.pop('actions')
-        body = []
-        for act in actions:
-            body.append({act.__action_name__: act.get_meta()})
-            source = act.get_source()
-            if source is not None:
-                body.append(source)
-        return clean_params(params, body=body, **kwargs)
-
-    def _bulk_result(self, raw_result):
-        return BulkResult(raw_result)
+        params.pop('actions')
+        return clean_params(params, **kwargs)
 
     def _refresh_params(self, params):
         params, kwargs = _preprocess_params(params)
@@ -336,9 +326,9 @@ class Cluster(BaseCluster):
             self, actions, index=None, doc_type=None, refresh=None,
             timeout=None, consistency=None, replication=None, **kwargs
     ):
-        params = self._bulk_params(locals())
-        return self._bulk_result(
-            self._client.bulk(**params)
+        return self._do_request(
+            self.get_compiler().compiled_bulk,
+            actions, **self._bulk_params(locals())
         )
 
     def refresh(self, index=None, **kwargs):

@@ -1,4 +1,4 @@
-from .types import Type, String, Integer, Float, Date, ValidationError
+from .types import Type, String, Integer, Float, Date
 from .attribute import AttributedField, DynamicAttributedField
 from .attribute import _attributed_field_factory
 from .expression import Field, MappingField
@@ -199,48 +199,19 @@ class Document(with_metaclass(DocumentMeta)):
             processed_fields[field_name] = processed_values
         return processed_fields
 
-    def to_meta(self):
-        doc_meta = {}
-        if hasattr(self, '__doc_type__'):
-            doc_meta['_type'] = self.__doc_type__
-        for field_name in META_FIELD_NAMES:
-            value = getattr(self, field_name, None)
-            if value:
-                doc_meta[field_name] = value
-        return doc_meta
+    def to_meta(self, compiler=None):
+        from .compiler import DefaultCompiler
 
-    def to_source(self, validate=False):
-        res = {}
-        for key, value in self.__dict__.items():
-            if key in self.__class__.mapping_fields:
-                continue
+        compiler = compiler or DefaultCompiler
+        meta_compiler = compiler.compiled_bulk.compiled_meta
+        return meta_compiler(self).body
 
-            attr_field = self.__class__.fields.get(key)
-            if attr_field:
-                if value is None or value == '' or value == []:
-                    if (
-                        validate and
-                        attr_field.get_field()._mapping_options.get('required')
-                    ):
-                        raise ValidationError("'{}' is required".format(
-                            attr_field.get_attr_name()
-                        ))
-                    continue
-                value = attr_field.get_type() \
-                    .from_python(value, validate=validate)
-                res[attr_field._field._name] = value
+    def to_source(self, validate=False, compiler=None):
+        from .compiler import DefaultCompiler
 
-        for attr_field in self._fields.values():
-            if (
-                validate
-                and attr_field.get_field()._mapping_options.get('required')
-                and attr_field.get_field().get_name() not in res
-            ):
-                raise ValidationError(
-                    "'{}' is required".format(attr_field.get_attr_name())
-                )
-
-        return res
+        compiler = compiler or DefaultCompiler
+        source_compiler = compiler.compiled_bulk.compiled_source
+        return source_compiler(self, validate=validate).body
 
     def get_highlight(self):
         return self._highlight or {}

@@ -1,8 +1,8 @@
 from .util import clean_params
-from .document import Document, META_FIELD_NAMES
 
 
 class Action(object):
+    __visit_name__ = 'action'
     __action_name__ = None
 
     def __init__(self, doc, index=None, doc_type=None,
@@ -10,25 +10,10 @@ class Action(object):
                  routing=None, parent=None, timestamp=None, ttl=None,
                  version=None, version_type=None, **kwargs):
         from .index import Index as ESIndex
-        index = index._name if isinstance(index, ESIndex) else index
+        index = index.get_name() if isinstance(index, ESIndex) else index
 
         self.doc = doc
-
-        if isinstance(self.doc, Document):
-            self.meta = self.doc.to_meta()
-            self.source = self.doc.to_source()
-        else:
-            self.meta = {}
-            for field_name in META_FIELD_NAMES:
-                value = self.doc.get(field_name)
-                if value:
-                    self.meta[field_name] = value
-
-            self.source = self.doc.copy()
-            for exclude_field in Document.mapping_fields:
-                self.source.pop(exclude_field.get_field().get_name(), None)
-
-        self.meta.update(clean_params({
+        self.meta_params = clean_params({
             '_index': index,
             '_type': doc_type,
             '_routing': routing,
@@ -39,8 +24,35 @@ class Action(object):
             '_version_type': version_type,
             'refresh': refresh,
             'consistency': consistency,
-        }))
-        self.meta.update(clean_params(kwargs))
+        }, **kwargs)
+
+        # if isinstance(self.doc, Document):
+        #     self.meta = self.doc.to_meta()
+        #     self.source = self.doc.to_source()
+        # else:
+        #     self.meta = {}
+        #     for field_name in META_FIELD_NAMES:
+        #         value = self.doc.get(field_name)
+        #         if value:
+        #             self.meta[field_name] = value
+        #
+        #     self.source = self.doc.copy()
+        #     for exclude_field in Document.mapping_fields:
+        #         self.source.pop(exclude_field.get_field().get_name(), None)
+
+        # self.meta.update(clean_params({
+        #     '_index': index,
+        #     '_type': doc_type,
+        #     '_routing': routing,
+        #     '_parent': parent,
+        #     '_timestamp': timestamp,
+        #     '_ttl': ttl,
+        #     '_version': version,
+        #     '_version_type': version_type,
+        #     'refresh': refresh,
+        #     'consistency': consistency,
+        # }))
+        # self.meta.update(clean_params(kwargs))
 
     def get_meta(self):
         return self.meta
@@ -96,6 +108,3 @@ class Update(Action):
             'script': script,
             'script_id': script_id,
         })
-        if self.source:
-            self.source = {'doc': self.source}
-        self.source.update(self.source_params)

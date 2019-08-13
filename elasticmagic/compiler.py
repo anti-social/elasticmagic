@@ -10,6 +10,7 @@ from .expression import Exists
 from .expression import Filtered
 from .expression import FunctionScore
 from .expression import HighlightedField
+from .result import BulkResult
 from .result import CountResult
 from .result import DeleteByQueryResult
 from .result import DeleteResult
@@ -17,6 +18,7 @@ from .result import ExistsResult
 from .result import SearchResult
 from .search import BaseSearchQuery
 from .search import SearchQueryContext
+from .types import ValidationError
 
 OPERATORS = {
     operator.and_: 'and',
@@ -757,6 +759,130 @@ class CompiledDelete(CompiledGet):
         return DeleteResult(raw_result)
 
 
+class CompiledBulk(Compiled):
+    api_method = 'bulk'
+    compiled_meta = None
+    compiled_source = None
+
+    def __init__(self, actions, **kwargs):
+        self.expression = actions
+        self.body = []
+        for action in actions:
+            meta = self.compiled_meta(action).body
+            self.body.append(meta)
+            source = self.compiled_source(action).body
+            if source is not None:
+                self.body.append(source)
+        self.params = self.prepare_params(kwargs)
+
+    def process_result(self, raw_result):
+        return BulkResult(raw_result)
+
+
+class CompiledMeta(Compiled):
+    META_FIELD_NAMES = (
+        '_id',
+        '_index',
+        '_type',
+        '_routing',
+        '_parent',
+        '_timestamp',
+        '_ttl',
+        '_version',
+    )
+
+    def __init__(self, doc_or_action):
+        super(CompiledMeta, self).__init__(doc_or_action)
+
+    def visit_action(self, action):
+        meta = self.visit_document(action.doc)
+        meta.update(action.meta_params)
+        return {
+            action.__action_name__: meta
+        }
+
+    def visit_document(self, doc):
+        meta = {}
+        if isinstance(doc, Document):
+            self._populate_meta_from_document(doc, meta)
+            if doc.__doc_type__:
+                meta['_type'] = doc.__doc_type__
+        else:
+            self._populate_meta_from_dict(doc, meta)
+        return meta
+
+    def _populate_meta_from_document(self, doc, meta):
+        for field_name in self.META_FIELD_NAMES:
+            value = getattr(doc, field_name, None)
+            if value:
+                meta[field_name] = value
+
+    def _populate_meta_from_dict(self, doc, meta):
+        for field_name in self.META_FIELD_NAMES:
+            value = doc.get(field_name)
+            if value:
+                meta[field_name] = value
+
+
+class CompiledSource(Compiled):
+    def __init__(self, doc_or_action, validate=False):
+        self._validate = validate
+        super(CompiledSource, self).__init__(doc_or_action)
+
+    def visit_action(self, action):
+        if action.__action_name__ == 'delete':
+            return None
+
+        if isinstance(action.doc, Document):
+            source = self.visit(action.doc)
+        else:
+            source = action.doc.copy()
+            for exclude_field in Document.mapping_fields:
+                source.pop(exclude_field.get_field().get_name(), None)
+
+        if action.__action_name__ == 'update':
+            if source:
+                source = {'doc': source}
+            source.update(action.source_params)
+
+        return source
+
+    def visit_document(self, doc):
+        res = {}
+        for key, value in doc.__dict__.items():
+            if key in doc.__class__.mapping_fields:
+                continue
+
+            attr_field = doc.__class__.fields.get(key)
+            if attr_field:
+                if value is None or value == '' or value == []:
+                    if (
+                            self._validate and
+                            attr_field.get_field()._mapping_options.get(
+                                'required'
+                            )
+                    ):
+                        raise ValidationError("'{}' is required".format(
+                            attr_field.get_attr_name()
+                        ))
+                    continue
+                value = attr_field.get_type() \
+                    .from_python(value, validate=self._validate)
+                res[attr_field._field._name] = value
+
+        for attr_field in doc._fields.values():
+            if (
+                    self._validate
+                    and attr_field.get_field()._mapping_options.get('required')
+                    and attr_field.get_field().get_name() not in res
+            ):
+                raise ValidationError(
+                    "'{}' is required".format(attr_field.get_attr_name())
+                )
+
+        return res
+
+
 features_1_0 = ElasticsearchFeatures(
     supports_missing_query=True,
     supports_parent_id_query=False,
@@ -803,6 +929,20 @@ class CompiledDelete_1_0(CompiledDelete):
     features = features_1_0
 
 
+class CompiledMeta_1_0(CompiledMeta):
+    features = features_1_0
+
+
+class CompiledSource_1_0(CompiledSource):
+    features = features_1_0
+
+
+class CompiledBulk_1_0(CompiledBulk):
+    features = features_1_0
+    compiled_meta = CompiledMeta_1_0
+    compiled_source = CompiledSource_1_0
+
+
 class Compiler_1_0(object):
     compiled_expression = CompiledExpression_1_0
     compiled_search_query = CompiledExpression_1_0
@@ -815,6 +955,7 @@ class Compiler_1_0(object):
     compiled_get = CompiledGet_1_0
     compiled_multi_get = CompiledMultiGet_1_0
     compiled_delete = CompiledDelete_1_0
+    compiled_bulk = CompiledBulk_1_0
 
 
 features_2_0 = ElasticsearchFeatures(
@@ -863,6 +1004,20 @@ class CompiledDelete_2_0(CompiledDelete):
     features = features_2_0
 
 
+class CompiledMeta_2_0(CompiledMeta):
+    features = features_2_0
+
+
+class CompiledSource_2_0(CompiledSource):
+    features = features_2_0
+
+
+class CompiledBulk_2_0(CompiledBulk):
+    features = features_2_0
+    compiled_meta = CompiledMeta_2_0
+    compiled_source = CompiledSource_2_0
+
+
 class Compiler_2_0(object):
     compiled_expression = CompiledExpression_2_0
     compiled_search_query = CompiledSearchQuery_2_0
@@ -875,6 +1030,7 @@ class Compiler_2_0(object):
     compiled_get = CompiledGet_2_0
     compiled_multi_get = CompiledMultiGet_2_0
     compiled_delete = CompiledDelete_2_0
+    compiled_bulk = CompiledBulk_2_0
 
 
 features_5_0 = ElasticsearchFeatures(
@@ -922,6 +1078,20 @@ class CompiledDelete_5_0(CompiledDelete):
     features = features_5_0
 
 
+class CompiledMeta_5_0(CompiledMeta):
+    features = features_5_0
+
+
+class CompiledSource_5_0(CompiledSource):
+    features = features_5_0
+
+
+class CompiledBulk_5_0(CompiledBulk):
+    features = features_5_0
+    compiled_meta = CompiledMeta_5_0
+    compiled_source = CompiledSource_5_0
+
+
 class Compiler_5_0(object):
     compiled_expression = CompiledExpression_5_0
     compiled_search_query = CompiledSearchQuery_5_0
@@ -934,6 +1104,7 @@ class Compiler_5_0(object):
     compiled_get = CompiledGet_5_0
     compiled_multi_get = CompiledMultiGet_5_0
     compiled_delete = CompiledDelete_5_0
+    compiled_bulk = CompiledBulk_5_0
 
 
 Compiler10 = Compiler_1_0
