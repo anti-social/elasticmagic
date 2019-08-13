@@ -140,9 +140,9 @@ class AsyncCluster(BaseCluster):
             version_type=None,
             **kwargs
     ):
-        params = self._delete_params(locals())
-        return self._delete_result(
-            await self._client.delete(**params)
+        return await self._do_request(
+            (await self.get_compiler()).compiled_delete,
+            doc_or_id, **self._delete_params(locals())
         )
 
     async def delete_by_query(

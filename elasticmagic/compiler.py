@@ -12,6 +12,7 @@ from .expression import FunctionScore
 from .expression import HighlightedField
 from .result import CountResult
 from .result import DeleteByQueryResult
+from .result import DeleteResult
 from .result import ExistsResult
 from .result import SearchResult
 from .search import BaseSearchQuery
@@ -657,25 +658,35 @@ class CompiledMapping(Compiled):
 class CompiledGet(Compiled):
     api_method = 'get'
 
+    META_FIELDS = ('_id', '_type', '_routing', '_parent', '_version')
+
     def __init__(self, doc_or_id, **kwargs):
         self.body = None
-        self.params = kwargs
+        self.params = {}
         self.doc_cls = kwargs.pop('doc_cls', None) or DynamicDocument
 
         if isinstance(doc_or_id, Document):
-            self.params.update(doc_or_id.to_meta())
-            self.doc_cls = doc_or_id.__class__
+            doc = doc_or_id
+            for meta_field_name in self.META_FIELDS:
+                field_value = getattr(doc, meta_field_name, None)
+                param_name = meta_field_name.lstrip('_')
+                if field_value is not None:
+                    self.params[param_name] = field_value
+            self.doc_cls = doc.__class__
         elif isinstance(doc_or_id, dict):
-            self.params.update(doc_or_id)
-            if doc_or_id.get('doc_cls'):
-                self.doc_cls = doc_or_id.pop('doc_cls')
+            doc = doc_or_id
+            self.params.update(doc)
+            if doc.get('doc_cls'):
+                self.doc_cls = doc.pop('doc_cls')
         else:
-            self.params.update({'id': doc_or_id})
+            doc_id = doc_or_id
+            self.params.update({'id': doc_id})
 
         if self.params.get('doc_type') is None:
             self.params['doc_type'] = getattr(
                 self.doc_cls, '__doc_type__', None
             )
+        self.params.update(kwargs)
 
     def process_result(self, raw_result):
         return self.doc_cls(_hit=raw_result)
@@ -739,6 +750,13 @@ class CompiledMultiGet(Compiled):
         return docs
 
 
+class CompiledDelete(CompiledGet):
+    api_method = 'delete'
+
+    def process_result(self, raw_result):
+        return DeleteResult(raw_result)
+
+
 features_1_0 = ElasticsearchFeatures(
     supports_missing_query=True,
     supports_parent_id_query=False,
@@ -781,6 +799,10 @@ class CompiledMultiGet_1_0(CompiledMultiGet):
     features = features_1_0
 
 
+class CompiledDelete_1_0(CompiledDelete):
+    features = features_1_0
+
+
 class Compiler_1_0(object):
     compiled_expression = CompiledExpression_1_0
     compiled_search_query = CompiledExpression_1_0
@@ -792,6 +814,7 @@ class Compiler_1_0(object):
     compiled_mapping = CompiledMapping
     compiled_get = CompiledGet_1_0
     compiled_multi_get = CompiledMultiGet_1_0
+    compiled_delete = CompiledDelete_1_0
 
 
 features_2_0 = ElasticsearchFeatures(
@@ -836,6 +859,10 @@ class CompiledMultiGet_2_0(CompiledMultiGet):
     features = features_2_0
 
 
+class CompiledDelete_2_0(CompiledDelete):
+    features = features_2_0
+
+
 class Compiler_2_0(object):
     compiled_expression = CompiledExpression_2_0
     compiled_search_query = CompiledSearchQuery_2_0
@@ -847,6 +874,7 @@ class Compiler_2_0(object):
     compiled_mapping = CompiledMapping
     compiled_get = CompiledGet_2_0
     compiled_multi_get = CompiledMultiGet_2_0
+    compiled_delete = CompiledDelete_2_0
 
 
 features_5_0 = ElasticsearchFeatures(
@@ -890,6 +918,10 @@ class CompiledMultiGet_5_0(CompiledMultiGet):
     features = features_5_0
 
 
+class CompiledDelete_5_0(CompiledDelete):
+    features = features_5_0
+
+
 class Compiler_5_0(object):
     compiled_expression = CompiledExpression_5_0
     compiled_search_query = CompiledSearchQuery_5_0
@@ -901,6 +933,7 @@ class Compiler_5_0(object):
     compiled_mapping = CompiledMapping
     compiled_get = CompiledGet_5_0
     compiled_multi_get = CompiledMultiGet_5_0
+    compiled_delete = CompiledDelete_5_0
 
 
 Compiler10 = Compiler_1_0

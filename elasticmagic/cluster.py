@@ -10,7 +10,6 @@ from .index import Index
 from .result import (
     BulkResult,
     ClearScrollResult,
-    DeleteResult,
     FlushResult,
     RefreshResult,
     SearchResult,
@@ -149,22 +148,8 @@ class BaseCluster(with_metaclass(ABCMeta)):
 
     def _delete_params(self, params):
         params, kwargs = _preprocess_params(params)
-        doc_or_id = params.pop('doc_or_id')
-        doc_cls = params.pop('doc_cls', None)
-        doc_type = params.pop('doc_type', None)
-        if isinstance(doc_or_id, Document):
-            doc_id = doc_or_id._id
-            doc_cls = doc_cls or doc_or_id.__class__
-        else:
-            doc_id = doc_or_id
-        assert doc_type or (doc_cls and doc_cls.__doc_type__), \
-            'Cannot evaluate doc_type: you must specify doc_type or doc_cls'
-        params['doc_type'] = doc_type or doc_cls.__doc_type__
-        params['id'] = doc_id
+        params.pop('doc_or_id')
         return clean_params(params, **kwargs)
-
-    def _delete_result(self, raw_result):
-        return DeleteResult(raw_result)
 
     def _bulk_params(self, params):
         params, kwargs = _preprocess_params(params)
@@ -330,9 +315,9 @@ class Cluster(BaseCluster):
             version_type=None,
             **kwargs
     ):
-        params = self._delete_params(locals())
-        return self._delete_result(
-            self._client.delete(**params)
+        return self._do_request(
+            self.get_compiler().compiled_delete,
+            doc_or_id, **self._delete_params(locals())
         )
 
     def delete_by_query(

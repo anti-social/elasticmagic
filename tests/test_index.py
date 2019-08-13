@@ -317,11 +317,13 @@ class IndexTest(BaseTestCase):
             id='test_id',
         )
 
-        self.assertRaises(
-            AssertionError,
-            lambda: self.index.delete('test_id')
+        self.index.delete('test_id')
+        self.client.delete.assert_called_with(
+            id='test_id',
+            index='test',
+            doc_type=None,
         )
-        
+
     def test_delete_by_query(self):
         self.index.delete_by_query(
             self.index['car'].vendor == 'Ford', doc_type='car', routing='Ford'
