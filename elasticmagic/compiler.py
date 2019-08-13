@@ -1,5 +1,5 @@
-import operator
 import collections
+import operator
 
 from elasticsearch import ElasticsearchException
 
@@ -10,13 +10,12 @@ from .expression import Exists
 from .expression import Filtered
 from .expression import FunctionScore
 from .expression import HighlightedField
-from .search import BaseSearchQuery
-from .search import SearchQueryContext
 from .result import CountResult
 from .result import DeleteByQueryResult
 from .result import ExistsResult
 from .result import SearchResult
-
+from .search import BaseSearchQuery
+from .search import SearchQueryContext
 
 OPERATORS = {
     operator.and_: 'and',
