@@ -21,9 +21,15 @@ from .search import BaseSearchQuery
 from .search import SearchQueryContext
 from .types import ValidationError
 
-OPERATORS = {
+
+BOOL_OPERATOR_NAMES = {
     operator.and_: 'and',
     operator.or_: 'or',
+}
+
+BOOL_OPERATORS_MAP = {
+    operator.and_: Bool.must,
+    operator.or_: Bool.should,
 }
 
 
@@ -32,6 +38,7 @@ ESVersion = collections.namedtuple('ESVersion', ['major', 'minor', 'patch'])
 ElasticsearchFeatures = collections.namedtuple(
     'ExpressionFeatures',
     [
+        'supports_old_boolean_queries',
         'supports_missing_query',
         'supports_parent_id_query',
         'supports_bool_filter',
@@ -179,6 +186,10 @@ class CompiledExpression(Compiled):
         return params
 
     def visit_boolean_expression(self, expr):
+        if not self.features.supports_old_boolean_queries:
+            return self.visit(
+                BOOL_OPERATORS_MAP[expr.operator](*expr.expressions)
+            )
         if expr.params:
             params = {
                 'filters': [self.visit(e) for e in expr.expressions]
@@ -187,10 +198,12 @@ class CompiledExpression(Compiled):
         else:
             params = [self.visit(e) for e in expr.expressions]
         return {
-            OPERATORS[expr.operator]: params
+            BOOL_OPERATOR_NAMES[expr.operator]: params
         }
 
     def visit_not(self, expr):
+        if not self.features.supports_old_boolean_queries:
+            return self.visit(Bool.must_not(expr))
         if expr.params:
             params = {
                 'filter': self.visit(expr.expr)
@@ -931,6 +944,7 @@ class CompiledSource(Compiled):
 
 
 features_1_0 = ElasticsearchFeatures(
+    supports_old_boolean_queries=True,
     supports_missing_query=True,
     supports_parent_id_query=False,
     supports_bool_filter=False,
@@ -1015,6 +1029,7 @@ class Compiler_1_0(object):
 
 
 features_2_0 = ElasticsearchFeatures(
+    supports_old_boolean_queries=False,
     supports_missing_query=True,
     supports_parent_id_query=False,
     supports_bool_filter=True,
@@ -1099,6 +1114,7 @@ class Compiler_2_0(object):
 
 
 features_5_0 = ElasticsearchFeatures(
+    supports_old_boolean_queries=False,
     supports_missing_query=False,
     supports_parent_id_query=True,
     supports_bool_filter=True,

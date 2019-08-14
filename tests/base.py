@@ -14,8 +14,8 @@ class BaseTestCase(unittest.TestCase):
         self.cluster = Cluster(self.client, compiler=DefaultCompiler)
         self.index = Index(self.cluster, 'test')
 
-    def assert_expression(self, expr, params):
-        self.assertEqual(expr.to_dict(), params)
+    def assert_expression(self, expr, expected, compiler=None):
+        self.assertEqual(expr.to_dict(compiler=compiler), expected)
 
 
 class OrderTolerantString(object):
