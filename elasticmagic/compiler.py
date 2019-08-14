@@ -943,258 +943,111 @@ class CompiledSource(Compiled):
         return res
 
 
-features_1_0 = ElasticsearchFeatures(
-    supports_old_boolean_queries=True,
-    supports_missing_query=True,
-    supports_parent_id_query=False,
-    supports_bool_filter=False,
-    supports_search_exists_api=True,
-    stored_fields_param='fields',
+def _featured_compiler(elasticsearch_features):
+    def inject_features(cls):
+        class _CompiledExpression(CompiledExpression):
+            features = elasticsearch_features
+
+        class _CompiledSearchQuery(CompiledSearchQuery):
+            features = elasticsearch_features
+
+        class _CompiledScroll(CompiledScroll):
+            features = elasticsearch_features
+
+        class _CompiledCountQuery(CompiledCountQuery):
+            features = elasticsearch_features
+
+        class _CompiledExistsQuery(CompiledExistsQuery):
+            features = elasticsearch_features
+
+        class _CompiledDeleteByQuery(CompiledDeleteByQuery):
+            features = elasticsearch_features
+
+        class _CompiledMultiSearch(CompiledMultiSearch):
+            features = elasticsearch_features
+            compiled_search = _CompiledSearchQuery
+
+        class _CompiledGet(CompiledGet):
+            features = elasticsearch_features
+
+        class _CompiledMultiGet(CompiledMultiGet):
+            features = elasticsearch_features
+
+        class _CompiledDelete(CompiledDelete):
+            features = elasticsearch_features
+
+        class _CompiledMeta(CompiledMeta):
+            features = elasticsearch_features
+
+        class _CompiledSource(CompiledSource):
+            features = elasticsearch_features
+
+        class _CompiledBulk(CompiledBulk):
+            features = elasticsearch_features
+            compiled_meta = _CompiledMeta
+            compiled_source = _CompiledSource
+
+        class _CompiledPutMapping(CompiledPutMapping):
+            features = elasticsearch_features
+
+        cls.compiled_expression = _CompiledExpression
+        cls.compiled_search_query = _CompiledSearchQuery
+        cls.compiled_query = cls.compiled_search_query
+        cls.compiled_scroll = _CompiledScroll
+        cls.compiled_count_query = _CompiledCountQuery
+        cls.compiled_exists_query = _CompiledExistsQuery
+        cls.compiled_delete_by_query = _CompiledDeleteByQuery
+        cls.compiled_multi_search = _CompiledMultiSearch
+        cls.compiled_get = _CompiledGet
+        cls.compiled_multi_get = _CompiledMultiGet
+        cls.compiled_delete = _CompiledDelete
+        cls.compiled_bulk = _CompiledBulk
+        cls.compiled_put_mapping = _CompiledPutMapping
+        return cls
+
+    return inject_features
+
+
+@_featured_compiler(
+    ElasticsearchFeatures(
+        supports_old_boolean_queries=True,
+        supports_missing_query=True,
+        supports_parent_id_query=False,
+        supports_bool_filter=False,
+        supports_search_exists_api=True,
+        stored_fields_param='fields',
+    )
 )
-
-
-class CompiledExpression_1_0(CompiledExpression):
-    features = features_1_0
-
-
-class CompiledSearchQuery_1_0(CompiledSearchQuery):
-    features = features_1_0
-
-
-class CompiledScroll_1_0(CompiledScroll):
-    features = features_1_0
-
-
-class CompiledCountQuery_1_0(CompiledCountQuery):
-    features = features_1_0
-
-
-class CompiledExistsQuery_1_0(CompiledExistsQuery):
-    features = features_1_0
-
-
-class CompiledDeleteByQuery_1_0(CompiledDeleteByQuery):
-    features = features_1_0
-
-
-class CompiledMultiSearch_1_0(CompiledMultiSearch):
-    features = features_1_0
-    compiled_search = CompiledSearchQuery_1_0
-
-
-class CompiledGet_1_0(CompiledGet):
-    features = features_1_0
-
-
-class CompiledMultiGet_1_0(CompiledMultiGet):
-    features = features_1_0
-
-
-class CompiledDelete_1_0(CompiledDelete):
-    features = features_1_0
-
-
-class CompiledMeta_1_0(CompiledMeta):
-    features = features_1_0
-
-
-class CompiledSource_1_0(CompiledSource):
-    features = features_1_0
-
-
-class CompiledBulk_1_0(CompiledBulk):
-    features = features_1_0
-    compiled_meta = CompiledMeta_1_0
-    compiled_source = CompiledSource_1_0
-
-
-class CompiledPutMapping_1_0(CompiledPutMapping):
-    features = features_1_0
-
-
 class Compiler_1_0(object):
-    compiled_expression = CompiledExpression_1_0
-    compiled_search_query = CompiledExpression_1_0
-    compiled_query = compiled_search_query
-    compiled_scroll = CompiledScroll_1_0
-    compiled_count_query = CompiledCountQuery_1_0
-    compiled_exists_query = CompiledExistsQuery_1_0
-    compiled_delete_by_query = CompiledDeleteByQuery_1_0
-    compiled_multi_search = CompiledMultiSearch_1_0
-    compiled_get = CompiledGet_1_0
-    compiled_multi_get = CompiledMultiGet_1_0
-    compiled_delete = CompiledDelete_1_0
-    compiled_bulk = CompiledBulk_1_0
-    compiled_put_mapping = CompiledPutMapping_1_0
+    pass
 
 
-features_2_0 = ElasticsearchFeatures(
-    supports_old_boolean_queries=False,
-    supports_missing_query=True,
-    supports_parent_id_query=False,
-    supports_bool_filter=True,
-    supports_search_exists_api=True,
-    stored_fields_param='fields',
+@_featured_compiler(
+    ElasticsearchFeatures(
+        supports_old_boolean_queries=False,
+        supports_missing_query=True,
+        supports_parent_id_query=False,
+        supports_bool_filter=True,
+        supports_search_exists_api=True,
+        stored_fields_param='fields',
+    )
 )
-
-
-class CompiledExpression_2_0(CompiledExpression):
-    features = features_2_0
-
-
-class CompiledSearchQuery_2_0(CompiledSearchQuery):
-    features = features_2_0
-
-
-class CompiledScroll_2_0(CompiledScroll):
-    features = features_2_0
-
-
-class CompiledCountQuery_2_0(CompiledCountQuery):
-    features = features_2_0
-
-
-class CompiledExistsQuery_2_0(CompiledExistsQuery):
-    features = features_2_0
-
-
-class CompiledDeleteByQuery_2_0(CompiledDeleteByQuery):
-    features = features_2_0
-
-
-class CompiledMultiSearch_2_0(CompiledMultiSearch):
-    features = features_2_0
-    compiled_search = CompiledSearchQuery_2_0
-
-
-class CompiledGet_2_0(CompiledGet):
-    features = features_2_0
-
-
-class CompiledMultiGet_2_0(CompiledMultiGet):
-    features = features_2_0
-
-
-class CompiledDelete_2_0(CompiledDelete):
-    features = features_2_0
-
-
-class CompiledMeta_2_0(CompiledMeta):
-    features = features_2_0
-
-
-class CompiledSource_2_0(CompiledSource):
-    features = features_2_0
-
-
-class CompiledBulk_2_0(CompiledBulk):
-    features = features_2_0
-    compiled_meta = CompiledMeta_2_0
-    compiled_source = CompiledSource_2_0
-
-
-class CompiledPutMapping_2_0(CompiledPutMapping):
-    features = features_2_0
-
-
 class Compiler_2_0(object):
-    compiled_expression = CompiledExpression_2_0
-    compiled_search_query = CompiledSearchQuery_2_0
-    compiled_query = compiled_search_query
-    compiled_scroll = CompiledScroll_2_0
-    compiled_count_query = CompiledCountQuery_2_0
-    compiled_exists_query = CompiledExistsQuery_2_0
-    compiled_delete_by_query = CompiledDeleteByQuery_2_0
-    compiled_multi_search = CompiledMultiSearch_2_0
-    compiled_get = CompiledGet_2_0
-    compiled_multi_get = CompiledMultiGet_2_0
-    compiled_delete = CompiledDelete_2_0
-    compiled_bulk = CompiledBulk_2_0
-    compiled_put_mapping = CompiledPutMapping_2_0
+    pass
 
 
-features_5_0 = ElasticsearchFeatures(
-    supports_old_boolean_queries=False,
-    supports_missing_query=False,
-    supports_parent_id_query=True,
-    supports_bool_filter=True,
-    supports_search_exists_api=False,
-    stored_fields_param='stored_fields',
+@_featured_compiler(
+    ElasticsearchFeatures(
+        supports_old_boolean_queries=False,
+        supports_missing_query=False,
+        supports_parent_id_query=True,
+        supports_bool_filter=True,
+        supports_search_exists_api=False,
+        stored_fields_param='stored_fields',
+    )
 )
-
-
-class CompiledExpression_5_0(CompiledExpression):
-    features = features_5_0
-
-
-class CompiledSearchQuery_5_0(CompiledSearchQuery):
-    features = features_5_0
-
-
-class CompiledScroll_5_0(CompiledScroll):
-    features = features_5_0
-
-
-class CompiledCountQuery_5_0(CompiledCountQuery):
-    features = features_5_0
-
-
-class CompiledExistsQuery_5_0(CompiledExistsQuery):
-    features = features_5_0
-
-
-class CompiledDeleteByQuery_5_0(CompiledDeleteByQuery):
-    features = features_5_0
-
-
-class CompiledMultiSearch_5_0(CompiledMultiSearch):
-    compiled_search = CompiledSearchQuery_5_0
-
-
-class CompiledGet_5_0(CompiledGet):
-    features = features_5_0
-
-
-class CompiledMultiGet_5_0(CompiledMultiGet):
-    features = features_5_0
-
-
-class CompiledDelete_5_0(CompiledDelete):
-    features = features_5_0
-
-
-class CompiledMeta_5_0(CompiledMeta):
-    features = features_5_0
-
-
-class CompiledSource_5_0(CompiledSource):
-    features = features_5_0
-
-
-class CompiledBulk_5_0(CompiledBulk):
-    features = features_5_0
-    compiled_meta = CompiledMeta_5_0
-    compiled_source = CompiledSource_5_0
-
-
-class CompiledPutMapping_5_0(CompiledPutMapping):
-    features = features_5_0
-
-
 class Compiler_5_0(object):
-    compiled_expression = CompiledExpression_5_0
-    compiled_search_query = CompiledSearchQuery_5_0
-    compiled_query = compiled_search_query
-    compiled_scroll = CompiledScroll_5_0
-    compiled_count_query = CompiledCountQuery_5_0
-    compiled_exists_query = CompiledExistsQuery_5_0
-    compiled_delete_by_query = CompiledDeleteByQuery_5_0
-    compiled_multi_search = CompiledMultiSearch_5_0
-    compiled_get = CompiledGet_5_0
-    compiled_multi_get = CompiledMultiGet_5_0
-    compiled_delete = CompiledDelete_5_0
-    compiled_bulk = CompiledBulk_5_0
-    compiled_put_mapping = CompiledPutMapping_5_0
+    pass
 
 
 Compiler10 = Compiler_1_0
@@ -1203,6 +1056,7 @@ Compiler20 = Compiler_2_0
 
 Compiler50 = Compiler_5_0
 
+# TODO: Got rid of the default compiler
 DefaultCompiler = Compiler_5_0
 
 
