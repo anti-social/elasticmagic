@@ -67,9 +67,6 @@ class Compiled(object):
     def prepare_params(self, params):
         return params
 
-    def process_result(self, raw_result):
-        raise NotImplementedError
-
     def visit(self, expr, **kwargs):
         visit_name = None
         if hasattr(expr, '__visit_name__'):
@@ -98,6 +95,11 @@ class Compiled(object):
 
     def visit_list(self, lst):
         return [self.visit(v) for v in lst]
+
+
+class CompiledEndpoint(Compiled):
+    def process_result(self, raw_result):
+        raise NotImplementedError
 
 
 class CompiledExpression(Compiled):
@@ -380,7 +382,7 @@ class CompiledExpression(Compiled):
         return params
 
 
-class CompiledSearchQuery(CompiledExpression):
+class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
     features = None
 
     def __init__(self, query, **kwargs):
@@ -503,12 +505,11 @@ class CompiledSearchQuery(CompiledExpression):
         return params
 
 
-class CompiledScroll(Compiled):
+class CompiledScroll(CompiledEndpoint):
     def __init__(self, **kwargs):
         self.doc_cls = kwargs.pop('doc_cls', None)
         self.instance_mapper = kwargs.pop('instance_mapper', None)
-        self.body = None
-        self.params = kwargs
+        super(CompiledScroll, self).__init__(None, **kwargs)
 
     def api_method(self, client):
         return client.scroll
@@ -577,17 +578,32 @@ class CompiledDeleteByQuery(CompiledScalarQuery):
         return DeleteByQueryResult(raw_result)
 
 
-class CompiledMultiSearch(Compiled):
+class CompiledMultiSearch(CompiledEndpoint):
     compiled_search = None
 
+    class _MultiQueries(object):
+        __visit_name__ = 'multi_queries'
+
+        def __init__(self, queries):
+            self.queries = queries
+
+        def __iter__(self):
+            return iter(self.queries)
+
     def __init__(self, queries, raise_on_error, **kwargs):
-        self.expression = queries
         self.raise_on_error = raise_on_error
-        self.body = []
         self.compiled_queries = []
-        self.params = {}
-        for q in queries:
-            compiled_query = self.compiled_search(q, **kwargs)
+        super(CompiledMultiSearch, self).__init__(
+            self._MultiQueries(queries), **kwargs
+        )
+
+    def api_method(self, client):
+        return client.msearch
+
+    def visit_multi_queries(self, expr):
+        body = []
+        for q in expr.queries:
+            compiled_query = self.compiled_search(q)
             self.compiled_queries.append(compiled_query)
             params = compiled_query.params
             if isinstance(compiled_query.expression, SearchQueryContext):
@@ -596,11 +612,9 @@ class CompiledMultiSearch(Compiled):
                     params['index'] = index.get_name()
             if 'doc_type' in params:
                 params['type'] = params.pop('doc_type')
-            self.body.append(params)
-            self.body.append(compiled_query.body)
-
-    def api_method(self, client):
-        return client.msearch
+            body.append(params)
+            body.append(compiled_query.body)
+        return body
 
     def process_result(self, raw_result):
         errors = []
@@ -622,7 +636,7 @@ class CompiledMultiSearch(Compiled):
         return [q.get_result() for q in self.expression]
 
 
-class CompiledPutMapping(Compiled):
+class CompiledPutMapping(CompiledEndpoint):
     def __init__(self, doc_cls_or_mapping, ordered=False, **kwargs):
         self._dict_type = collections.OrderedDict if ordered else dict
         self._dynamic_templates = []
@@ -711,46 +725,59 @@ class CompiledPutMapping(Compiled):
         }
 
 
-class CompiledGet(Compiled):
+class CompiledGet(CompiledEndpoint):
     META_FIELDS = ('_id', '_type', '_routing', '_parent', '_version')
 
     def __init__(self, doc_or_id, **kwargs):
-        self.body = None
-        self.params = {}
         self.doc_cls = kwargs.pop('doc_cls', None) or DynamicDocument
+        kwargs['doc_or_id'] = doc_or_id
+        super(CompiledGet, self).__init__(None, **kwargs)
 
+    def api_method(self, client):
+        return client.get
+
+    def prepare_params(self, params):
+        doc_or_id = params.pop('doc_or_id')
+        get_params = {}
         if isinstance(doc_or_id, Document):
             doc = doc_or_id
             for meta_field_name in self.META_FIELDS:
                 field_value = getattr(doc, meta_field_name, None)
                 param_name = meta_field_name.lstrip('_')
                 if field_value is not None:
-                    self.params[param_name] = field_value
+                    get_params[param_name] = field_value
             self.doc_cls = doc.__class__
         elif isinstance(doc_or_id, dict):
             doc = doc_or_id
-            self.params.update(doc)
+            get_params.update(doc)
             if doc.get('doc_cls'):
                 self.doc_cls = doc.pop('doc_cls')
         else:
             doc_id = doc_or_id
-            self.params.update({'id': doc_id})
+            get_params.update({'id': doc_id})
 
-        if self.params.get('doc_type') is None:
-            self.params['doc_type'] = getattr(
+        if get_params.get('doc_type') is None:
+            get_params['doc_type'] = getattr(
                 self.doc_cls, '__doc_type__', None
             )
-        self.params.update(kwargs)
-
-    def api_method(self, client):
-        return client.get
+        get_params.update(params)
+        return get_params
 
     def process_result(self, raw_result):
         return self.doc_cls(_hit=raw_result)
 
 
-class CompiledMultiGet(Compiled):
+class CompiledMultiGet(CompiledEndpoint):
     compiled_get = None
+
+    class _DocsOrIds(object):
+        __visit_name__ = 'docs_or_ids'
+
+        def __init__(self, docs_or_ids):
+            self.docs_or_ids = docs_or_ids
+
+        def __iter__(self):
+            return iter(self.docs_or_ids)
 
     def __init__(self, docs_or_ids, **kwargs):
         default_doc_cls = kwargs.pop('doc_cls', None)
@@ -769,6 +796,14 @@ class CompiledMultiGet(Compiled):
 
         self.expression = docs_or_ids
         self.doc_classes = []
+        super(CompiledMultiGet, self).__init__(
+            self._DocsOrIds(docs_or_ids), **kwargs
+        )
+
+    def api_method(self, client):
+        return client.mget
+
+    def visit_docs_or_ids(self, docs_or_ids):
         docs = []
         for doc_or_id in docs_or_ids:
             if isinstance(doc_or_id, Document):
@@ -787,11 +822,7 @@ class CompiledMultiGet(Compiled):
             docs.append(doc)
             self.doc_classes.append(doc_cls)
 
-        self.body = {'docs': docs}
-        self.params = self.prepare_params(kwargs)
-
-    def api_method(self, client):
-        return client.mget
+        return {'docs': docs}
 
     def process_result(self, raw_result):
         docs = []
@@ -817,23 +848,34 @@ class CompiledDelete(CompiledGet):
         return DeleteResult(raw_result)
 
 
-class CompiledBulk(Compiled):
+class CompiledBulk(CompiledEndpoint):
     compiled_meta = None
     compiled_source = None
 
+    class _Actions(object):
+        __visit_name__ = 'actions'
+
+        def __init__(self, actions):
+            self.actions = actions
+
+        def __iter__(self):
+            return iter(self.actions)
+
     def __init__(self, actions, **kwargs):
-        self.expression = actions
-        self.body = []
-        for action in actions:
-            meta = self.compiled_meta(action).body
-            self.body.append(meta)
-            source = self.compiled_source(action).body
-            if source is not None:
-                self.body.append(source)
-        self.params = self.prepare_params(kwargs)
+        super(CompiledBulk, self).__init__(self._Actions(actions), **kwargs)
 
     def api_method(self, client):
         return client.bulk
+
+    def visit_actions(self, actions):
+        body = []
+        for action in actions:
+            meta = self.compiled_meta(action).body
+            body.append(meta)
+            source = self.compiled_source(action).body
+            if source is not None:
+                body.append(source)
+        return body
 
     def process_result(self, raw_result):
         return BulkResult(raw_result)
