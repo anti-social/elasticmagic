@@ -1,9 +1,9 @@
 import warnings
-import collections
 from abc import ABCMeta
 from collections import namedtuple, OrderedDict
 
 from .compat import zip, with_metaclass
+from .compat import Iterable
 from .util import _with_clone
 from .util import merge_params, collect_doc_classes
 from .expression import Params, Source, Highlight, Rescore
@@ -705,7 +705,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
     def _get_doc_type(self, doc_cls=None):
         doc_cls = doc_cls or self._get_doc_cls()
-        if isinstance(doc_cls, collections.Iterable):
+        if isinstance(doc_cls, Iterable):
             return ','.join(set(
                 d.__doc_type__ for d in doc_cls if hasattr(d, '__doc_type__')
             ))
@@ -901,7 +901,7 @@ class SearchQueryContext(object):
         doc_cls = search_query._doc_cls
         if not doc_cls:
             self.doc_classes = search_query._collect_doc_classes()
-        elif not isinstance(doc_cls, collections.Iterable):
+        elif not isinstance(doc_cls, Iterable):
             self.doc_classes = [doc_cls]
         else:
             self.doc_classes = doc_cls

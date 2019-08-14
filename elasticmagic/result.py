@@ -1,6 +1,5 @@
-import collections
-
 from .compat import string_types
+from .compat import Iterable
 from .document import DynamicDocument
 
 
@@ -20,7 +19,7 @@ class SearchResult(Result):
 
         if doc_cls is None:
             doc_classes = ()
-        elif not isinstance(doc_cls, collections.Iterable):
+        elif not isinstance(doc_cls, Iterable):
             doc_classes = (doc_cls,)
         else:
             doc_classes = doc_cls

@@ -1,8 +1,11 @@
-import collections
 import operator
+from collections import OrderedDict
+from collections import namedtuple
 
 from elasticsearch import ElasticsearchException
 
+from .compat import Iterable
+from .compat import Mapping
 from .document import Document
 from .document import DynamicDocument
 from .expression import Bool
@@ -33,9 +36,9 @@ BOOL_OPERATORS_MAP = {
 }
 
 
-ESVersion = collections.namedtuple('ESVersion', ['major', 'minor', 'patch'])
+ESVersion = namedtuple('ESVersion', ['major', 'minor', 'patch'])
 
-ElasticsearchFeatures = collections.namedtuple(
+ElasticsearchFeatures = namedtuple(
     'ExpressionFeatures',
     [
         'supports_old_boolean_queries',
@@ -278,15 +281,15 @@ class CompiledExpression(Compiled):
     def visit_highlight(self, highlight):
         params = self.visit(highlight.params)
         if highlight.fields:
-            if isinstance(highlight.fields, collections.Mapping):
+            if isinstance(highlight.fields, Mapping):
                 compiled_fields = {}
                 for f, options in highlight.fields.items():
                     compiled_fields[self.visit(f)] = self.visit(options)
                 params['fields'] = compiled_fields
-            elif isinstance(highlight.fields, collections.Iterable):
+            elif isinstance(highlight.fields, Iterable):
                 compiled_fields = []
                 for f in highlight.fields:
-                    if isinstance(f, (HighlightedField, collections.Mapping)):
+                    if isinstance(f, (HighlightedField, Mapping)):
                         compiled_fields.append(self.visit(f))
                     else:
                         compiled_fields.append({self.visit(f): {}})
@@ -638,7 +641,7 @@ class CompiledMultiSearch(CompiledEndpoint):
 
 class CompiledPutMapping(CompiledEndpoint):
     def __init__(self, doc_cls_or_mapping, ordered=False, **kwargs):
-        self._dict_type = collections.OrderedDict if ordered else dict
+        self._dict_type = OrderedDict if ordered else dict
         self._dynamic_templates = []
         super(CompiledPutMapping, self).__init__(doc_cls_or_mapping, **kwargs)
 
@@ -675,7 +678,7 @@ class CompiledPutMapping(CompiledEndpoint):
             mapping['properties'] = self.visit(field_type.doc_cls.user_fields)
 
         if field._fields:
-            if isinstance(field._fields, collections.Mapping):
+            if isinstance(field._fields, Mapping):
                 for subfield_name, subfield in field._fields.items():
                     subfield_name = subfield.get_name() or subfield_name
                     subfield_mapping = next(iter(
@@ -781,7 +784,7 @@ class CompiledMultiGet(CompiledEndpoint):
 
     def __init__(self, docs_or_ids, **kwargs):
         default_doc_cls = kwargs.pop('doc_cls', None)
-        if isinstance(default_doc_cls, collections.Iterable):
+        if isinstance(default_doc_cls, Iterable):
             self.doc_cls_map = {
                 doc_cls.__doc_type__: doc_cls
                 for doc_cls in default_doc_cls
