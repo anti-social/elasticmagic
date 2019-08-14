@@ -98,7 +98,7 @@ class AsyncCluster(BaseCluster):
         )
 
     async def clear_scroll(self, scroll_id, **kwargs):
-        params = self._clear_scroll_params(locals())
+        params = self._preprocess_params(locals())
         return self._clear_scroll_result(
             await self._client.clear_scroll(**params)
         )
@@ -165,13 +165,19 @@ class AsyncCluster(BaseCluster):
         )
 
     async def refresh(self, index=None, **kwargs):
-        params = self._refresh_params(locals())
+        params = self._preprocess_params(locals())
         return self._refresh_result(
             await self._client.indices.refresh(**params)
         )
 
     async def flush(self, index=None, **kwargs):
-        params = self._flush_params(locals())
+        params = self._preprocess_params(locals())
         return self._flush_result(
             await self._client.indices.flush(**params)
+        )
+
+    async def flush_synced(self, index=None, **kwargs):
+        params = self._preprocess_params(locals())
+        return self._flush_result(
+            await self._client.indices.flush_synced(**params)
         )

@@ -18,13 +18,6 @@ from .util import clean_params
 MAX_RESULT_WINDOW = 10000
 
 
-def _preprocess_params(params):
-    params = params.copy()
-    params.pop('self')
-    kwargs = params.pop('kwargs') or {}
-    return params, kwargs
-
-
 class BaseCluster(with_metaclass(ABCMeta)):
     _index_cls = None
     _search_query_cls = None
@@ -76,26 +69,28 @@ class BaseCluster(with_metaclass(ABCMeta)):
         major, minor, patch = map(int, version_str.split('.'))
         return ESVersion(major, minor, patch)
 
-    def _get_params(self, params):
-        params, kwargs = _preprocess_params(params)
-        params.pop('doc_or_id')
+    def _preprocess_params(self, params, *pop_keys):
+        params = params.copy()
+        params.pop('self')
+        kwargs = params.pop('kwargs') or {}
+        for key in pop_keys:
+            params.pop(key)
         return clean_params(params, **kwargs)
+
+    def _get_params(self, params):
+        return self._preprocess_params(params, 'doc_or_id')
 
     def _multi_get_params(self, params):
-        params, kwargs = _preprocess_params(params)
-        params.pop('docs_or_ids')
-        return clean_params(params, **kwargs)
+        return self._preprocess_params(params, 'docs_or_ids')
 
     def _search_params(self, params):
-        params, kwargs = _preprocess_params(params)
-        params.pop('q')
-        return clean_params(params, **kwargs)
+        return self._preprocess_params(params, 'q')
 
     def _scroll_params(self, params):
-        params, kwargs = _preprocess_params(params)
+        params = self._preprocess_params(params)
         doc_cls = params.pop('doc_cls', None)
         instance_mapper = params.pop('instance_mapper', None)
-        return doc_cls, instance_mapper, clean_params(params, **kwargs)
+        return doc_cls, instance_mapper, params
 
     def _scroll_result(self, doc_cls, instance_mapper, raw_result):
         return SearchResult(
@@ -104,56 +99,36 @@ class BaseCluster(with_metaclass(ABCMeta)):
             instance_mapper=instance_mapper,
         )
 
-    def _clear_scroll_params(self, params):
-        params, kwargs = _preprocess_params(params)
-        return clean_params(params, **kwargs)
-
     def _clear_scroll_result(self, raw_result):
         return ClearScrollResult(raw_result)
 
     def _multi_search_params(self, params):
-        params, kwargs = _preprocess_params(params)
-        params.pop('queries')
+        params = self._preprocess_params(params, 'queries')
         if params.get('raise_on_error') is None:
             params['raise_on_error'] = self._multi_search_raise_on_error
-        return clean_params(params, **kwargs)
+        return params
 
     def _put_mapping_params(self, params):
-        params, kwargs = _preprocess_params(params)
-        params.pop('doc_cls_or_mapping')
-        return clean_params(params, **kwargs)
+        return self._preprocess_params(params, 'doc_cls_or_mapping')
 
     def _add_params(self, params):
         from . import actions
 
-        params, kwargs = _preprocess_params(params)
+        params = self._preprocess_params(params)
         docs = params.pop('docs')
-
-        # TODO: Override an index for action if there is index in params
-        return [actions.Index(d) for d in docs], clean_params(params, **kwargs)
+        return (
+            [actions.Index(d) for d in docs],
+            params
+        )
 
     def _delete_params(self, params):
-        params, kwargs = _preprocess_params(params)
-        params.pop('doc_or_id')
-        return clean_params(params, **kwargs)
+        return self._preprocess_params(params, 'doc_or_id')
 
     def _bulk_params(self, params):
-        params, kwargs = _preprocess_params(params)
-        params.pop('actions')
-        return clean_params(params, **kwargs)
-
-    def _refresh_params(self, params):
-        params, kwargs = _preprocess_params(params)
-        index = params.pop('index')
-        return clean_params(params, index=index, **kwargs)
+        return self._preprocess_params(params, 'actions')
 
     def _refresh_result(self, raw_result):
         return RefreshResult(raw_result)
-
-    def _flush_params(self, params):
-        params, kwargs = _preprocess_params(params)
-        index = params.pop('index')
-        return clean_params(params, index=index, **kwargs)
 
     def _flush_result(self, raw_result):
         return FlushResult(raw_result)
@@ -250,7 +225,7 @@ class Cluster(BaseCluster):
         )
 
     def clear_scroll(self, scroll_id, **kwargs):
-        params = self._clear_scroll_params(locals())
+        params = self._preprocess_params(locals())
         return self._clear_scroll_result(
             self._client.clear_scroll(**params)
         )
@@ -319,19 +294,19 @@ class Cluster(BaseCluster):
         )
 
     def refresh(self, index=None, **kwargs):
-        params = self._refresh_params(locals())
+        params = self._preprocess_params(locals())
         return self._refresh_result(
             self._client.indices.refresh(**params)
         )
 
     def flush(self, index=None, **kwargs):
-        params = self._flush_params(locals())
+        params = self._preprocess_params(locals())
         return self._flush_result(
             self._client.indices.flush(**params)
         )
 
     def flush_synced(self, index=None, **kwargs):
-        params = self._flush_params(locals())
+        params = self._preprocess_params(locals())
         return self._flush_result(
             self._client.indices.flush_synced(**params)
         )
