@@ -11,7 +11,7 @@ class AsyncCluster(BaseCluster):
 
     async def _do_request(self, compiler, *args, **kwargs):
         compiled_query = compiler(*args, **kwargs)
-        api_method = getattr(self._client, compiled_query.api_method)
+        api_method = compiled_query.api_method(self._client)
         if compiled_query.body is None:
             return compiled_query.process_result(
                 await api_method(**compiled_query.params)
@@ -121,9 +121,9 @@ class AsyncCluster(BaseCluster):
             ignore_conflicts=None, ignore_unavailable=None,
             master_timeout=None, timeout=None, **kwargs
     ):
-        mapping, params = self._put_mapping_params(locals())
-        return self._put_mapping_result(
-            await self._client.indices.put_mapping(body=mapping, **params)
+        return await self._do_request(
+            (await self.get_compiler()).compiled_put_mapping,
+            doc_cls_or_mapping, **self._put_mapping_params(locals())
         )
 
     async def add(

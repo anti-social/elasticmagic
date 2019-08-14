@@ -5,7 +5,6 @@ from .compiler import (
     ESVersion,
     get_compiler_by_es_version,
 )
-from .document import Document
 from .index import Index
 from .result import (
     ClearScrollResult,
@@ -121,20 +120,8 @@ class BaseCluster(with_metaclass(ABCMeta)):
 
     def _put_mapping_params(self, params):
         params, kwargs = _preprocess_params(params)
-        doc_cls_or_mapping = params.pop('doc_cls_or_mapping')
-        if issubclass(doc_cls_or_mapping, Document):
-            body = doc_cls_or_mapping.to_mapping()
-        else:
-            body = doc_cls_or_mapping
-        if params.get('doc_type', None) is None:
-            params['doc_type'] = getattr(
-                doc_cls_or_mapping, '__doc_type__', None
-            )
-        return body, clean_params(params, **kwargs)
-
-    def _put_mapping_result(self, raw_result):
-        # TODO Convert to nice result object
-        return raw_result
+        params.pop('doc_cls_or_mapping')
+        return clean_params(params, **kwargs)
 
     def _add_params(self, params):
         from . import actions
@@ -178,7 +165,7 @@ class Cluster(BaseCluster):
 
     def _do_request(self, compiler, *args, **kwargs):
         compiled_query = compiler(*args, **kwargs)
-        api_method = getattr(self._client, compiled_query.api_method)
+        api_method = compiled_query.api_method(self._client)
         if compiled_query.body is None:
             return compiled_query.process_result(
                 api_method(**compiled_query.params)
@@ -281,14 +268,14 @@ class Cluster(BaseCluster):
     msearch = multi_search
 
     def put_mapping(
-            self, doc_cls_or_mapping, index, doc_type=None,
+            self, doc_cls_or_mapping, index=None, doc_type=None,
             allow_no_indices=None, expand_wildcards=None,
             ignore_conflicts=None, ignore_unavailable=None,
             master_timeout=None, timeout=None, **kwargs
     ):
-        body, params = self._put_mapping_params(locals())
-        return self._put_mapping_result(
-            self._client.indices.put_mapping(body=body, **params)
+        return self._do_request(
+            self.get_compiler().compiled_put_mapping,
+            doc_cls_or_mapping, **self._put_mapping_params(locals())
         )
 
     def add(

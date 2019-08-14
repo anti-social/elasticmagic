@@ -173,3 +173,7 @@ class ClearScrollResult(Result):
         super(ClearScrollResult, self).__init__(raw_result)
         self.succeeded = raw_result.get('succeeded')
         self.num_freed = raw_result.get('num_freed')
+
+
+class PutMappingResult(Result):
+    pass

@@ -226,7 +226,7 @@ class Document(with_metaclass(DocumentMeta)):
     def to_mapping(cls, compiler=None, ordered=False):
         from .compiler import DefaultCompiler
 
-        mapping_compiler = (compiler or DefaultCompiler).compiled_mapping
+        mapping_compiler = (compiler or DefaultCompiler).compiled_put_mapping
         return mapping_compiler(cls, ordered=ordered).body
 
     @cached_property

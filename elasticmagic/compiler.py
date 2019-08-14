@@ -15,6 +15,7 @@ from .result import CountResult
 from .result import DeleteByQueryResult
 from .result import DeleteResult
 from .result import ExistsResult
+from .result import PutMappingResult
 from .result import SearchResult
 from .search import BaseSearchQuery
 from .search import SearchQueryContext
@@ -368,7 +369,6 @@ class CompiledExpression(Compiled):
 
 class CompiledSearchQuery(CompiledExpression):
     features = None
-    api_method = 'search'
 
     def __init__(self, query, **kwargs):
         if isinstance(query, BaseSearchQuery):
@@ -383,6 +383,9 @@ class CompiledSearchQuery(CompiledExpression):
         super(CompiledSearchQuery, self).__init__(
             expression, **kwargs
         )
+
+    def api_method(self, client):
+        return client.search
 
     def prepare_params(self, params):
         if isinstance(self.expression, SearchQueryContext):
@@ -505,7 +508,8 @@ class CompiledScalarQuery(CompiledSearchQuery):
 
 
 class CompiledCountQuery(CompiledScalarQuery):
-    api_method = 'count'
+    def api_method(self, client):
+        return client.count
 
     def process_result(self, raw_result):
         return CountResult(raw_result)
@@ -514,14 +518,17 @@ class CompiledCountQuery(CompiledScalarQuery):
 class CompiledExistsQuery(CompiledScalarQuery):
     def __init__(self, query, **kwargs):
         super(CompiledExistsQuery, self).__init__(query, **kwargs)
-        if self.features.supports_search_exists_api:
-            self.api_method = 'exists'
-        else:
-            self.api_method = 'search'
+        if not self.features.supports_search_exists_api:
             if self.body is None:
                 self.body = {}
             self.body['size'] = 0
             self.body['terminate_after'] = 1
+
+    def api_method(self, client):
+        if self.features.supports_search_exists_api:
+            return client.exists
+        else:
+            return client.search
 
     def process_result(self, raw_result):
         if self.features.supports_search_exists_api:
@@ -532,7 +539,8 @@ class CompiledExistsQuery(CompiledScalarQuery):
 
 
 class CompiledDeleteByQuery(CompiledScalarQuery):
-    api_method = 'delete_by_query'
+    def api_method(self, client):
+        return client.delete_by_query
 
     def process_result(self, raw_result):
         return DeleteByQueryResult(raw_result)
@@ -540,7 +548,6 @@ class CompiledDeleteByQuery(CompiledScalarQuery):
 
 class CompiledMultiSearch(Compiled):
     compiled_search = None
-    api_method = 'msearch'
 
     def __init__(self, queries, raise_on_error, **kwargs):
         self.expression = queries
@@ -560,6 +567,9 @@ class CompiledMultiSearch(Compiled):
                 params['type'] = params.pop('doc_type')
             self.body.append(params)
             self.body.append(compiled_query.body)
+
+    def api_method(self, client):
+        return client.msearch
 
     def process_result(self, raw_result):
         errors = []
@@ -581,11 +591,24 @@ class CompiledMultiSearch(Compiled):
         return [q.get_result() for q in self.expression]
 
 
-class CompiledMapping(Compiled):
-    def __init__(self, expression, ordered=False):
+class CompiledPutMapping(Compiled):
+    def __init__(self, doc_cls_or_mapping, ordered=False, **kwargs):
         self._dict_type = collections.OrderedDict if ordered else dict
         self._dynamic_templates = []
-        super(CompiledMapping, self).__init__(expression)
+        super(CompiledPutMapping, self).__init__(doc_cls_or_mapping, **kwargs)
+
+    def api_method(self, client):
+        return client.indices.put_mapping
+
+    def prepare_params(self, params):
+        if params.get('doc_type') is None:
+            params['doc_type'] = getattr(
+                self.expression, '__doc_type__', None
+            )
+        return params
+
+    def process_result(self, raw_result):
+        return PutMappingResult(raw_result)
 
     def _visit_dynamic_field(self, field):
         self._dynamic_templates.append(
@@ -658,8 +681,6 @@ class CompiledMapping(Compiled):
 
 
 class CompiledGet(Compiled):
-    api_method = 'get'
-
     META_FIELDS = ('_id', '_type', '_routing', '_parent', '_version')
 
     def __init__(self, doc_or_id, **kwargs):
@@ -690,12 +711,14 @@ class CompiledGet(Compiled):
             )
         self.params.update(kwargs)
 
+    def api_method(self, client):
+        return client.get
+
     def process_result(self, raw_result):
         return self.doc_cls(_hit=raw_result)
 
 
 class CompiledMultiGet(Compiled):
-    api_method = 'mget'
     compiled_get = None
 
     def __init__(self, docs_or_ids, **kwargs):
@@ -736,6 +759,9 @@ class CompiledMultiGet(Compiled):
         self.body = {'docs': docs}
         self.params = self.prepare_params(kwargs)
 
+    def api_method(self, client):
+        return client.mget
+
     def process_result(self, raw_result):
         docs = []
         for doc_cls, raw_doc in zip(self.doc_classes, raw_result['docs']):
@@ -753,14 +779,14 @@ class CompiledMultiGet(Compiled):
 
 
 class CompiledDelete(CompiledGet):
-    api_method = 'delete'
+    def api_method(self, client):
+        return client.delete
 
     def process_result(self, raw_result):
         return DeleteResult(raw_result)
 
 
 class CompiledBulk(Compiled):
-    api_method = 'bulk'
     compiled_meta = None
     compiled_source = None
 
@@ -774,6 +800,9 @@ class CompiledBulk(Compiled):
             if source is not None:
                 self.body.append(source)
         self.params = self.prepare_params(kwargs)
+
+    def api_method(self, client):
+        return client.bulk
 
     def process_result(self, raw_result):
         return BulkResult(raw_result)
@@ -943,6 +972,10 @@ class CompiledBulk_1_0(CompiledBulk):
     compiled_source = CompiledSource_1_0
 
 
+class CompiledPutMapping_1_0(CompiledPutMapping):
+    features = features_1_0
+
+
 class Compiler_1_0(object):
     compiled_expression = CompiledExpression_1_0
     compiled_search_query = CompiledExpression_1_0
@@ -951,11 +984,11 @@ class Compiler_1_0(object):
     compiled_exists_query = CompiledExistsQuery_1_0
     compiled_delete_by_query = CompiledDeleteByQuery_1_0
     compiled_multi_search = CompiledMultiSearch_1_0
-    compiled_mapping = CompiledMapping
     compiled_get = CompiledGet_1_0
     compiled_multi_get = CompiledMultiGet_1_0
     compiled_delete = CompiledDelete_1_0
     compiled_bulk = CompiledBulk_1_0
+    compiled_put_mapping = CompiledPutMapping_1_0
 
 
 features_2_0 = ElasticsearchFeatures(
@@ -1018,6 +1051,10 @@ class CompiledBulk_2_0(CompiledBulk):
     compiled_source = CompiledSource_2_0
 
 
+class CompiledPutMapping_2_0(CompiledPutMapping):
+    features = features_2_0
+
+
 class Compiler_2_0(object):
     compiled_expression = CompiledExpression_2_0
     compiled_search_query = CompiledSearchQuery_2_0
@@ -1026,11 +1063,11 @@ class Compiler_2_0(object):
     compiled_exists_query = CompiledExistsQuery_2_0
     compiled_delete_by_query = CompiledDeleteByQuery_2_0
     compiled_multi_search = CompiledMultiSearch_2_0
-    compiled_mapping = CompiledMapping
     compiled_get = CompiledGet_2_0
     compiled_multi_get = CompiledMultiGet_2_0
     compiled_delete = CompiledDelete_2_0
     compiled_bulk = CompiledBulk_2_0
+    compiled_put_mapping = CompiledPutMapping_2_0
 
 
 features_5_0 = ElasticsearchFeatures(
@@ -1092,6 +1129,10 @@ class CompiledBulk_5_0(CompiledBulk):
     compiled_source = CompiledSource_5_0
 
 
+class CompiledPutMapping_5_0(CompiledPutMapping):
+    features = features_5_0
+
+
 class Compiler_5_0(object):
     compiled_expression = CompiledExpression_5_0
     compiled_search_query = CompiledSearchQuery_5_0
@@ -1100,11 +1141,11 @@ class Compiler_5_0(object):
     compiled_exists_query = CompiledExistsQuery_5_0
     compiled_delete_by_query = CompiledDeleteByQuery_5_0
     compiled_multi_search = CompiledMultiSearch_5_0
-    compiled_mapping = CompiledMapping
     compiled_get = CompiledGet_5_0
     compiled_multi_get = CompiledMultiGet_5_0
     compiled_delete = CompiledDelete_5_0
     compiled_bulk = CompiledBulk_5_0
+    compiled_put_mapping = CompiledPutMapping_5_0
 
 
 Compiler10 = Compiler_1_0

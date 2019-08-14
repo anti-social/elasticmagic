@@ -592,7 +592,7 @@ class Field(Expression, FieldOperators):
     def to_mapping(self, compiler=None):
         from .compiler import DefaultCompiler
 
-        mapping_compiler = (compiler or DefaultCompiler).compiled_mapping
+        mapping_compiler = (compiler or DefaultCompiler).compiled_put_mapping
         return mapping_compiler(self).body
 
 
