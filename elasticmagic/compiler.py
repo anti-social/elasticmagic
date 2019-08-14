@@ -62,10 +62,10 @@ class MultiSearchError(ElasticsearchException):
 class Compiled(object):
     features = None
 
-    def __init__(self, expression, **kwargs):
+    def __init__(self, expression, params=None):
         self.expression = expression
         self.body = self.visit(expression)
-        self.params = self.prepare_params(kwargs)
+        self.params = self.prepare_params(params or {})
 
     def prepare_params(self, params):
         return params
@@ -388,7 +388,7 @@ class CompiledExpression(Compiled):
 class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
     features = None
 
-    def __init__(self, query, **kwargs):
+    def __init__(self, query, params=None):
         if isinstance(query, BaseSearchQuery):
             expression = query.get_context()
         elif query is None:
@@ -398,9 +398,7 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
                 'query': query,
             }
         self.query = query
-        super(CompiledSearchQuery, self).__init__(
-            expression, **kwargs
-        )
+        super(CompiledSearchQuery, self).__init__(expression, params)
 
     def api_method(self, client):
         return client.search
@@ -509,10 +507,10 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
 
 
 class CompiledScroll(CompiledEndpoint):
-    def __init__(self, **kwargs):
-        self.doc_cls = kwargs.pop('doc_cls', None)
-        self.instance_mapper = kwargs.pop('instance_mapper', None)
-        super(CompiledScroll, self).__init__(None, **kwargs)
+    def __init__(self, params, doc_cls=None, instance_mapper=None):
+        self.doc_cls = doc_cls
+        self.instance_mapper = instance_mapper
+        super(CompiledScroll, self).__init__(None, params)
 
     def api_method(self, client):
         return client.scroll
@@ -551,8 +549,8 @@ class CompiledCountQuery(CompiledScalarQuery):
 
 
 class CompiledExistsQuery(CompiledScalarQuery):
-    def __init__(self, query, **kwargs):
-        super(CompiledExistsQuery, self).__init__(query, **kwargs)
+    def __init__(self, query, params=None):
+        super(CompiledExistsQuery, self).__init__(query, params)
         if not self.features.supports_search_exists_api:
             if self.body is None:
                 self.body = {}
@@ -593,11 +591,11 @@ class CompiledMultiSearch(CompiledEndpoint):
         def __iter__(self):
             return iter(self.queries)
 
-    def __init__(self, queries, raise_on_error, **kwargs):
+    def __init__(self, queries, params=None, raise_on_error=False):
         self.raise_on_error = raise_on_error
         self.compiled_queries = []
         super(CompiledMultiSearch, self).__init__(
-            self._MultiQueries(queries), **kwargs
+            self._MultiQueries(queries), params
         )
 
     def api_method(self, client):
@@ -640,10 +638,10 @@ class CompiledMultiSearch(CompiledEndpoint):
 
 
 class CompiledPutMapping(CompiledEndpoint):
-    def __init__(self, doc_cls_or_mapping, ordered=False, **kwargs):
+    def __init__(self, doc_cls_or_mapping, params=None, ordered=False):
         self._dict_type = OrderedDict if ordered else dict
         self._dynamic_templates = []
-        super(CompiledPutMapping, self).__init__(doc_cls_or_mapping, **kwargs)
+        super(CompiledPutMapping, self).__init__(doc_cls_or_mapping, params)
 
     def api_method(self, client):
         return client.indices.put_mapping
@@ -731,32 +729,31 @@ class CompiledPutMapping(CompiledEndpoint):
 class CompiledGet(CompiledEndpoint):
     META_FIELDS = ('_id', '_type', '_routing', '_parent', '_version')
 
-    def __init__(self, doc_or_id, **kwargs):
-        self.doc_cls = kwargs.pop('doc_cls', None) or DynamicDocument
-        kwargs['doc_or_id'] = doc_or_id
-        super(CompiledGet, self).__init__(None, **kwargs)
+    def __init__(self, doc_or_id, params=None, doc_cls=None):
+        self.doc_or_id = doc_or_id
+        self.doc_cls = doc_cls or DynamicDocument
+        super(CompiledGet, self).__init__(None, params)
 
     def api_method(self, client):
         return client.get
 
     def prepare_params(self, params):
-        doc_or_id = params.pop('doc_or_id')
         get_params = {}
-        if isinstance(doc_or_id, Document):
-            doc = doc_or_id
+        if isinstance(self.doc_or_id, Document):
+            doc = self.doc_or_id
             for meta_field_name in self.META_FIELDS:
                 field_value = getattr(doc, meta_field_name, None)
                 param_name = meta_field_name.lstrip('_')
                 if field_value is not None:
                     get_params[param_name] = field_value
             self.doc_cls = doc.__class__
-        elif isinstance(doc_or_id, dict):
-            doc = doc_or_id
+        elif isinstance(self.doc_or_id, dict):
+            doc = self.doc_or_id
             get_params.update(doc)
             if doc.get('doc_cls'):
                 self.doc_cls = doc.pop('doc_cls')
         else:
-            doc_id = doc_or_id
+            doc_id = self.doc_or_id
             get_params.update({'id': doc_id})
 
         if get_params.get('doc_type') is None:
@@ -782,12 +779,12 @@ class CompiledMultiGet(CompiledEndpoint):
         def __iter__(self):
             return iter(self.docs_or_ids)
 
-    def __init__(self, docs_or_ids, **kwargs):
-        default_doc_cls = kwargs.pop('doc_cls', None)
+    def __init__(self, docs_or_ids, params=None, doc_cls=None):
+        default_doc_cls = doc_cls
         if isinstance(default_doc_cls, Iterable):
             self.doc_cls_map = {
-                doc_cls.__doc_type__: doc_cls
-                for doc_cls in default_doc_cls
+                _doc_cls.__doc_type__: _doc_cls
+                for _doc_cls in default_doc_cls
             }
             self.default_doc_cls = DynamicDocument
         elif default_doc_cls:
@@ -800,7 +797,7 @@ class CompiledMultiGet(CompiledEndpoint):
         self.expression = docs_or_ids
         self.doc_classes = []
         super(CompiledMultiGet, self).__init__(
-            self._DocsOrIds(docs_or_ids), **kwargs
+            self._DocsOrIds(docs_or_ids), params
         )
 
     def api_method(self, client):
@@ -864,8 +861,8 @@ class CompiledBulk(CompiledEndpoint):
         def __iter__(self):
             return iter(self.actions)
 
-    def __init__(self, actions, **kwargs):
-        super(CompiledBulk, self).__init__(self._Actions(actions), **kwargs)
+    def __init__(self, actions, params=None):
+        super(CompiledBulk, self).__init__(self._Actions(actions), params)
 
     def api_method(self, client):
         return client.bulk

@@ -43,7 +43,7 @@ class AsyncCluster(BaseCluster):
     ):
         return await self._do_request(
             (await self.get_compiler()).compiled_get,
-            doc_or_id, **self._get_params(locals())
+            doc_or_id, self._get_params(locals()), doc_cls=doc_cls
         )
 
     async def multi_get(
@@ -53,7 +53,7 @@ class AsyncCluster(BaseCluster):
     ):
         return await self._do_request(
             (await self.get_compiler()).compiled_multi_get,
-            docs_or_ids, **self._multi_get_params(locals())
+            docs_or_ids, self._multi_get_params(locals()), doc_cls=doc_cls
         )
 
     mget = multi_get
@@ -65,7 +65,7 @@ class AsyncCluster(BaseCluster):
     ):
         return await self._do_request(
             (await self.get_compiler()).compiled_search_query,
-            q, **self._search_params(locals())
+            q, self._search_params(locals())
         )
 
     async def count(
@@ -74,7 +74,7 @@ class AsyncCluster(BaseCluster):
     ):
         return await self._do_request(
             (await self.get_compiler()).compiled_count_query,
-            q, **self._search_params(locals())
+            q, self._search_params(locals())
         )
 
     async def exists(
@@ -83,7 +83,7 @@ class AsyncCluster(BaseCluster):
     ):
         return await self._do_request(
             (await self.get_compiler()).compiled_exists_query,
-            q, **self._search_params(locals())
+            q, self._search_params(locals())
         )
 
     async def scroll(
@@ -92,7 +92,7 @@ class AsyncCluster(BaseCluster):
     ):
         return await self._do_request(
             (await self.get_compiler()).compiled_scroll,
-            **self._preprocess_params(locals())
+            self._preprocess_params(locals())
         )
 
     async def clear_scroll(self, scroll_id, **kwargs):
@@ -106,9 +106,10 @@ class AsyncCluster(BaseCluster):
             routing=None, preference=None, search_type=None,
             raise_on_error=None, **kwargs
     ):
+        params, raise_on_error = self._multi_search_params(locals())
         return await self._do_request(
             (await self.get_compiler()).compiled_multi_search,
-            queries, **self._multi_search_params(locals())
+            queries, params, raise_on_error=raise_on_error
         )
 
     msearch = multi_search
@@ -121,7 +122,7 @@ class AsyncCluster(BaseCluster):
     ):
         return await self._do_request(
             (await self.get_compiler()).compiled_put_mapping,
-            doc_cls_or_mapping, **self._put_mapping_params(locals())
+            doc_cls_or_mapping, self._put_mapping_params(locals())
         )
 
     async def add(
@@ -140,7 +141,7 @@ class AsyncCluster(BaseCluster):
     ):
         return await self._do_request(
             (await self.get_compiler()).compiled_delete,
-            doc_or_id, **self._delete_params(locals())
+            doc_or_id, self._delete_params(locals()), doc_cls=doc_cls
         )
 
     async def delete_by_query(
@@ -150,7 +151,7 @@ class AsyncCluster(BaseCluster):
     ):
         return await self._do_request(
             (await self.get_compiler()).compiled_delete_by_query,
-            q, **self._search_params(locals())
+            q, self._search_params(locals())
         )
 
     async def bulk(
@@ -159,7 +160,7 @@ class AsyncCluster(BaseCluster):
     ):
         return await self._do_request(
             (await self.get_compiler()).compiled_bulk,
-            actions, **self._bulk_params(locals())
+            actions, self._bulk_params(locals())
         )
 
     async def refresh(self, index=None, **kwargs):

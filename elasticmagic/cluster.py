@@ -77,28 +77,26 @@ class BaseCluster(with_metaclass(ABCMeta)):
         return clean_params(params, **kwargs)
 
     def _get_params(self, params):
-        return self._preprocess_params(params, 'doc_or_id')
+        return self._preprocess_params(params, 'doc_or_id', 'doc_cls')
 
     def _multi_get_params(self, params):
-        return self._preprocess_params(params, 'docs_or_ids')
+        return self._preprocess_params(params, 'docs_or_ids', 'doc_cls')
 
     def _search_params(self, params):
         return self._preprocess_params(params, 'q')
 
     def _scroll_params(self, params):
-        params = self._preprocess_params(params)
-        doc_cls = params.pop('doc_cls', None)
-        instance_mapper = params.pop('instance_mapper', None)
-        return doc_cls, instance_mapper, params
+        return self._preprocess_params(params, 'doc_cls', 'instance_mapper')
 
     def _clear_scroll_result(self, raw_result):
         return ClearScrollResult(raw_result)
 
     def _multi_search_params(self, params):
         params = self._preprocess_params(params, 'queries')
-        if params.get('raise_on_error') is None:
-            params['raise_on_error'] = self._multi_search_raise_on_error
-        return params
+        raise_on_error = params.get(
+            'raise_on_error', self._multi_search_raise_on_error
+        )
+        return params, raise_on_error
 
     def _put_mapping_params(self, params):
         return self._preprocess_params(params, 'doc_cls_or_mapping')
@@ -114,7 +112,7 @@ class BaseCluster(with_metaclass(ABCMeta)):
         )
 
     def _delete_params(self, params):
-        return self._preprocess_params(params, 'doc_or_id')
+        return self._preprocess_params(params, 'doc_or_id', 'doc_cls')
 
     def _bulk_params(self, params):
         return self._preprocess_params(params, 'actions')
@@ -162,7 +160,7 @@ class Cluster(BaseCluster):
     ):
         return self._do_request(
             self.get_compiler().compiled_get,
-            doc_or_id, **self._get_params(locals())
+            doc_or_id, self._get_params(locals()), doc_cls=doc_cls
         )
 
     def multi_get(
@@ -172,7 +170,7 @@ class Cluster(BaseCluster):
     ):
         return self._do_request(
             self.get_compiler().compiled_multi_get,
-            docs_or_ids, **self._multi_get_params(locals())
+            docs_or_ids, self._multi_get_params(locals()), doc_cls=doc_cls
         )
 
     mget = multi_get
@@ -184,7 +182,7 @@ class Cluster(BaseCluster):
     ):
         return self._do_request(
             self.get_compiler().compiled_search_query,
-            q, **self._search_params(locals())
+            q, self._search_params(locals())
         )
 
     def count(
@@ -193,7 +191,7 @@ class Cluster(BaseCluster):
     ):
         return self._do_request(
             self.get_compiler().compiled_count_query,
-            q, **self._search_params(locals())
+            q, self._search_params(locals())
         )
 
     def exists(
@@ -202,7 +200,7 @@ class Cluster(BaseCluster):
     ):
         return self._do_request(
             self.get_compiler().compiled_exists_query,
-            q, **self._search_params(locals())
+            q, self._search_params(locals())
         )
 
     def scroll(
@@ -211,7 +209,8 @@ class Cluster(BaseCluster):
     ):
         return self._do_request(
             self.get_compiler().compiled_scroll,
-            **self._preprocess_params(locals())
+            self._scroll_params(locals()),
+            doc_cls=doc_cls, instance_mapper=instance_mapper
         )
 
     def clear_scroll(self, scroll_id, **kwargs):
@@ -225,9 +224,10 @@ class Cluster(BaseCluster):
             routing=None, preference=None, search_type=None,
             raise_on_error=None, **kwargs
     ):
+        params, raise_on_error = self._multi_search_params(locals())
         return self._do_request(
             self.get_compiler().compiled_multi_search,
-            queries, **self._multi_search_params(locals())
+            queries, params, raise_on_error=raise_on_error
         )
 
     msearch = multi_search
@@ -240,7 +240,7 @@ class Cluster(BaseCluster):
     ):
         return self._do_request(
             self.get_compiler().compiled_put_mapping,
-            doc_cls_or_mapping, **self._put_mapping_params(locals())
+            doc_cls_or_mapping, self._put_mapping_params(locals())
         )
 
     def add(
@@ -259,7 +259,7 @@ class Cluster(BaseCluster):
     ):
         return self._do_request(
             self.get_compiler().compiled_delete,
-            doc_or_id, **self._delete_params(locals())
+            doc_or_id, self._delete_params(locals()), doc_cls=doc_cls
         )
 
     def delete_by_query(
@@ -271,7 +271,7 @@ class Cluster(BaseCluster):
     ):
         return self._do_request(
             self.get_compiler().compiled_delete_by_query,
-            q, **self._search_params(locals())
+            q, self._search_params(locals())
         )
 
     def bulk(
@@ -280,7 +280,7 @@ class Cluster(BaseCluster):
     ):
         return self._do_request(
             self.get_compiler().compiled_bulk,
-            actions, **self._bulk_params(locals())
+            actions, self._bulk_params(locals())
         )
 
     def refresh(self, index=None, **kwargs):
