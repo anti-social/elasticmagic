@@ -490,6 +490,24 @@ class CompiledSearchQuery(CompiledExpression):
         return params
 
 
+class CompiledScroll(Compiled):
+    def __init__(self, **kwargs):
+        self.doc_cls = kwargs.pop('doc_cls', None)
+        self.instance_mapper = kwargs.pop('instance_mapper', None)
+        self.body = None
+        self.params = kwargs
+
+    def api_method(self, client):
+        return client.scroll
+
+    def process_result(self, raw_result):
+        return SearchResult(
+            raw_result,
+            doc_cls=self.doc_cls,
+            instance_mapper=self.instance_mapper,
+        )
+
+
 class CompiledScalarQuery(CompiledSearchQuery):
     def visit_search_query_context(self, query_ctx):
         params = {}
@@ -929,6 +947,10 @@ class CompiledSearchQuery_1_0(CompiledSearchQuery):
     features = features_1_0
 
 
+class CompiledScroll_1_0(CompiledScroll):
+    features = features_1_0
+
+
 class CompiledCountQuery_1_0(CompiledCountQuery):
     features = features_1_0
 
@@ -980,6 +1002,7 @@ class Compiler_1_0(object):
     compiled_expression = CompiledExpression_1_0
     compiled_search_query = CompiledExpression_1_0
     compiled_query = compiled_search_query
+    compiled_scroll = CompiledScroll_1_0
     compiled_count_query = CompiledCountQuery_1_0
     compiled_exists_query = CompiledExistsQuery_1_0
     compiled_delete_by_query = CompiledDeleteByQuery_1_0
@@ -1005,6 +1028,10 @@ class CompiledExpression_2_0(CompiledExpression):
 
 
 class CompiledSearchQuery_2_0(CompiledSearchQuery):
+    features = features_2_0
+
+
+class CompiledScroll_2_0(CompiledScroll):
     features = features_2_0
 
 
@@ -1059,6 +1086,7 @@ class Compiler_2_0(object):
     compiled_expression = CompiledExpression_2_0
     compiled_search_query = CompiledSearchQuery_2_0
     compiled_query = compiled_search_query
+    compiled_scroll = CompiledScroll_2_0
     compiled_count_query = CompiledCountQuery_2_0
     compiled_exists_query = CompiledExistsQuery_2_0
     compiled_delete_by_query = CompiledDeleteByQuery_2_0
@@ -1084,6 +1112,10 @@ class CompiledExpression_5_0(CompiledExpression):
 
 
 class CompiledSearchQuery_5_0(CompiledSearchQuery):
+    features = features_5_0
+
+
+class CompiledScroll_5_0(CompiledScroll):
     features = features_5_0
 
 
@@ -1137,6 +1169,7 @@ class Compiler_5_0(object):
     compiled_expression = CompiledExpression_5_0
     compiled_search_query = CompiledSearchQuery_5_0
     compiled_query = compiled_search_query
+    compiled_scroll = CompiledScroll_5_0
     compiled_count_query = CompiledCountQuery_5_0
     compiled_exists_query = CompiledExistsQuery_5_0
     compiled_delete_by_query = CompiledDeleteByQuery_5_0

@@ -10,7 +10,6 @@ from .result import (
     ClearScrollResult,
     FlushResult,
     RefreshResult,
-    SearchResult,
 )
 from .search import SearchQuery
 from .util import clean_params
@@ -91,13 +90,6 @@ class BaseCluster(with_metaclass(ABCMeta)):
         doc_cls = params.pop('doc_cls', None)
         instance_mapper = params.pop('instance_mapper', None)
         return doc_cls, instance_mapper, params
-
-    def _scroll_result(self, doc_cls, instance_mapper, raw_result):
-        return SearchResult(
-            raw_result,
-            doc_cls=doc_cls,
-            instance_mapper=instance_mapper,
-        )
 
     def _clear_scroll_result(self, raw_result):
         return ClearScrollResult(raw_result)
@@ -217,11 +209,9 @@ class Cluster(BaseCluster):
             self, scroll_id, scroll, doc_cls=None, instance_mapper=None,
             **kwargs
     ):
-        doc_cls, instance_mapper, params = self._scroll_params(locals())
-        return self._scroll_result(
-            doc_cls,
-            instance_mapper,
-            self._client.scroll(**params)
+        return self._do_request(
+            self.get_compiler().compiled_scroll,
+            **self._preprocess_params(locals())
         )
 
     def clear_scroll(self, scroll_id, **kwargs):
