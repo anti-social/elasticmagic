@@ -907,7 +907,7 @@ class CompiledMeta(Compiled):
         meta = {}
         if isinstance(doc, Document):
             self._populate_meta_from_document(doc, meta)
-            if doc.__doc_type__:
+            if hasattr(doc, '__doc_type__') and doc.__doc_type__:
                 meta['_type'] = doc.__doc_type__
         else:
             self._populate_meta_from_dict(doc, meta)
@@ -926,7 +926,7 @@ class CompiledMeta(Compiled):
                 meta[field_name] = value
 
 
-class CompiledSource(Compiled):
+class CompiledSource(CompiledExpression):
     def __init__(self, doc_or_action, validate=False):
         self._validate = validate
         super(CompiledSource, self).__init__(doc_or_action)
@@ -936,16 +936,21 @@ class CompiledSource(Compiled):
             return None
 
         if isinstance(action.doc, Document):
-            source = self.visit(action.doc)
+            doc = self.visit(action.doc)
         else:
-            source = action.doc.copy()
+            doc = action.doc.copy()
             for exclude_field in Document.mapping_fields:
-                source.pop(exclude_field.get_field().get_name(), None)
+                doc.pop(exclude_field.get_field().get_name(), None)
 
         if action.__action_name__ == 'update':
-            if source:
-                source = {'doc': source}
-            source.update(action.source_params)
+            script = action.source_params.pop('script', None)
+            if script:
+                source = {'script': self.visit(script)}
+            else:
+                source = {'doc': doc}
+            source.update(self.visit(action.source_params))
+        else:
+            source = doc
 
         return source
 

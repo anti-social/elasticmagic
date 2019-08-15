@@ -25,40 +25,21 @@ class Action(object):
             'refresh': refresh,
             'consistency': consistency,
         }, **kwargs)
+        self.source_params = {}
 
-        # if isinstance(self.doc, Document):
-        #     self.meta = self.doc.to_meta()
-        #     self.source = self.doc.to_source()
-        # else:
-        #     self.meta = {}
-        #     for field_name in META_FIELD_NAMES:
-        #         value = self.doc.get(field_name)
-        #         if value:
-        #             self.meta[field_name] = value
-        #
-        #     self.source = self.doc.copy()
-        #     for exclude_field in Document.mapping_fields:
-        #         self.source.pop(exclude_field.get_field().get_name(), None)
+    def to_meta(self, compiler=None):
+        from .compiler import DefaultCompiler
 
-        # self.meta.update(clean_params({
-        #     '_index': index,
-        #     '_type': doc_type,
-        #     '_routing': routing,
-        #     '_parent': parent,
-        #     '_timestamp': timestamp,
-        #     '_ttl': ttl,
-        #     '_version': version,
-        #     '_version_type': version_type,
-        #     'refresh': refresh,
-        #     'consistency': consistency,
-        # }))
-        # self.meta.update(clean_params(kwargs))
+        compiler = compiler or DefaultCompiler
+        meta_compiler = compiler.compiled_bulk.compiled_meta
+        return meta_compiler(self).body
 
-    def get_meta(self):
-        return self.meta
+    def to_source(self, compiler=None):
+        from .compiler import DefaultCompiler
 
-    def get_source(self):
-        return self.source
+        compiler = compiler or DefaultCompiler
+        source_compiler = compiler.compiled_bulk.compiled_source
+        return source_compiler(self).body
 
 
 class Index(Action):
