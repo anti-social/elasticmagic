@@ -93,7 +93,7 @@ class BaseCluster(with_metaclass(ABCMeta)):
 
     def _multi_search_params(self, params):
         params = self._preprocess_params(params, 'queries')
-        raise_on_error = params.get(
+        raise_on_error = params.pop(
             'raise_on_error', self._multi_search_raise_on_error
         )
         return params, raise_on_error
