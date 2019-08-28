@@ -53,15 +53,15 @@ class Index(BaseIndex):
         return self._cluster.get_compiler()
 
     def get(
-            self, id, doc_cls=None, doc_type=None, source=None,
+            self, doc_or_id, doc_cls=None, doc_type=None, source=None,
             realtime=None, routing=None, preference=None, refresh=None,
             version=None, version_type=None, **kwargs
     ):
         return self._cluster.get(
-            self._name, id, doc_cls=doc_cls, doc_type=doc_type, source=source,
-            realtime=realtime, routing=routing, preference=preference,
-            refresh=refresh, version=version, version_type=version_type,
-            **kwargs
+            doc_or_id, index=self._name, doc_cls=doc_cls, doc_type=doc_type,
+            source=source, realtime=realtime, routing=routing,
+            preference=preference, refresh=refresh, version=version,
+            version_type=version_type, **kwargs
         )
 
     def multi_get(
@@ -111,7 +111,7 @@ class Index(BaseIndex):
         )
 
     def exists(
-            self, q, doc_type=None, refresh=None, routing=None, **kwargs
+            self, q=None, doc_type=None, refresh=None, routing=None, **kwargs
     ):
         return self._cluster.exists(
             q, index=self._name, doc_type=doc_type, refresh=refresh,

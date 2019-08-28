@@ -1,18 +1,17 @@
 import warnings
-import collections
 from abc import ABCMeta
 from collections import namedtuple, OrderedDict
 
 from .compat import zip, with_metaclass
+from .compat import Iterable
 from .util import _with_clone
 from .util import merge_params, collect_doc_classes
-from .compiler import DefaultCompiler
 from .expression import Params, Source, Highlight, Rescore
 
 
 __all__ = [
-    'BaseSearchQuery', 'SearchQuery', 'FunctionScoreSettings',
-    'GENERAL_FUNCTION_SCORE', 'BOOST_FUNCTION_SCORE'
+    'BaseSearchQuery', 'SearchQuery', 'SearchQueryContext',
+    'FunctionScoreSettings', 'GENERAL_FUNCTION_SCORE', 'BOOST_FUNCTION_SCORE'
 ]
 
 
@@ -43,8 +42,6 @@ BOOST_FUNCTION_SCORE = FunctionScoreSettings(
 
 
 class BaseSearchQuery(with_metaclass(ABCMeta)):
-    __visit_name__ = 'search_query'
-
     _q = None
     _source = None
     _fields = None
@@ -694,6 +691,8 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
     @property
     def _index_or_cluster(self):
+        if not self._index and not self._cluster:
+            raise ValueError('Search query is not bound to index or cluster')
         return self._index or self._cluster
 
     def _get_doc_cls(self):
@@ -702,16 +701,14 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         else:
             doc_cls = self._collect_doc_classes()
 
-        if not doc_cls:
-            warnings.warn('Cannot determine document class')
-            return None
-
         return doc_cls
 
     def _get_doc_type(self, doc_cls=None):
         doc_cls = doc_cls or self._get_doc_cls()
-        if isinstance(doc_cls, collections.Iterable):
-            return ','.join(set(d.__doc_type__ for d in doc_cls))
+        if isinstance(doc_cls, Iterable):
+            return ','.join(set(
+                d.__doc_type__ for d in doc_cls if hasattr(d, '__doc_type__')
+            ))
         elif self._doc_type:
             return self._doc_type
         elif doc_cls:
@@ -726,26 +723,9 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         """Compiles the query and returns python dictionary that can be
         serialized to json.
         """
-        return (compiler or DefaultCompiler).compiled_query(self).params
+        from .compiler import DefaultCompiler
 
-    def _prepare_search_params(self):
-        if not self._index and not self._cluster:
-            raise ValueError("Search query is not bound to index or cluster")
-
-        doc_cls = self._get_doc_cls()
-        doc_type = self._get_doc_type(doc_cls)
-        search_params = self._search_params or {}
-        return dict(doc_type=doc_type, **search_params)
-
-    def _exists_query(self):
-        return (
-            self.with_terminate_after(1)
-                .limit(0)
-                .function_score(None)
-                .boost_score(None)
-                .aggs(None)
-                .rescore(None)
-        )
+        return (compiler or DefaultCompiler).compiled_query(self).body
 
     def slice(self, offset, limit):
         """Applies offset and limit to the query."""
@@ -825,9 +805,7 @@ class SearchQuery(BaseSearchQuery):
         if self._cached_result is not None:
             return self._cached_result
 
-        self._cached_result = self._index_or_cluster.search(
-            self, **self._prepare_search_params()
-        )
+        self._cached_result = self._index_or_cluster.search(self)
         return self._cached_result
 
     @property
@@ -850,16 +828,16 @@ class SearchQuery(BaseSearchQuery):
         """Executes current query and returns number of documents matched the
         query. Uses `count api <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-count.html>`_.
         """  # noqa:E501
-        return self._index_or_cluster.count(
-            self, **self._prepare_search_params()
-        ).count
+        return self._index_or_cluster.count(self).count
 
     def exists(self):
         """Executes current query optimized for checking that
         there are at least 1 matching document. This method is an analogue of
         the old `exists search api <https://www.elastic.co/guide/en/elasticsearch/reference/2.4/search-exists.html>`_
+        For Elasticsearch 5.x and more it emulates the exists API using
+        `size=0` and `terminate_after=1`.
         """  # noqa:E501
-        return self._exists_query().get_result().total >= 1
+        return self._index_or_cluster.exists(self).exists
 
     def delete(
             self, conflicts=None, refresh=None, timeout=None,
@@ -876,7 +854,6 @@ class SearchQuery(BaseSearchQuery):
         """  # noqa:E501
         return self._index_or_cluster.delete_by_query(
             self,
-            doc_type=self._get_doc_type(),
             conflicts=conflicts,
             refresh=refresh,
             timeout=timeout,
@@ -899,6 +876,8 @@ class SearchQuery(BaseSearchQuery):
 
 
 class SearchQueryContext(object):
+    __visit_name__ = 'search_query_context'
+
     def __init__(self, search_query):
         self.q = search_query._q
         self.source = search_query._source
@@ -919,8 +898,14 @@ class SearchQueryContext(object):
 
         self.cluster = search_query._cluster
         self.index = search_query._index
-        self.doc_cls = search_query._doc_cls
-        self.doc_type = search_query._doc_type
+        doc_cls = search_query._doc_cls
+        if not doc_cls:
+            self.doc_classes = search_query._collect_doc_classes()
+        elif not isinstance(doc_cls, Iterable):
+            self.doc_classes = [doc_cls]
+        else:
+            self.doc_classes = doc_cls
+        self.doc_type = search_query._get_doc_type(self.doc_classes)
         self.script_fields = search_query._script_fields
 
         self.search_params = search_query._search_params

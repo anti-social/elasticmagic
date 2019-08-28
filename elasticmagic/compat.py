@@ -1,6 +1,11 @@
 import sys
 PY2 = sys.version_info[0] == 2
 
+try:
+    from collections.abc import Iterable, Mapping  # noqa:F401
+except ImportError:
+    from collections import Iterable, Mapping  # noqa:F401
+
 
 if not PY2:
     text_type = str

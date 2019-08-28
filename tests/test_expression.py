@@ -6,6 +6,7 @@ from elasticmagic import (
     SpanFirst, SpanMulti, SpanNear, SpanNot, SpanOr, SpanTerm, 
     Nested, HasParent, HasChild,
 )
+from elasticmagic.compiler import Compiler_1_0
 from elasticmagic.expression import BooleanExpression
 from elasticmagic.types import (
     Type, String, Integer, List, GeoPoint, Completion,
@@ -361,10 +362,11 @@ class ExpressionTestCase(BaseTestCase):
                         }
                     },
                     {
-                        "prefix" : { "name.second" : "ba" }
+                        "prefix": {"name.second": "ba"}
                     }
                 ]
-            }
+            },
+            compiler=Compiler_1_0
         )
         self.assert_expression(
             And(
@@ -384,12 +386,13 @@ class ExpressionTestCase(BaseTestCase):
                             }
                         },
                         {
-                            "prefix" : { "name.second" : "ba" }
+                            "prefix": {"name.second": "ba"}
                         }
                     ],
                     "_cache": True
                 }
-            }
+            },
+            compiler=Compiler_1_0
         )
 
         self.assert_expression(
@@ -403,13 +406,15 @@ class ExpressionTestCase(BaseTestCase):
                         "term": {"name.nick": "kimchy"}
                     }
                 ]
-            }
+            },
+            compiler=Compiler_1_0
         )
         self.assert_expression(
             And(Or(Term(f.name.nick, 'kimchy'))),
             {
                 "term": {"name.nick": "kimchy"}
-            }
+            },
+            compiler=Compiler_1_0
         )
 
         self.assert_expression(
@@ -425,7 +430,8 @@ class ExpressionTestCase(BaseTestCase):
                         }
                     }
                 }
-            }
+            },
+            compiler=Compiler_1_0
         )
         self.assert_expression(
             Not(
@@ -444,7 +450,8 @@ class ExpressionTestCase(BaseTestCase):
                     },
                     "_cache": True
                 }
-            }
+            },
+            compiler=Compiler_1_0
         )
 
         self.assert_expression(

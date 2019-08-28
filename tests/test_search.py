@@ -7,7 +7,6 @@ from elasticmagic import (
     FunctionScore, Sort, QueryRescorer, agg
 )
 from elasticmagic.search import FunctionScoreSettings
-from elasticmagic.compiler import QueryCompiled20
 from elasticmagic.function import FieldValueFactor, Weight
 from elasticmagic.util import collect_doc_classes
 from elasticmagic.types import String, Integer, Float, Object
@@ -57,7 +56,10 @@ class SearchQueryTest(BaseTestCase):
         )
         self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
 
-        sq = SearchQuery(Term(f.user, 'kimchy'), _compiler=QueryCompiled20).filter(f.age >= 16)
+        sq = (
+            SearchQuery(Term(f.user, 'kimchy'))
+            .filter(f.age >= 16)
+        )
         self.assert_expression(
             sq,
             {
@@ -854,7 +856,7 @@ class SearchQueryTest(BaseTestCase):
         self.client.count.assert_called_with(
             index='test',
             doc_type='car',
-            body=None,
+            body={},
         )
 
         self.client.count.return_value = {
@@ -878,6 +880,15 @@ class SearchQueryTest(BaseTestCase):
             body={
                 "query": {
                     "bool": {
+                        "must": {
+                            "function_score": {
+                                "functions": [
+                                    {
+                                        "boost_factor": 3
+                                    }
+                                ]
+                            }
+                        },
                         "filter": {
                             "term": {"status": 1}
                         }
@@ -897,8 +908,10 @@ class SearchQueryTest(BaseTestCase):
         self.client.search.assert_called_with(
             index='test',
             doc_type='car',
-            body={'size': 0},
-            terminate_after=1,
+            body={
+                'size': 0,
+                'terminate_after': 1,
+            },
         )
 
         self.client.search.return_value = {
@@ -916,15 +929,24 @@ class SearchQueryTest(BaseTestCase):
             doc_type='car',
             body={
                 "size": 0,
+                "terminate_after": 1,
                 "query": {
                     "bool": {
                         "filter": {
                             "term": {"status": 1}
+                        },
+                        "must": {
+                            "function_score": {
+                                "functions": [
+                                    {
+                                        "boost_factor": 3
+                                    }
+                                ]
+                            }
                         }
                     }
                 }
             },
-            terminate_after=1,
         )
 
     def test_search(self):

@@ -1,6 +1,7 @@
-import collections
 from functools import wraps
 from itertools import chain
+
+from .compat import Iterable, Mapping
 
 
 def _with_clone(fn):
@@ -60,8 +61,8 @@ def maybe_float(value):
 
 
 def merge_params(params, args, kwargs):
-    assert isinstance(args, collections.Iterable), args
-    assert isinstance(kwargs, collections.Mapping), kwargs
+    assert isinstance(args, Iterable), args
+    assert isinstance(kwargs, Mapping), kwargs
     new = dict()
     for a in args:
         new.update(a)

@@ -161,20 +161,40 @@ class IndexTest(BaseTestCase):
         )
 
     def test_exists(self):
-        self.index.exists(MatchAll(), 'car', refresh=True)
-        self.client.search_exists.assert_called_with(
+        self.client.search = Mock(return_value={
+            'hits': {
+                'total': 1
+            }
+        })
+        self.assertEqual(
+            self.index.exists(MatchAll(), 'car', refresh=True).exists,
+            True
+        )
+        self.client.search.assert_called_with(
             index='test',
             doc_type='car',
             body={
                 'query': {
                     'match_all': {}
-                }
+                },
+                'size': 0,
+                'terminate_after': 1,
             },
             refresh=True
         )
 
-        result = self.index.exists(self.index['car'].name.match('Subaru'), 'car')
-        self.client.search_exists.assert_called_with(
+        self.client.search = Mock(return_value={
+            'hits': {
+                'total': 0
+            }
+        })
+        self.assertEqual(
+            self.index.exists(
+                self.index['car'].name.match('Subaru'), 'car'
+            ).exists,
+            False
+        )
+        self.client.search.assert_called_with(
             index='test',
             doc_type='car',
             body={
@@ -182,7 +202,9 @@ class IndexTest(BaseTestCase):
                     'match': {
                         'name': 'Subaru'
                     }
-                }
+                },
+                'size': 0,
+                'terminate_after': 1,
             }
         )
 
@@ -295,11 +317,13 @@ class IndexTest(BaseTestCase):
             id='test_id',
         )
 
-        self.assertRaises(
-            AssertionError,
-            lambda: self.index.delete('test_id')
+        self.index.delete('test_id')
+        self.client.delete.assert_called_with(
+            id='test_id',
+            index='test',
+            doc_type=None,
         )
-        
+
     def test_delete_by_query(self):
         self.index.delete_by_query(
             self.index['car'].vendor == 'Ford', doc_type='car', routing='Ford'

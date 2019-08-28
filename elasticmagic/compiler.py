@@ -1,30 +1,74 @@
 import operator
-import collections
+from collections import OrderedDict
+from collections import namedtuple
 
+from elasticsearch import ElasticsearchException
+
+from .compat import Iterable
+from .compat import Mapping
+from .document import Document
+from .document import DynamicDocument
 from .expression import Bool
 from .expression import Exists
 from .expression import Filtered
 from .expression import FunctionScore
 from .expression import HighlightedField
+from .result import BulkResult
+from .result import CountResult
+from .result import DeleteByQueryResult
+from .result import DeleteResult
+from .result import ExistsResult
+from .result import PutMappingResult
+from .result import SearchResult
+from .search import BaseSearchQuery
+from .search import SearchQueryContext
+from .types import ValidationError
 
 
-OPERATORS = {
+BOOL_OPERATOR_NAMES = {
     operator.and_: 'and',
     operator.or_: 'or',
 }
 
+BOOL_OPERATORS_MAP = {
+    operator.and_: Bool.must,
+    operator.or_: Bool.should,
+}
 
-ESVersion = collections.namedtuple('ESVersion', ['major', 'minor', 'patch'])
+
+ESVersion = namedtuple('ESVersion', ['major', 'minor', 'patch'])
+
+ElasticsearchFeatures = namedtuple(
+    'ExpressionFeatures',
+    [
+        'supports_old_boolean_queries',
+        'supports_missing_query',
+        'supports_parent_id_query',
+        'supports_bool_filter',
+        'supports_search_exists_api',
+        'stored_fields_param',
+    ]
+)
 
 
 class CompilationError(Exception):
     pass
 
 
+class MultiSearchError(ElasticsearchException):
+    pass
+
+
 class Compiled(object):
-    def __init__(self, expression):
+    features = None
+
+    def __init__(self, expression, params=None):
         self.expression = expression
-        self.params = self.visit(self.expression)
+        self.body = self.visit(expression)
+        self.params = self.prepare_params(params or {})
+
+    def prepare_params(self, params):
+        return params
 
     def visit(self, expr, **kwargs):
         visit_name = None
@@ -56,7 +100,12 @@ class Compiled(object):
         return [self.visit(v) for v in lst]
 
 
-class ExpressionCompiled(Compiled):
+class CompiledEndpoint(Compiled):
+    def process_result(self, raw_result):
+        raise NotImplementedError
+
+
+class CompiledExpression(Compiled):
     def visit_literal(self, expr):
         return expr.obj
 
@@ -109,9 +158,13 @@ class ExpressionCompiled(Compiled):
         }
 
     def visit_missing(self, expr):
-        return {
-            'missing': self.visit(expr.params)
-        }
+        if self.features.supports_missing_query:
+            return {
+                'missing': self.visit(expr.params)
+            }
+        return self.visit(
+            Bool.must_not(Exists(**expr.params))
+        )
 
     def visit_multi_match(self, expr):
         params = {
@@ -138,6 +191,10 @@ class ExpressionCompiled(Compiled):
         return params
 
     def visit_boolean_expression(self, expr):
+        if not self.features.supports_old_boolean_queries:
+            return self.visit(
+                BOOL_OPERATORS_MAP[expr.operator](*expr.expressions)
+            )
         if expr.params:
             params = {
                 'filters': [self.visit(e) for e in expr.expressions]
@@ -146,10 +203,12 @@ class ExpressionCompiled(Compiled):
         else:
             params = [self.visit(e) for e in expr.expressions]
         return {
-            OPERATORS[expr.operator]: params
+            BOOL_OPERATOR_NAMES[expr.operator]: params
         }
 
     def visit_not(self, expr):
+        if not self.features.supports_old_boolean_queries:
+            return self.visit(Bool.must_not(expr))
         if expr.params:
             params = {
                 'filter': self.visit(expr.expr)
@@ -222,20 +281,36 @@ class ExpressionCompiled(Compiled):
     def visit_highlight(self, highlight):
         params = self.visit(highlight.params)
         if highlight.fields:
-            if isinstance(highlight.fields, collections.Mapping):
+            if isinstance(highlight.fields, Mapping):
                 compiled_fields = {}
                 for f, options in highlight.fields.items():
                     compiled_fields[self.visit(f)] = self.visit(options)
                 params['fields'] = compiled_fields
-            elif isinstance(highlight.fields, collections.Iterable):
+            elif isinstance(highlight.fields, Iterable):
                 compiled_fields = []
                 for f in highlight.fields:
-                    if isinstance(f, (HighlightedField, collections.Mapping)):
+                    if isinstance(f, (HighlightedField, Mapping)):
                         compiled_fields.append(self.visit(f))
                     else:
                         compiled_fields.append({self.visit(f): {}})
                 params['fields'] = compiled_fields
         return params
+
+    def visit_parent_id(self, expr):
+        if not self.features.supports_parent_id_query:
+            raise CompilationError(
+                'Elasticsearch before 5.x does not have support for '
+                'parent_id query'
+            )
+        child_type = expr.child_type
+        if hasattr(child_type, '__doc_type__'):
+            child_type = child_type.__doc_type__
+        if not child_type:
+            raise CompilationError(
+                "Cannot detect child type, specify 'child_type' argument"
+            )
+
+        return {'parent_id': {'type': child_type, 'id': expr.parent_id}}
 
     def visit_has_parent(self, expr):
         params = self.visit(expr.params)
@@ -310,25 +385,41 @@ class ExpressionCompiled(Compiled):
         return params
 
 
-class ExpressionCompiled50(ExpressionCompiled):
-    def visit_missing(self, expr):
-        return self.visit(
-            Bool.must_not(Exists(**expr.params))
+class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
+    features = None
+
+    def __init__(self, query, params=None):
+        if isinstance(query, BaseSearchQuery):
+            expression = query.get_context()
+        elif query is None:
+            expression = None
+        else:
+            expression = {
+                'query': query,
+            }
+        self.query = query
+        super(CompiledSearchQuery, self).__init__(expression, params)
+
+    def api_method(self, client):
+        return client.search
+
+    def prepare_params(self, params):
+        if isinstance(self.expression, SearchQueryContext):
+            search_params = dict(self.expression.search_params)
+            search_params.update(params)
+            if self.expression.doc_type:
+                search_params['doc_type'] = self.expression.doc_type
+        else:
+            search_params = params
+        return search_params
+
+    def process_result(self, raw_result):
+        return SearchResult(
+            raw_result,
+            aggregations=self.expression.aggregations,
+            doc_cls=self.expression.doc_classes,
+            instance_mapper=self.expression.instance_mapper,
         )
-
-    def visit_parent_id(self, expr):
-        child_type = expr.child_type
-        if hasattr(child_type, '__doc_type__'):
-            child_type = child_type.__doc_type__
-        if not child_type:
-            raise CompilationError(
-                "Cannot detect child type, specify 'child_type' argument")
-
-        return {'parent_id': {'type': child_type, 'id': expr.parent_id}}
-
-
-class QueryCompiled(Compiled):
-    compiled_expression = ExpressionCompiled
 
     @classmethod
     def get_query(cls, query_context, wrap_function_score=True):
@@ -353,46 +444,49 @@ class QueryCompiled(Compiled):
             query_context, wrap_function_score=wrap_function_score
         )
         if query_context.filters:
+            filter_clauses = list(query_context.iter_filters())
+            if cls.features.supports_bool_filter:
+                return Bool(must=q, filter=Bool.must(*filter_clauses))
             return Filtered(
-                query=q, filter=Bool.must(*query_context.iter_filters())
+                query=q, filter=Bool.must(*filter_clauses)
             )
         return q
 
     @classmethod
-    def get_post_filter(self, query_context):
+    def get_post_filter(cls, query_context):
         post_filters = list(query_context.iter_post_filters())
         if post_filters:
             return Bool.must(*post_filters)
 
-    def visit_expression(self, expr):
-        return self.compiled_expression(expr).params
-
-    def visit_search_query(self, query):
+    def visit_search_query_context(self, query_ctx):
         params = {}
-        query_ctx = query.get_context()
 
         q = self.get_filtered_query(query_ctx)
         if q is not None:
-            params['query'] = self.visit_expression(q)
+            params['query'] = self.visit(q)
 
         post_filter = self.get_post_filter(query_ctx)
         if post_filter:
-            params['post_filter'] = self.visit_expression(post_filter)
+            params['post_filter'] = self.visit(post_filter)
 
         if query_ctx.order_by:
-            params['sort'] = self.visit_expression(query_ctx.order_by)
+            params['sort'] = self.visit(query_ctx.order_by)
         if query_ctx.source:
-            params['_source'] = self.visit_expression(query_ctx.source)
+            params['_source'] = self.visit(query_ctx.source)
         if query_ctx.fields is not None:
+            stored_fields_param = self.features.stored_fields_param
             if query_ctx.fields is True:
-                params['fields'] = '*'
+                params[stored_fields_param] = '*'
             elif query_ctx.fields is False:
-                params['fields'] = []
+                pass
             else:
-                params['fields'] = self.visit_expression(query_ctx.fields)
+                params[stored_fields_param] = self.visit(
+                    query_ctx.fields
+                )
         if query_ctx.aggregations:
-            params['aggregations'] = self.visit_expression(
-                query_ctx.aggregations)
+            params['aggregations'] = self.visit(
+                query_ctx.aggregations
+            )
         if query_ctx.limit is not None:
             params['size'] = query_ctx.limit
         if query_ctx.offset is not None:
@@ -400,46 +494,167 @@ class QueryCompiled(Compiled):
         if query_ctx.min_score is not None:
             params['min_score'] = query_ctx.min_score
         if query_ctx.rescores:
-            params['rescore'] = self.visit_expression(query_ctx.rescores)
+            params['rescore'] = self.visit(query_ctx.rescores)
         if query_ctx.suggest:
-            params['suggest'] = self.visit_expression(query_ctx.suggest)
+            params['suggest'] = self.visit(query_ctx.suggest)
         if query_ctx.highlight:
-            params['highlight'] = self.visit_expression(query_ctx.highlight)
+            params['highlight'] = self.visit(query_ctx.highlight)
         if query_ctx.script_fields:
-            params['script_fields'] = self.visit_expression(
+            params['script_fields'] = self.visit(
                 query_ctx.script_fields
             )
         return params
 
 
-class QueryCompiled20(QueryCompiled):
-    @classmethod
-    def get_filtered_query(cls, query_context, wrap_function_score=True):
-        q = cls.get_query(
-            query_context, wrap_function_score=wrap_function_score)
-        if query_context.filters:
-            return Bool(
-                must=q, filter=Bool.must(*query_context.iter_filters())
-            )
-        return q
+class CompiledScroll(CompiledEndpoint):
+    def __init__(self, params, doc_cls=None, instance_mapper=None):
+        self.doc_cls = doc_cls
+        self.instance_mapper = instance_mapper
+        super(CompiledScroll, self).__init__(None, params)
+
+    def api_method(self, client):
+        return client.scroll
+
+    def process_result(self, raw_result):
+        return SearchResult(
+            raw_result,
+            doc_cls=self.doc_cls,
+            instance_mapper=self.instance_mapper,
+        )
 
 
-class QueryCompiled50(QueryCompiled20):
-    compiled_expression = ExpressionCompiled50
+class CompiledScalarQuery(CompiledSearchQuery):
+    def visit_search_query_context(self, query_ctx):
+        params = {}
 
-    def visit_search_query(self, query):
-        params = super(QueryCompiled50, self).visit_search_query(query)
-        stored_fields = params.pop('fields', None)
-        if stored_fields:
-            params['stored_fields'] = stored_fields
+        q = self.get_filtered_query(query_ctx)
+        if q is not None:
+            params['query'] = self.visit(q)
+
+        post_filter = self.get_post_filter(query_ctx)
+        if post_filter:
+            params['post_filter'] = self.visit(post_filter)
+
+        if query_ctx.min_score is not None:
+            params['min_score'] = query_ctx.min_score
         return params
 
 
-class MappingCompiled(Compiled):
-    def __init__(self, expression, ordered=False):
-        self._dict_type = collections.OrderedDict if ordered else dict
+class CompiledCountQuery(CompiledScalarQuery):
+    def api_method(self, client):
+        return client.count
+
+    def process_result(self, raw_result):
+        return CountResult(raw_result)
+
+
+class CompiledExistsQuery(CompiledScalarQuery):
+    def __init__(self, query, params=None):
+        super(CompiledExistsQuery, self).__init__(query, params)
+        if not self.features.supports_search_exists_api:
+            if self.body is None:
+                self.body = {}
+            self.body['size'] = 0
+            self.body['terminate_after'] = 1
+
+    def api_method(self, client):
+        if self.features.supports_search_exists_api:
+            return client.exists
+        else:
+            return client.search
+
+    def process_result(self, raw_result):
+        if self.features.supports_search_exists_api:
+            return ExistsResult(raw_result)
+        return ExistsResult({
+            'exists': SearchResult(raw_result).total >= 1
+        })
+
+
+class CompiledDeleteByQuery(CompiledScalarQuery):
+    def api_method(self, client):
+        return client.delete_by_query
+
+    def process_result(self, raw_result):
+        return DeleteByQueryResult(raw_result)
+
+
+class CompiledMultiSearch(CompiledEndpoint):
+    compiled_search = None
+
+    class _MultiQueries(object):
+        __visit_name__ = 'multi_queries'
+
+        def __init__(self, queries):
+            self.queries = queries
+
+        def __iter__(self):
+            return iter(self.queries)
+
+    def __init__(self, queries, params=None, raise_on_error=False):
+        self.raise_on_error = raise_on_error
+        self.compiled_queries = []
+        super(CompiledMultiSearch, self).__init__(
+            self._MultiQueries(queries), params
+        )
+
+    def api_method(self, client):
+        return client.msearch
+
+    def visit_multi_queries(self, expr):
+        body = []
+        for q in expr.queries:
+            compiled_query = self.compiled_search(q)
+            self.compiled_queries.append(compiled_query)
+            params = compiled_query.params
+            if isinstance(compiled_query.expression, SearchQueryContext):
+                index = compiled_query.expression.index
+                if index:
+                    params['index'] = index.get_name()
+            if 'doc_type' in params:
+                params['type'] = params.pop('doc_type')
+            body.append(params)
+            body.append(compiled_query.body)
+        return body
+
+    def process_result(self, raw_result):
+        errors = []
+        for raw, query, compiled_query in zip(
+                raw_result['responses'], self.expression, self.compiled_queries
+        ):
+            result = compiled_query.process_result(raw)
+            query._cached_result = result
+            if result.error:
+                errors.append(result.error)
+
+        if self.raise_on_error and errors:
+            if len(errors) == 1:
+                error_msg = '1 query was failed'
+            else:
+                error_msg = '{} queries were failed'.format(len(errors))
+            raise MultiSearchError(error_msg, errors)
+
+        return [q.get_result() for q in self.expression]
+
+
+class CompiledPutMapping(CompiledEndpoint):
+    def __init__(self, doc_cls_or_mapping, params=None, ordered=False):
+        self._dict_type = OrderedDict if ordered else dict
         self._dynamic_templates = []
-        super(MappingCompiled, self).__init__(expression)
+        super(CompiledPutMapping, self).__init__(doc_cls_or_mapping, params)
+
+    def api_method(self, client):
+        return client.indices.put_mapping
+
+    def prepare_params(self, params):
+        if params.get('doc_type') is None:
+            params['doc_type'] = getattr(
+                self.expression, '__doc_type__', None
+            )
+        return params
+
+    def process_result(self, raw_result):
+        return PutMappingResult(raw_result)
 
     def _visit_dynamic_field(self, field):
         self._dynamic_templates.append(
@@ -461,7 +676,7 @@ class MappingCompiled(Compiled):
             mapping['properties'] = self.visit(field_type.doc_cls.user_fields)
 
         if field._fields:
-            if isinstance(field._fields, collections.Mapping):
+            if isinstance(field._fields, Mapping):
                 for subfield_name, subfield in field._fields.items():
                     subfield_name = subfield.get_name() or subfield_name
                     subfield_mapping = next(iter(
@@ -511,45 +726,392 @@ class MappingCompiled(Compiled):
         }
 
 
-class Compiler(object):
-    def compiled_expression(self, *args, **kwargs):
-        raise NotImplementedError()
+class CompiledGet(CompiledEndpoint):
+    META_FIELDS = ('_id', '_type', '_routing', '_parent', '_version')
 
-    def compiled_query(self, *args, **kwargs):
-        raise NotImplementedError()
+    def __init__(self, doc_or_id, params=None, doc_cls=None):
+        self.doc_or_id = doc_or_id
+        self.doc_cls = doc_cls or DynamicDocument
+        super(CompiledGet, self).__init__(None, params)
 
-    def compiled_mapping(self, *args, **kwargs):
-        raise NotImplementedError()
+    def api_method(self, client):
+        return client.get
+
+    def prepare_params(self, params):
+        get_params = {}
+        if isinstance(self.doc_or_id, Document):
+            doc = self.doc_or_id
+            for meta_field_name in self.META_FIELDS:
+                field_value = getattr(doc, meta_field_name, None)
+                param_name = meta_field_name.lstrip('_')
+                if field_value is not None:
+                    get_params[param_name] = field_value
+            self.doc_cls = doc.__class__
+        elif isinstance(self.doc_or_id, dict):
+            doc = self.doc_or_id
+            get_params.update(doc)
+            if doc.get('doc_cls'):
+                self.doc_cls = doc.pop('doc_cls')
+        else:
+            doc_id = self.doc_or_id
+            get_params.update({'id': doc_id})
+
+        if get_params.get('doc_type') is None:
+            get_params['doc_type'] = getattr(
+                self.doc_cls, '__doc_type__', None
+            )
+        get_params.update(params)
+        return get_params
+
+    def process_result(self, raw_result):
+        return self.doc_cls(_hit=raw_result)
 
 
-class Compiler10(Compiler):
-    compiled_expression = QueryCompiled.compiled_expression
+class CompiledMultiGet(CompiledEndpoint):
+    compiled_get = None
 
-    compiled_query = QueryCompiled
+    class _DocsOrIds(object):
+        __visit_name__ = 'docs_or_ids'
 
-    compiled_mapping = MappingCompiled
+        def __init__(self, docs_or_ids):
+            self.docs_or_ids = docs_or_ids
+
+        def __iter__(self):
+            return iter(self.docs_or_ids)
+
+    def __init__(self, docs_or_ids, params=None, doc_cls=None):
+        default_doc_cls = doc_cls
+        if isinstance(default_doc_cls, Iterable):
+            self.doc_cls_map = {
+                _doc_cls.__doc_type__: _doc_cls
+                for _doc_cls in default_doc_cls
+            }
+            self.default_doc_cls = DynamicDocument
+        elif default_doc_cls:
+            self.doc_cls_map = {}
+            self.default_doc_cls = default_doc_cls
+        else:
+            self.doc_cls_map = {}
+            self.default_doc_cls = DynamicDocument
+
+        self.expression = docs_or_ids
+        self.doc_classes = []
+        super(CompiledMultiGet, self).__init__(
+            self._DocsOrIds(docs_or_ids), params
+        )
+
+    def api_method(self, client):
+        return client.mget
+
+    def visit_docs_or_ids(self, docs_or_ids):
+        docs = []
+        for doc_or_id in docs_or_ids:
+            if isinstance(doc_or_id, Document):
+                doc = doc_or_id.to_meta()
+                doc_cls = doc_or_id.__class__
+            elif isinstance(doc_or_id, dict):
+                doc = doc_or_id
+                doc_cls = doc_or_id.pop('doc_cls', None)
+            else:
+                doc = {'_id': doc_or_id}
+                doc_cls = None
+
+            if not doc.get('_type') and hasattr(doc_cls, '__doc_type__'):
+                doc['_type'] = doc_cls.__doc_type__
+
+            docs.append(doc)
+            self.doc_classes.append(doc_cls)
+
+        return {'docs': docs}
+
+    def process_result(self, raw_result):
+        docs = []
+        for doc_cls, raw_doc in zip(self.doc_classes, raw_result['docs']):
+            doc_type = raw_doc.get('_type')
+            if doc_cls is None and doc_type in self.doc_cls_map:
+                doc_cls = self.doc_cls_map.get(doc_type)
+            if doc_cls is None:
+                doc_cls = self.default_doc_cls
+
+            if raw_doc.get('found'):
+                docs.append(doc_cls(_hit=raw_doc))
+            else:
+                docs.append(None)
+        return docs
 
 
-class Compiler20(Compiler10):
-    compiled_expression = QueryCompiled20.compiled_expression
+class CompiledDelete(CompiledGet):
+    def api_method(self, client):
+        return client.delete
 
-    compiled_query = QueryCompiled20
-
-
-class Compiler50(Compiler20):
-    compiled_expression = QueryCompiled50.compiled_expression
-
-    compiled_query = QueryCompiled50
+    def process_result(self, raw_result):
+        return DeleteResult(raw_result)
 
 
-DefaultCompiler = Compiler50
+class CompiledBulk(CompiledEndpoint):
+    compiled_meta = None
+    compiled_source = None
+
+    class _Actions(object):
+        __visit_name__ = 'actions'
+
+        def __init__(self, actions):
+            self.actions = actions
+
+        def __iter__(self):
+            return iter(self.actions)
+
+    def __init__(self, actions, params=None):
+        super(CompiledBulk, self).__init__(self._Actions(actions), params)
+
+    def api_method(self, client):
+        return client.bulk
+
+    def visit_actions(self, actions):
+        body = []
+        for action in actions:
+            meta = self.compiled_meta(action).body
+            body.append(meta)
+            source = self.compiled_source(action).body
+            if source is not None:
+                body.append(source)
+        return body
+
+    def process_result(self, raw_result):
+        return BulkResult(raw_result)
+
+
+class CompiledMeta(Compiled):
+    META_FIELD_NAMES = (
+        '_id',
+        '_index',
+        '_type',
+        '_routing',
+        '_parent',
+        '_timestamp',
+        '_ttl',
+        '_version',
+    )
+
+    def __init__(self, doc_or_action):
+        super(CompiledMeta, self).__init__(doc_or_action)
+
+    def visit_action(self, action):
+        meta = self.visit_document(action.doc)
+        meta.update(action.meta_params)
+        return {
+            action.__action_name__: meta
+        }
+
+    def visit_document(self, doc):
+        meta = {}
+        if isinstance(doc, Document):
+            self._populate_meta_from_document(doc, meta)
+            if hasattr(doc, '__doc_type__') and doc.__doc_type__:
+                meta['_type'] = doc.__doc_type__
+        else:
+            self._populate_meta_from_dict(doc, meta)
+        return meta
+
+    def _populate_meta_from_document(self, doc, meta):
+        for field_name in self.META_FIELD_NAMES:
+            value = getattr(doc, field_name, None)
+            if value:
+                meta[field_name] = value
+
+    def _populate_meta_from_dict(self, doc, meta):
+        for field_name in self.META_FIELD_NAMES:
+            value = doc.get(field_name)
+            if value:
+                meta[field_name] = value
+
+
+class CompiledSource(CompiledExpression):
+    def __init__(self, doc_or_action, validate=False):
+        self._validate = validate
+        super(CompiledSource, self).__init__(doc_or_action)
+
+    def visit_action(self, action):
+        if action.__action_name__ == 'delete':
+            return None
+
+        if isinstance(action.doc, Document):
+            doc = self.visit(action.doc)
+        else:
+            doc = action.doc.copy()
+            for exclude_field in Document.mapping_fields:
+                doc.pop(exclude_field.get_field().get_name(), None)
+
+        if action.__action_name__ == 'update':
+            script = action.source_params.pop('script', None)
+            if script:
+                source = {'script': self.visit(script)}
+            else:
+                source = {'doc': doc}
+            source.update(self.visit(action.source_params))
+        else:
+            source = doc
+
+        return source
+
+    def visit_document(self, doc):
+        res = {}
+        for key, value in doc.__dict__.items():
+            if key in doc.__class__.mapping_fields:
+                continue
+
+            attr_field = doc.__class__.fields.get(key)
+            if attr_field:
+                if value is None or value == '' or value == []:
+                    if (
+                            self._validate and
+                            attr_field.get_field()._mapping_options.get(
+                                'required'
+                            )
+                    ):
+                        raise ValidationError("'{}' is required".format(
+                            attr_field.get_attr_name()
+                        ))
+                    continue
+                value = attr_field.get_type() \
+                    .from_python(value, validate=self._validate)
+                res[attr_field._field._name] = value
+
+        for attr_field in doc._fields.values():
+            if (
+                    self._validate
+                    and attr_field.get_field()._mapping_options.get('required')
+                    and attr_field.get_field().get_name() not in res
+            ):
+                raise ValidationError(
+                    "'{}' is required".format(attr_field.get_attr_name())
+                )
+
+        return res
+
+
+def _featured_compiler(elasticsearch_features):
+    def inject_features(cls):
+        class _CompiledExpression(CompiledExpression):
+            features = elasticsearch_features
+
+        class _CompiledSearchQuery(CompiledSearchQuery):
+            features = elasticsearch_features
+
+        class _CompiledScroll(CompiledScroll):
+            features = elasticsearch_features
+
+        class _CompiledCountQuery(CompiledCountQuery):
+            features = elasticsearch_features
+
+        class _CompiledExistsQuery(CompiledExistsQuery):
+            features = elasticsearch_features
+
+        class _CompiledDeleteByQuery(CompiledDeleteByQuery):
+            features = elasticsearch_features
+
+        class _CompiledMultiSearch(CompiledMultiSearch):
+            features = elasticsearch_features
+            compiled_search = _CompiledSearchQuery
+
+        class _CompiledGet(CompiledGet):
+            features = elasticsearch_features
+
+        class _CompiledMultiGet(CompiledMultiGet):
+            features = elasticsearch_features
+
+        class _CompiledDelete(CompiledDelete):
+            features = elasticsearch_features
+
+        class _CompiledMeta(CompiledMeta):
+            features = elasticsearch_features
+
+        class _CompiledSource(CompiledSource):
+            features = elasticsearch_features
+
+        class _CompiledBulk(CompiledBulk):
+            features = elasticsearch_features
+            compiled_meta = _CompiledMeta
+            compiled_source = _CompiledSource
+
+        class _CompiledPutMapping(CompiledPutMapping):
+            features = elasticsearch_features
+
+        cls.compiled_expression = _CompiledExpression
+        cls.compiled_search_query = _CompiledSearchQuery
+        cls.compiled_query = cls.compiled_search_query
+        cls.compiled_scroll = _CompiledScroll
+        cls.compiled_count_query = _CompiledCountQuery
+        cls.compiled_exists_query = _CompiledExistsQuery
+        cls.compiled_delete_by_query = _CompiledDeleteByQuery
+        cls.compiled_multi_search = _CompiledMultiSearch
+        cls.compiled_get = _CompiledGet
+        cls.compiled_multi_get = _CompiledMultiGet
+        cls.compiled_delete = _CompiledDelete
+        cls.compiled_bulk = _CompiledBulk
+        cls.compiled_put_mapping = _CompiledPutMapping
+        return cls
+
+    return inject_features
+
+
+@_featured_compiler(
+    ElasticsearchFeatures(
+        supports_old_boolean_queries=True,
+        supports_missing_query=True,
+        supports_parent_id_query=False,
+        supports_bool_filter=False,
+        supports_search_exists_api=True,
+        stored_fields_param='fields',
+    )
+)
+class Compiler_1_0(object):
+    pass
+
+
+@_featured_compiler(
+    ElasticsearchFeatures(
+        supports_old_boolean_queries=False,
+        supports_missing_query=True,
+        supports_parent_id_query=False,
+        supports_bool_filter=True,
+        supports_search_exists_api=True,
+        stored_fields_param='fields',
+    )
+)
+class Compiler_2_0(object):
+    pass
+
+
+@_featured_compiler(
+    ElasticsearchFeatures(
+        supports_old_boolean_queries=False,
+        supports_missing_query=False,
+        supports_parent_id_query=True,
+        supports_bool_filter=True,
+        supports_search_exists_api=False,
+        stored_fields_param='stored_fields',
+    )
+)
+class Compiler_5_0(object):
+    pass
+
+
+Compiler10 = Compiler_1_0
+
+Compiler20 = Compiler_2_0
+
+Compiler50 = Compiler_5_0
+
+# TODO: Got rid of the default compiler
+DefaultCompiler = Compiler_5_0
 
 
 def get_compiler_by_es_version(es_version):
-    if es_version.major == 1:
-        return Compiler10
+    if es_version.major <= 1:
+        return Compiler_1_0
     elif es_version.major == 2:
-        return Compiler20
+        return Compiler_2_0
     elif es_version.major == 5:
-        return Compiler50
-    return DefaultCompiler
+        return Compiler_5_0
+    return Compiler_5_0
