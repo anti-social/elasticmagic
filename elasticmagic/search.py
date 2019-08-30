@@ -1,3 +1,8 @@
+"""
+.. testsetup:: *
+
+   from elasticmagic.compiler import Compiler_5_0
+"""
 import warnings
 from abc import ABCMeta
 from collections import namedtuple, OrderedDict
@@ -131,7 +136,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         .. _fields_arg:
 
         :param \\*fields: list of fields which should be returned by
-        elasticsearch. Can be one of the following types:
+           elasticsearch. Can be one of the following types:
 
            - field expression, for example: ``PostDocument.title``
            - ``str`` means field name or glob pattern. For example: 
@@ -152,7 +157,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
         .. testcode:: source
 
-           assert search_query.to_dict() == {'_source': ['title', 'user.*']}
+           assert search_query.to_dict(Compiler_5_0) == {'_source': ['title', 'user.*']}
 
         See `source filtering <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-source-filtering.html>`_
         for more information.
@@ -177,7 +182,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
         .. testcode:: stored_fields
 
-           assert search_query.to_dict() == {'stored_fields': ['rank']}
+           assert search_query.to_dict(Compiler_5_0) == {'stored_fields': ['rank']}
 
         See `stored fields <https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-store.html>`_ and
         `stored fields filtering <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-stored-fields.html>`_
@@ -231,7 +236,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
            }
 
            # FIXME
-           # assert search_query.to_dict() == {
+           # assert search_query.to_dict(Compiler_5_0) == {
            #     'script_fields': {
            #         'rating': {
            #             'script': {
@@ -256,7 +261,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         ``_score`` for every matching document.
 
         :param q: query expression. Existing query can be cancelled by passing
-        ``None``.
+           ``None``.
 
         .. testcode:: query
 
@@ -265,7 +270,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
         .. testcode:: query
 
-           assert search_query.to_dict() == {
+           assert search_query.to_dict(Compiler_5_0) == {
                'query': {'match': {'title': {
                    'query': 'test',
                    'minimum_should_match': '100%'}}}}
@@ -295,7 +300,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
         .. testcode:: filter
 
-           assert search_query.to_dict() == {
+           assert search_query.to_dict(Compiler_5_0) == {
                'query': {'bool': {'filter': {'bool': {'must': [
                    {'term': {'status': 'published'}},
                    {'range': {
@@ -342,7 +347,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
                PostDocument.publish_date.desc(),
                PostDocument._score,
            )
-           assert search_query.to_dict() == {
+           assert search_query.to_dict(Compiler_5_0) == {
                'sort': [
                    {'publish_date': 'desc'},
                    '_score'
@@ -355,7 +360,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         .. testcode:: order_by
 
            search_query = SearchQuery().order_by(None)
-           assert search_query.to_dict() == {}
+           assert search_query.to_dict(Compiler_5_0) == {}
         """  # noqa:E501
         if len(orders) == 1 and orders[0] is None:
             if '_order_by' in self.__dict__:
@@ -369,7 +374,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         to the search query.
 
         :param \\*aggs: dictionaries with aggregations. Can be ``None`` that
-        cleans up previous aggregations.
+           cleans up previous aggregations.
 
         After executing the query you can get aggregation result by its name
         calling :meth:`SearchResult.get_aggregation` method.
@@ -384,7 +389,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
         .. testcode:: aggs
 
-           assert search_query.to_dict() == {
+           assert search_query.to_dict(Compiler_5_0) == {
                'aggregations': {
                    'stars': {'terms': {'field': 'stars', 'size': 50},
                        'aggregations': {
@@ -443,7 +448,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
         .. testcode:: function_score
 
-           assert search_query.to_dict() == {
+           assert search_query.to_dict(Compiler_5_0) == {
                'query': {
                    'function_score': {
                        'query': {'match': {'title': 'test'}},
@@ -487,7 +492,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
         .. testcode:: boost_score
 
-           assert search_query.to_dict() == {
+           assert search_query.to_dict(Compiler_5_0) == {
                'query': {
                    'function_score': {
                        'query': {
@@ -723,9 +728,8 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         """Compiles the query and returns python dictionary that can be
         serialized to json.
         """
-        from .compiler import DefaultCompiler
-
-        return (compiler or DefaultCompiler).compiled_query(self).body
+        compiler = compiler or self.get_compiler()
+        return compiler.compiled_query(self).body
 
     def slice(self, offset, limit):
         """Applies offset and limit to the query."""
@@ -795,7 +799,10 @@ class SearchQuery(BaseSearchQuery):
     """
 
     def get_compiler(self):
-        return self._index_or_cluster.get_compiler().compiled_query
+        return self._index_or_cluster.get_compiler()
+
+    def get_query_compiler(self):
+        return self.get_compiler().compiled_query
 
     def get_result(self):
         """Executes current query and returns processed :class:`SearchResult`

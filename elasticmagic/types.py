@@ -12,7 +12,7 @@ try:
 except ImportError:
     GEOHASH_IMPORTED = False
 
-from .compat import text_type, string_types
+from .compat import binary_type, text_type, string_types
 
 
 def instantiate(typeobj, *args, **kwargs):
@@ -26,30 +26,32 @@ class ValidationError(ValueError):
 
 
 class Type(object):
+    python_type = None
+
     def __init__(self):
+        self.sub_type = None
         self.doc_cls = None
 
     def to_python(self, value):
         if value is None:
             return None
+        if self.python_type is not None:
+            return self.python_type(value)
         return value
 
     def to_python_single(self, value):
         return self.to_python(value)
 
-    def from_python(self, value, validate=False):
+    def from_python(self, value, compiler, validate=False):
         return value
 
 
 class String(Type):
     __visit_name__ = 'string'
 
-    def to_python(self, value):
-        if value is None:
-            return None
-        return text_type(value)
+    python_type = text_type
 
-    def from_python(self, value,  validate=False):
+    def from_python(self, value, compiler, validate=False):
         return text_type(value)
 
 
@@ -62,12 +64,12 @@ class Text(String):
 
 
 class _Int(Type):
-    def to_python(self, value):
-        if value is None:
-            return None
-        return int(value)
+    MIN_VALUE = None
+    MAX_VALUE = None
 
-    def from_python(self, value, validate=False):
+    python_type = int
+
+    def from_python(self, value, compiler, validate=False):
         if validate:
             try:
                 value = int(value)
@@ -114,12 +116,9 @@ class Long(_Int):
 
 
 class _Float(Type):
-    def to_python(self, value):
-        if value is None:
-            return None
-        return float(value)
+    python_type = float
 
-    def from_python(self, value, validate=False):
+    def from_python(self, value, compiler, validate=False):
         if validate:
             try:
                 value = float(value)
@@ -141,6 +140,8 @@ class Double(_Float):
 class Date(Type):
     __visit_name__ = 'date'
 
+    python_type = datetime.datetime
+
     # def __init__(self, format=None):
     #     self.format = format
 
@@ -149,7 +150,7 @@ class Date(Type):
             return None
         return dateutil.parser.parse(value)
 
-    def from_python(self, value, validate=True):
+    def from_python(self, value, compiler, validate=True):
         if validate:
             if not isinstance(value, datetime.datetime):
                 raise ValidationError('Value must be datetime.datetime object')
@@ -159,6 +160,8 @@ class Date(Type):
 class Boolean(Type):
     __visit_name__ = 'boolean'
 
+    python_type = bool
+
     def to_python(self, value):
         if value is None:
             return None
@@ -166,19 +169,21 @@ class Boolean(Type):
             return False
         return True
 
-    def from_python(self, value, validate=True):
+    def from_python(self, value, compiler, validate=True):
         return bool(value)
 
 
 class Binary(Type):
     __visit_name__ = 'binary'
 
+    python_type = binary_type
+
     def to_python(self, value):
         if value is None:
             return None
         return base64.b64decode(value)
 
-    def from_python(self, value, validate=False):
+    def from_python(self, value, compiler, validate=False):
         try:
             return base64.b64encode(value).decode()
         except (ValueError, TypeError):
@@ -198,7 +203,9 @@ class Ip(Type):
         r'(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
     )
 
-    def from_python(self, value, validate=False):
+    python_type = text_type
+
+    def from_python(self, value, compiler, validate=False):
         if validate:
             try:
                 if not self.IPV4_REGEXP.match(value):
@@ -215,6 +222,10 @@ class Object(Type):
     def __init__(self, doc_cls):
         self.doc_cls = doc_cls
 
+    @property
+    def python_type(self):
+        return self.doc_cls
+
     def to_python(self, value):
         if value is None:
             return None
@@ -222,9 +233,9 @@ class Object(Type):
             return value
         return self.doc_cls(_hit={'_source': value})
 
-    def from_python(self, value, validate=False):
+    def from_python(self, value, compiler, validate=False):
         if isinstance(value, self.doc_cls):
-            return value.to_source(validate=validate)
+            return value.to_source(compiler, validate=validate)
         return value
 
 
@@ -233,6 +244,8 @@ class Nested(Object):
 
 
 class List(Type):
+    python_type = list
+
     def __init__(self, sub_type):
         self.sub_type = instantiate(sub_type)
 
@@ -247,7 +260,7 @@ class List(Type):
     def to_python(self, value):
         if value is None:
             return None
-        if not isinstance(value, list):
+        if not isinstance(value, self.python_type):
             value = [value]
         return [self.sub_type.to_python(v) for v in value]
 
@@ -256,16 +269,21 @@ class List(Type):
         if v:
             return v[0]
 
-    def from_python(self, value, validate=False):
-        if not isinstance(value, list):
+    def from_python(self, value, compiler, validate=False):
+        if not isinstance(value, self.python_type):
             value = [value]
-        return [self.sub_type.from_python(v, validate=validate) for v in value]
+        return [
+            self.sub_type.from_python(v, compiler, validate=validate)
+            for v in value
+        ]
 
 
 class GeoPoint(Type):
     __visit_name__ = 'geo_point'
 
     LAT_LON_SEPARATOR = ','
+
+    python_type = dict
 
     def to_python(self, value):
         if value is None:
@@ -281,7 +299,7 @@ class GeoPoint(Type):
             value = [value.get('lat'), value.get('lon')]
         return {'lat': float(value[0]), 'lon': float(value[1])}
 
-    def from_python(self, value, validate=False):
+    def from_python(self, value, compiler, validate=False):
         if validate:
             if not isinstance(value, dict):
                 raise ValidationError(
@@ -301,10 +319,12 @@ class GeoPoint(Type):
 class Completion(Type):
     __visit_name__ = 'completion'
 
+    python_type = dict
+
     def to_python(self, value):
         return value
 
-    def from_python(self, value, validate=False):
+    def from_python(self, value, compiler, validate=False):
         if validate:
             if isinstance(value, str):
                 return value
@@ -349,12 +369,15 @@ class Completion(Type):
 class Percolator(Type):
     __visit_name__ = 'percolator'
 
-    def from_python(self, value, validate=False):
+    python_type = dict
+
+    def from_python(self, value, compiler, validate=False):
         if hasattr(value, 'to_elastic'):
-            value = value.to_elastic()
+            value = value.to_elastic(compiler)
         if validate:
             if not isinstance(value, dict):
                 raise ValidationError(
                     'Value must be dictionary or expression: {!r}'
-                    .format(value))
+                    .format(value)
+                )
         return value

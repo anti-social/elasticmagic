@@ -7,6 +7,7 @@ from elasticmagic import (
     Nested, HasParent, HasChild,
 )
 from elasticmagic.compiler import Compiler_1_0
+from elasticmagic.compiler import Compiler_5_0
 from elasticmagic.expression import BooleanExpression
 from elasticmagic.types import (
     Type, String, Integer, List, GeoPoint, Completion,
@@ -880,7 +881,7 @@ class ExpressionTestCase(BaseTestCase):
     def test_field_mapping(self):
         f = Field('name', String)
         self.assertEqual(
-            f.to_mapping(),
+            f.to_mapping(Compiler_5_0),
             {
                 "name": {
                     "type": "string"
@@ -890,7 +891,7 @@ class ExpressionTestCase(BaseTestCase):
 
         f = Field('name', String, fields={'sort': Field(String)})
         self.assertEqual(
-            f.to_mapping(),
+            f.to_mapping(Compiler_5_0),
             {
                 "name": {
                     "type": "string",
@@ -905,7 +906,7 @@ class ExpressionTestCase(BaseTestCase):
 
         f = Field('name', String, fields={'sort': Field('ordering', String)})
         self.assertEqual(
-            f.to_mapping(),
+            f.to_mapping(Compiler_5_0),
             {
                 "name": {
                     "type": "string",
@@ -923,7 +924,7 @@ class ExpressionTestCase(BaseTestCase):
             fields=[Field('raw', String, index='not_analyzed')]
         )
         self.assertEqual(
-            f.to_mapping(),
+            f.to_mapping(Compiler_5_0),
             {
                 "name": {
                     "type": "string",
@@ -939,7 +940,7 @@ class ExpressionTestCase(BaseTestCase):
 
         f = Field('status', Integer)
         self.assertEqual(
-            f.to_mapping(),
+            f.to_mapping(Compiler_5_0),
             {
                 "status": {
                     "type": "integer"
@@ -949,7 +950,7 @@ class ExpressionTestCase(BaseTestCase):
 
         f = Field('tag', List(Integer))
         self.assertEqual(
-            f.to_mapping(),
+            f.to_mapping(Compiler_5_0),
             {
                 "tag": {
                     "type": "integer"
@@ -959,7 +960,7 @@ class ExpressionTestCase(BaseTestCase):
 
         f = Field('pin', GeoPoint())
         self.assertEqual(
-            f.to_mapping(),
+            f.to_mapping(Compiler_5_0),
             {
                 "pin": {
                     "type": "geo_point"
@@ -968,7 +969,7 @@ class ExpressionTestCase(BaseTestCase):
         )
         f = Field('pin', GeoPoint(), lat_lon=True)
         self.assertEqual(
-            f.to_mapping(),
+            f.to_mapping(Compiler_5_0),
             {
                 "pin": {
                     "type": "geo_point",
@@ -979,7 +980,7 @@ class ExpressionTestCase(BaseTestCase):
 
         f = Field('suggest', Completion())
         self.assertEqual(
-            f.to_mapping(),
+            f.to_mapping(Compiler_5_0),
             {
                 'suggest': {
                     'type': 'completion',
@@ -988,7 +989,7 @@ class ExpressionTestCase(BaseTestCase):
         )
         f = Field('suggest', Completion(), payloads=True)
         self.assertEqual(
-            f.to_mapping(),
+            f.to_mapping(Compiler_5_0),
             {
                 'suggest': {
                     'type': 'completion',

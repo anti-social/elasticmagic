@@ -1,8 +1,9 @@
+from datetime import date, datetime
 from mock import Mock
 
 import pytest
 
-from elasticmagic.types import Integer, Long, Float, Boolean
+from elasticmagic.types import Integer, Long, Float, Boolean, Date, List
 from elasticmagic.ext.queryfilter.codec import BaseCodec, SimpleCodec
 
 
@@ -13,9 +14,9 @@ def test_base_codec():
     with pytest.raises(NotImplementedError):
         codec.encode({})
     with pytest.raises(NotImplementedError):
-        codec.decode_value('1')
+        codec.decode_value('1', None)
     with pytest.raises(NotImplementedError):
-        codec.encode_value(1)
+        codec.encode_value(1, None)
 
 
 def test_simple_codec_decode():
@@ -82,7 +83,7 @@ def test_simple_codec_decode():
                      {'is_available': Boolean}) == \
         {
             'is_available': {
-                'exact': [True, False, False, None]
+                'exact': [True, False, None]
             }
         }
     assert \
@@ -133,14 +134,28 @@ def test_simple_codec_decode():
         codec.decode('')
 
 
+def test_simple_coded_decode_custom_type():
+    class IntegerKeyword(Integer):
+        """Integer that stored as keyword
+        """
+
+        __visit_name__ = 'keyword'
+
+    codec = SimpleCodec()
+    assert \
+        codec.decode(
+            {'company_id': ['123', 'asdf']},
+            {'company_id': IntegerKeyword}
+        ) == \
+        {
+            'company_id': {
+                'exact': [123],
+            }
+        }
+
+
 def test_simple_codec_encode():
     codec = SimpleCodec()
-
-    assert codec.encode_value(1) == '1'
-    assert codec.encode_value(1.1) == '1.1'
-    assert codec.encode_value(True) == 'true'
-    assert codec.encode_value(False) == 'false'
-    assert codec.encode_value(None) == 'null'
 
     assert \
         codec.encode(
@@ -177,4 +192,72 @@ def test_simple_codec_encode():
         {
             'price__gte': ['100', '101'],
             'price__lte': ['200'],
+        }
+    assert \
+        codec.encode(
+            {
+                'category': {
+                    'exact': [11, 13],
+                }
+            },
+            {'category': List(Integer)}
+        ) == \
+        {
+            'category': ['11', '13'],
+        }
+    assert \
+        codec.encode(
+            {
+                'date_modified': {
+                    'gt': [date(2019, 9, 1)]
+                }
+            },
+            {'date_modified': Date}
+        ) == \
+        {
+            'date_modified__gt': ['2019-09-01']
+        }
+    assert \
+        codec.encode(
+            {
+                'date_modified': {
+                    'gt': [datetime(2019, 9, 1, 23, 59, 59, 999999)]
+                }
+            },
+            {'date_modified': Date}
+        ) == \
+        {
+            'date_modified__gt': ['2019-09-01T23:59:59.999999']
+        }
+    assert \
+        codec.encode(
+            {
+                'date_modified': {
+                    'gt': [datetime(2019, 9, 1, 23, 59, 59, 999999)]
+                }
+            }
+        ) == \
+        {
+            'date_modified__gt': ['2019-09-01 23:59:59.999999']
+        }
+    with pytest.raises(ValueError):
+        codec.encode(
+            {
+                'date_modified': {
+                    'gt': ['yesterday']
+                }
+            },
+            {'date_modified': Date}
+        )
+    assert \
+        codec.encode(
+            {
+                'is_available': {
+                    'exact': [True]
+                }
+            },
+            {'is_available': Boolean}
+        ) == \
+        {
+            'is_available': ['true']
         }

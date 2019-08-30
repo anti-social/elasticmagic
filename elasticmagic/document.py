@@ -7,18 +7,6 @@ from .util import cached_property
 from .compat import with_metaclass
 
 
-META_FIELD_NAMES = {
-    '_id',
-    '_index',
-    '_type',
-    '_routing',
-    '_parent',
-    '_timestamp',
-    '_ttl',
-    '_version',
-}
-
-
 class DocumentMeta(type):
     def __new__(meta, name, bases, dct):
         cls = type.__new__(meta, name, bases, dct)
@@ -199,17 +187,11 @@ class Document(with_metaclass(DocumentMeta)):
             processed_fields[field_name] = processed_values
         return processed_fields
 
-    def to_meta(self, compiler=None):
-        from .compiler import DefaultCompiler
-
-        compiler = compiler or DefaultCompiler
+    def to_meta(self, compiler):
         meta_compiler = compiler.compiled_bulk.compiled_meta
         return meta_compiler(self).body
 
-    def to_source(self, validate=False, compiler=None):
-        from .compiler import DefaultCompiler
-
-        compiler = compiler or DefaultCompiler
+    def to_source(self, compiler, validate=False):
         source_compiler = compiler.compiled_bulk.compiled_source
         return source_compiler(self, validate=validate).body
 
@@ -223,11 +205,8 @@ class Document(with_metaclass(DocumentMeta)):
         return self._hit_fields or {}
 
     @classmethod
-    def to_mapping(cls, compiler=None, ordered=False):
-        from .compiler import DefaultCompiler
-
-        mapping_compiler = (compiler or DefaultCompiler).compiled_put_mapping
-        return mapping_compiler(cls, ordered=ordered).body
+    def to_mapping(cls, compiler, ordered=False):
+        return compiler.compiled_put_mapping(cls, ordered=ordered).body
 
     @cached_property
     def instance(self):

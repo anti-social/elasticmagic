@@ -1,52 +1,95 @@
 import datetime
 import math
-from functools import partial
 from collections import defaultdict
 
-from elasticmagic.types import Date, Float, Integer, Long, instantiate
+import dateutil.parser
+
+from elasticmagic.types import instantiate
+from elasticmagic.types import Type
 from elasticmagic.compat import force_unicode
+from elasticmagic.compat import int_types
 
 
 TIME_ATTRS = {'hour', 'minute', 'second', 'microsecond', 'tzinfo'}
 
 
-def to_float(value, es_type=None):
-    es_type = es_type or Float()
-    v = es_type.to_python_single(value)
-    if math.isnan(v) or math.isinf(v):
-        raise ValueError('NaN or Inf is not supported')
-    return v
+class TypeCodec(object):
+    def decode(self, value, es_type=None):
+        raise NotImplementedError
+
+    def encode(self, value, es_type=None):
+        raise NotImplementedError
 
 
-def to_int(value, es_type=None):
-    es_type = es_type or Integer()
-    v = es_type.to_python_single(value)
-    if Integer.MIN_VALUE < v < Integer.MAX_VALUE:
-        return v
-    raise ValueError(
-        'Integer value must be between %s and %s' % (
-            Integer.MIN_VALUE, Integer.MAX_VALUE
-        )
-    )
-
-
-def to_long(value, es_type=None):
-    es_type = es_type or Long()
-    v = es_type.to_python_single(value)
-    if Long.MIN_VALUE < v < Long.MAX_VALUE:
-        return v
-    raise ValueError(
-        'Long value must be between %s and %s' % (
-            Long.MIN_VALUE, Long.MAX_VALUE
-        )
-    )
-
-
-def to_date(value, es_type=None):
-    if isinstance(value, (datetime.datetime, datetime.date)):
+class AnyCodec(TypeCodec):
+    def decode(self, value, es_type=None):
         return value
-    es_type = es_type or Date()
-    return es_type.to_python_single(value)
+
+    def encode(self, value, es_type=None):
+        return force_unicode(value)
+
+
+class FloatCodec(TypeCodec):
+    def decode(self, value, es_type=None):
+        v = float(value)
+        if math.isnan(v) or math.isinf(v):
+            raise ValueError('NaN or Inf is not supported')
+        return v
+
+    def encode(self, value, es_type=None):
+        return value
+
+
+class IntCodec(TypeCodec):
+    def encode(self, value, es_type=None):
+        if isinstance(value, int_types):
+            return force_unicode(value)
+        return force_unicode(int(value))
+
+    def decode(self, value, es_type=None):
+        v = int(value)
+        if (
+                es_type is not None and
+                (v < es_type.MIN_VALUE or v > es_type.MAX_VALUE)
+        ):
+            raise ValueError(
+                'Value must be between {} and {}'.format(
+                    es_type.MIN_VALUE, es_type.MAX_VALUE
+                )
+            )
+        return v
+
+
+class BoolCodec(TypeCodec):
+    def encode(self, value, es_type=None):
+        if value is True:
+            return 'true'
+        if value is False:
+            return 'false'
+        return bool(value)
+
+    def decode(self, value, es_type=None):
+        if isinstance(value, bool):
+            return value
+        if value == 'true':
+            return True
+        if value == 'false':
+            return False
+        raise ValueError('Cannot decode boolean value: {}'.format(value))
+
+
+class DateCodec(TypeCodec):
+    def encode(self, value, es_type=None):
+        if isinstance(value, datetime.datetime):
+            return value.strftime('%Y-%m-%dT%H:%M:%S.%f')
+        if isinstance(value, datetime.date):
+            return value.strftime('%Y-%m-%d')
+        raise ValueError('Value must be date or datetime: {}'.format(value))
+
+    def decode(self, value, es_type=None):
+        if isinstance(value, (datetime.datetime, datetime.date)):
+            return value
+        return dateutil.parser.parse(value)
 
 
 def wrap_list(v):
@@ -56,13 +99,13 @@ def wrap_list(v):
 
 
 class BaseCodec(object):
-    def decode_value(self, value, typelist=None):
+    def decode_value(self, value, es_type=None):
         raise NotImplementedError()
 
     def decode(self, params, types=None):
         raise NotImplementedError()
 
-    def encode_value(self, value, typelist=None):
+    def encode_value(self, value, es_type=None):
         raise NotImplementedError()
 
     def encode(self, values, types=None):
@@ -73,16 +116,15 @@ class SimpleCodec(BaseCodec):
     OP_SEP = '__'
 
     NULL_VAL = 'null'
-    TRUE_VAL = 'true'
-    FALSE_VAL = 'false'
 
     DEFAULT_OP = 'exact'
 
-    PROCESSOR_FACTORIES = {
-        Float: lambda t: partial(to_float, es_type=t),
-        Integer: lambda t: partial(to_int, es_type=t),
-        Long: lambda t: partial(to_long, es_type=t),
-        Date: lambda t: partial(to_date, es_type=t),
+    CODECS = {
+        None: AnyCodec,
+        float: FloatCodec,
+        int: IntCodec,
+        bool: BoolCodec,
+        datetime.datetime: DateCodec,
     }
 
     @staticmethod
@@ -106,24 +148,30 @@ class SimpleCodec(BaseCodec):
         raise TypeError("'params' must be Webob MultiDict, "
                         "Django QueryDict, list, tuple or dict")
 
-    def decode_value(self, value, es_type=None):
-        es_type = instantiate(es_type)
+    @staticmethod
+    def _get_es_type_class(es_type):
+        if es_type is not None and isinstance(es_type, Type):
+            if es_type.sub_type:
+                return SimpleCodec._get_es_type_class(es_type.sub_type)
+            return es_type.__class__
+        return es_type
 
+    @staticmethod
+    def _get_es_and_python_types(es_type):
         if es_type is None:
-            to_python = force_unicode
-        else:
-            to_python_factory = self.PROCESSOR_FACTORIES.get(
-                es_type.__class__
-            )
-            if to_python_factory:
-                to_python = to_python_factory(es_type)
-            else:
-                to_python = es_type.to_python_single
+            return None, None
+        es_type = instantiate(es_type)
+        if es_type.sub_type:
+            es_type = es_type.sub_type
+        return es_type, es_type.python_type
 
+    def decode_value(self, value, es_type=None):
         if value is None or value == self.NULL_VAL:
             return None
-        else:
-            return to_python(value)
+
+        es_type, python_type = self._get_es_and_python_types(es_type)
+        value_codec = self.CODECS.get(python_type, AnyCodec)()
+        return value_codec.decode(value, es_type=es_type)
 
     def decode(self, params, types=None):
         params = self._normalize_params(params)
@@ -133,34 +181,27 @@ class SimpleCodec(BaseCodec):
             name, _, op = name.partition(self.OP_SEP)
             if not op:
                 op = self.DEFAULT_OP
+            es_type = types.get(name)
             for w in wrap_list(v):
                 try:
-                    decoded_value = self.decode_value(
-                        w, es_type=types.get(name)
-                    )
+                    decoded_value = self.decode_value(w, es_type=es_type)
                     decoded_params \
                         .setdefault(name, {}) \
                         .setdefault(op, []) \
                         .append(decoded_value)
                 except ValueError:
+                    # just ignore values we cannot decode
                     pass
 
         return decoded_params
 
-    def _encode_value(self, value, es_type=None):
+    def encode_value(self, value, es_type=None):
         if value is None:
             return self.NULL_VAL
-        if value is True:
-            return self.TRUE_VAL
-        if value is False:
-            return self.FALSE_VAL
-        if es_type:
-            value = es_type.from_python(value, validate=True)
-        return force_unicode(value)
 
-    def encode_value(self, value, es_type=None):
-        es_type = instantiate(es_type)
-        return self._encode_value(value, es_type)
+        es_type, python_type = self._get_es_and_python_types(es_type)
+        value_codec = self.CODECS.get(python_type, AnyCodec)()
+        return value_codec.encode(value, es_type=es_type)
 
     def encode(self, values, types=None):
         params = {}
