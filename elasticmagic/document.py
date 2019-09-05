@@ -187,6 +187,18 @@ class Document(with_metaclass(DocumentMeta)):
             processed_fields[field_name] = processed_values
         return processed_fields
 
+    @classmethod
+    def get_doc_type(cls):
+        return getattr(cls, '__doc_type__', None)
+
+    @classmethod
+    def has_parent_doc_cls(cls):
+        return hasattr(cls, '__parent__')
+
+    @classmethod
+    def get_parent_doc_cls(cls):
+        return getattr(cls, '__parent__', None)
+
     def to_meta(self, compiler):
         meta_compiler = compiler.compiled_bulk.compiled_meta
         return meta_compiler(self).body

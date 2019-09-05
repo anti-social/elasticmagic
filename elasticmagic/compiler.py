@@ -35,6 +35,8 @@ BOOL_OPERATORS_MAP = {
     operator.or_: Bool.should,
 }
 
+DOC_TYPE_FIELD_NAME = '_doc_type'
+
 
 ESVersion = namedtuple('ESVersion', ['major', 'minor', 'patch'])
 
@@ -46,6 +48,7 @@ ElasticsearchFeatures = namedtuple(
         'supports_parent_id_query',
         'supports_bool_filter',
         'supports_search_exists_api',
+        'supports_mapping_types',
         'stored_fields_param',
     ]
 )
@@ -639,9 +642,17 @@ class CompiledMultiSearch(CompiledEndpoint):
 
 
 class CompiledPutMapping(CompiledEndpoint):
+    class _MultipleMappings(object):
+        __visit_name__ = 'multiple_mappings'
+
+        def __init__(self, mappings):
+            self.mappings = mappings
+
     def __init__(self, doc_cls_or_mapping, params=None, ordered=False):
         self._dict_type = OrderedDict if ordered else dict
         self._dynamic_templates = []
+        if isinstance(doc_cls_or_mapping, list):
+            doc_cls_or_mapping = self._MultipleMappings(doc_cls_or_mapping)
         super(CompiledPutMapping, self).__init__(doc_cls_or_mapping, params)
 
     def api_method(self, client):
@@ -713,18 +724,71 @@ class CompiledPutMapping(CompiledEndpoint):
             mapping.update(self.visit(f))
         return mapping
 
+    @staticmethod
+    def _get_parent_doc_type(doc_cls):
+        doc_type = doc_cls.get_doc_type()
+        if not doc_type:
+            return None
+        parent_doc_cls = doc_cls.get_parent_doc_cls()
+        if parent_doc_cls is None:
+            return None
+        return parent_doc_cls.get_doc_type()
+
+    @staticmethod
+    def _merge_properties(mappings, properties):
+        mapping_properties = mappings.setdefault('properties', {})
+        for name, value in properties.items():
+            existing_value = mapping_properties.get(name)
+            if existing_value is not None and value != existing_value:
+                raise ValueError('Conflicting mapping properties: {}'.format(
+                    name
+                ))
+            mapping_properties[name] = value
+
+    def visit_multiple_mappings(self, multiple_mappings):
+        mappings = {}
+        relations = {}
+        for mapping_or_doc_cls in multiple_mappings.mappings:
+            if issubclass(mapping_or_doc_cls, Document):
+                doc_type = mapping_or_doc_cls.get_doc_type()
+                parent_doc_type = self._get_parent_doc_type(mapping_or_doc_cls)
+                if doc_type and parent_doc_type:
+                    relations.setdefault(parent_doc_type, []).append(doc_type)
+
+            mapping = self.visit(mapping_or_doc_cls)
+            if self.features.supports_mapping_types:
+                mappings.update(mapping)
+            else:
+                self._merge_properties(mappings, mapping['properties'])
+
+        if not self.features.supports_mapping_types and relations:
+            doc_type_property = mappings['properties'][DOC_TYPE_FIELD_NAME]
+            doc_type_property['relations'] = relations
+
+        return mappings
+
     def visit_document(self, doc_cls):
         mapping = self._dict_type()
         mapping.update(doc_cls.__mapping_options__)
         mapping.update(self.visit(doc_cls.mapping_fields))
-        mapping['properties'] = self.visit(doc_cls.user_fields)
+        properties = self.visit(doc_cls.user_fields)
+        if (
+                not self.features.supports_mapping_types and
+                doc_cls.get_doc_type() and
+                doc_cls.has_parent_doc_cls()
+        ):
+            properties[DOC_TYPE_FIELD_NAME] = {'type': 'join'}
+        mapping['properties'] = properties
         for f in doc_cls.dynamic_fields:
             self._visit_dynamic_field(f)
         if self._dynamic_templates:
             mapping['dynamic_templates'] = self._dynamic_templates
-        return {
-            doc_cls.__doc_type__: mapping
-        }
+        if self.features.supports_mapping_types:
+            return {
+                doc_cls.__doc_type__: mapping
+            }
+        else:
+            return mapping
 
 
 class CompiledGet(CompiledEndpoint):
@@ -1091,6 +1155,7 @@ def _featured_compiler(elasticsearch_features):
         supports_parent_id_query=False,
         supports_bool_filter=False,
         supports_search_exists_api=True,
+        supports_mapping_types=True,
         stored_fields_param='fields',
     )
 )
@@ -1105,6 +1170,7 @@ class Compiler_1_0(object):
         supports_parent_id_query=False,
         supports_bool_filter=True,
         supports_search_exists_api=True,
+        supports_mapping_types=True,
         stored_fields_param='fields',
     )
 )
@@ -1119,10 +1185,26 @@ class Compiler_2_0(object):
         supports_parent_id_query=True,
         supports_bool_filter=True,
         supports_search_exists_api=False,
+        supports_mapping_types=True,
         stored_fields_param='stored_fields',
     )
 )
 class Compiler_5_0(object):
+    pass
+
+
+@_featured_compiler(
+    ElasticsearchFeatures(
+        supports_old_boolean_queries=False,
+        supports_missing_query=False,
+        supports_parent_id_query=True,
+        supports_bool_filter=True,
+        supports_search_exists_api=False,
+        supports_mapping_types=False,
+        stored_fields_param='stored_fields',
+    )
+)
+class Compiler_6_0(object):
     pass
 
 
@@ -1140,4 +1222,6 @@ def get_compiler_by_es_version(es_version):
         return Compiler_2_0
     elif es_version.major == 5:
         return Compiler_5_0
-    return Compiler_5_0
+    elif es_version.major == 6:
+        return Compiler_6_0
+    return Compiler_6_0
