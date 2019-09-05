@@ -42,13 +42,12 @@ before_script:
 - docker ps -a
 
 script:
-- tox -- -v --cov=elasticmagic --cov-append
+- tox -- tests -v --cov=elasticmagic --cov-append
 - |
+  tox -e integ -- tests_integ/general -v --cov=elasticmagic --cov-append
   case $TRAVIS_PYTHON_VERSION in
     3.6|3.7)
-      tox -e integ,integ-async -- -v --cov=elasticmagic --cov-append ;;
-    *)
-      tox -e integ -- -v --cov=elasticmagic --cov-append ;;
+      tox -e integ-async -- tests_integ/asyncio -v --cov=elasticmagic --cov-append ;;
   esac
 - |
   case $TRAVIS_PYTHON_VERSION in

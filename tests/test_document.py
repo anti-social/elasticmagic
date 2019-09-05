@@ -2,16 +2,17 @@ import datetime
 
 import dateutil
 
+from elasticmagic.attribute import AttributedField, DynamicAttributedField
+from elasticmagic.compat import string_types
+from elasticmagic.compiler import Compiler_5_0
+from elasticmagic.document import Document, DynamicDocument
+from elasticmagic.expression import Field, MultiMatch
 from elasticmagic.util import collect_doc_classes
 from elasticmagic.types import (
     Type, String, Integer, Float, Boolean,
     Date, Object, List, GeoPoint, Completion, Percolator,
 )
 from elasticmagic.types import ValidationError
-from elasticmagic.compat import string_types
-from elasticmagic.document import Document, DynamicDocument
-from elasticmagic.attribute import AttributedField, DynamicAttributedField
-from elasticmagic.expression import Field, MultiMatch
 
 from .base import BaseTestCase
 
@@ -424,7 +425,7 @@ class DocumentTestCase(BaseTestCase):
                            i_attr_3=[],
                            i_attr_4=45)
         self.assertEqual(
-            doc.to_source(),
+            doc.to_source(Compiler_5_0),
             {
                 'test_name': 'Test name',
                 'status': 0,
@@ -489,13 +490,13 @@ class DocumentTestCase(BaseTestCase):
         self.assertIs(doc.status, None)
         self.assertIs(doc.description, None)
         self.assertEqual(
-            doc.to_source(),
+            doc.to_source(Compiler_5_0),
             {}
         )
 
         doc = InheritedDocument(_id=123, status=0, name='Test', i_attr_1=1, i_attr_2=2, face_attr_3=3)
         self.assertEqual(
-            doc.to_source(),
+            doc.to_source(Compiler_5_0),
             {
                 'status': 0,
                 'test_name': 'Test',
@@ -540,7 +541,7 @@ class DocumentTestCase(BaseTestCase):
             name = Field(String, norms={'enabled': False})
 
         self.assertEqual(
-            ProductGroupDocument.to_mapping(),
+            ProductGroupDocument.to_mapping(Compiler_5_0),
             {
                 "product_group": {
                     "properties": {
@@ -603,7 +604,7 @@ class DocumentTestCase(BaseTestCase):
         ProductDocument.tags = Field(List(String))
 
         self.assertEqual(
-            ProductDocument.to_mapping(),
+            ProductDocument.to_mapping(Compiler_5_0),
             {
                 "product": {
                     "dynamic": False,
@@ -683,7 +684,7 @@ class DocumentTestCase(BaseTestCase):
             pin = Field(GeoPoint)
 
         self.assertEqual(
-            GeoPointDoc.to_mapping(),
+            GeoPointDoc.to_mapping(Compiler_5_0),
             {
                 "geo_data": {
                     "properties": {
@@ -703,7 +704,7 @@ class DocumentTestCase(BaseTestCase):
             suggest = Field(Completion, payloads=True)
 
         self.assertEqual(
-            CompletionDoc.to_mapping(),
+            CompletionDoc.to_mapping(Compiler_5_0),
             {
                 'suggest': {
                     'properties': {
@@ -717,15 +718,15 @@ class DocumentTestCase(BaseTestCase):
         )
 
         doc = CompletionDoc()
-        self.assertEqual(doc.to_source(validate=True), {})
+        self.assertEqual(doc.to_source(Compiler_5_0, validate=True), {})
 
         doc = CompletionDoc(suggest='complete this')
-        self.assertEqual(doc.to_source(validate=True),
+        self.assertEqual(doc.to_source(Compiler_5_0, validate=True),
                          {'suggest': 'complete this'})
         doc = CompletionDoc(suggest={'input': ['complete', 'complete this'],
                                      'output': 'complete'})
         self.assertEqual(
-            doc.to_source(validate=True),
+            doc.to_source(Compiler_5_0, validate=True),
             {
                 'suggest': {
                     'input': [
@@ -739,7 +740,9 @@ class DocumentTestCase(BaseTestCase):
 
         doc = CompletionDoc(suggest=['complete', 'this'])
         self.assertRaises(
-            ValidationError, lambda: doc.to_source(validate=True))
+            ValidationError,
+            lambda: doc.to_source(Compiler_5_0, validate=True)
+        )
 
     def test_to_source_with_validation(self):
         class ProductDocument(Document):
@@ -747,14 +750,20 @@ class DocumentTestCase(BaseTestCase):
             status = Field(Integer)
 
         doc = ProductDocument(status=1)
-        self.assertRaises(ValidationError, lambda: doc.to_source(validate=True))
+        self.assertRaises(
+            ValidationError,
+            lambda: doc.to_source(Compiler_5_0, validate=True)
+        )
 
         doc = ProductDocument(name=None, status=1)
-        self.assertRaises(ValidationError, lambda: doc.to_source(validate=True))
+        self.assertRaises(
+            ValidationError,
+            lambda: doc.to_source(Compiler_5_0, validate=True)
+        )
 
         doc = ProductDocument(name=123, status='4')
         self.assertEqual(
-            doc.to_source(validate=True),
+            doc.to_source(Compiler_5_0, validate=True),
             {
                 'name': '123',
                 'status': 4,
@@ -763,19 +772,19 @@ class DocumentTestCase(BaseTestCase):
 
         doc = ProductDocument(name=123, status='4 test')
         with self.assertRaises(ValidationError):
-            doc.to_source(validate=True)
+            doc.to_source(Compiler_5_0, validate=True)
 
         doc = ProductDocument(name=123, status=[1, 2])
         with self.assertRaises(ValidationError):
-            doc.to_source(validate=True)
+            doc.to_source(Compiler_5_0, validate=True)
 
         doc = ProductDocument(name=123, status=datetime.datetime.now())
         with self.assertRaises(ValidationError):
-            doc.to_source(validate=True)
+            doc.to_source(Compiler_5_0, validate=True)
 
         doc = ProductDocument(name=123, status=1 << 31)
         with self.assertRaises(ValidationError):
-            doc.to_source(validate=True)
+            doc.to_source(Compiler_5_0, validate=True)
 
     def test_percolator_field(self):
         class ProductDocument(Document):
@@ -788,7 +797,7 @@ class DocumentTestCase(BaseTestCase):
             query = Field(Percolator)
 
         self.assertEqual(
-            QueryDocument.to_mapping(),
+            QueryDocument.to_mapping(Compiler_5_0),
             {
                 "query": {
                     "properties": {
@@ -802,9 +811,10 @@ class DocumentTestCase(BaseTestCase):
             query=MultiMatch(
                 "Super deal",
                 [ProductDocument.name.boost(1.5), ProductDocument.keywords],
-                type='cross_fields'))
+                type='cross_fields')
+        )
         self.assertEqual(
-            doc.to_source(),
+            doc.to_source(Compiler_5_0),
             {
                 "query": {
                     "multi_match": {
@@ -818,4 +828,4 @@ class DocumentTestCase(BaseTestCase):
 
         doc = QueryDocument(query='test')
         with self.assertRaises(ValidationError):
-            doc.to_source(validate=True)
+            doc.to_source(Compiler_5_0, validate=True)

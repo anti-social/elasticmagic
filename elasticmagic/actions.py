@@ -27,17 +27,11 @@ class Action(object):
         }, **kwargs)
         self.source_params = {}
 
-    def to_meta(self, compiler=None):
-        from .compiler import DefaultCompiler
-
-        compiler = compiler or DefaultCompiler
+    def to_meta(self, compiler):
         meta_compiler = compiler.compiled_bulk.compiled_meta
         return meta_compiler(self).body
 
-    def to_source(self, compiler=None):
-        from .compiler import DefaultCompiler
-
-        compiler = compiler or DefaultCompiler
+    def to_source(self, compiler):
         source_compiler = compiler.compiled_bulk.compiled_source
         return source_compiler(self).body
 

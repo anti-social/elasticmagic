@@ -60,6 +60,7 @@ class MultiSearchError(ElasticsearchException):
 
 
 class Compiled(object):
+    compiler = None
     features = None
 
     def __init__(self, expression, params=None):
@@ -807,7 +808,15 @@ class CompiledMultiGet(CompiledEndpoint):
         docs = []
         for doc_or_id in docs_or_ids:
             if isinstance(doc_or_id, Document):
-                doc = doc_or_id.to_meta()
+                doc = {
+                    '_id': doc_or_id._id,
+                }
+                if doc_or_id._index:
+                    doc['_index'] = doc_or_id._index
+                if doc_or_id._version:
+                    doc['_version'] = doc_or_id._version
+                if doc_or_id._routing:
+                    doc['routing'] = doc_or_id._routing
                 doc_cls = doc_or_id.__class__
             elif isinstance(doc_or_id, dict):
                 doc = doc_or_id
@@ -955,86 +964,106 @@ class CompiledSource(CompiledExpression):
         return source
 
     def visit_document(self, doc):
-        res = {}
+        source = {}
         for key, value in doc.__dict__.items():
             if key in doc.__class__.mapping_fields:
                 continue
 
             attr_field = doc.__class__.fields.get(key)
-            if attr_field:
-                if value is None or value == '' or value == []:
-                    if (
-                            self._validate and
-                            attr_field.get_field()._mapping_options.get(
-                                'required'
-                            )
-                    ):
-                        raise ValidationError("'{}' is required".format(
-                            attr_field.get_attr_name()
-                        ))
-                    continue
-                value = attr_field.get_type() \
-                    .from_python(value, validate=self._validate)
-                res[attr_field._field._name] = value
+            if not attr_field:
+                continue
+
+            if value is None or value == '' or value == []:
+                if (
+                        self._validate and
+                        attr_field.get_field().get_mapping_options().get(
+                            'required'
+                        )
+                ):
+                    raise ValidationError("'{}' is required".format(
+                        attr_field.get_attr_name()
+                    ))
+                continue
+
+            value = attr_field.get_type() \
+                .from_python(value, self.compiler, validate=self._validate)
+            source[attr_field.get_field().get_name()] = value
 
         for attr_field in doc._fields.values():
+            if not self._validate:
+                continue
+
+            field = attr_field.get_field()
             if (
-                    self._validate
-                    and attr_field.get_field()._mapping_options.get('required')
-                    and attr_field.get_field().get_name() not in res
+                    field.get_mapping_options().get('required')
+                    and field.get_name() not in source
             ):
                 raise ValidationError(
                     "'{}' is required".format(attr_field.get_attr_name())
                 )
 
-        return res
+        return source
 
 
 def _featured_compiler(elasticsearch_features):
     def inject_features(cls):
         class _CompiledExpression(CompiledExpression):
+            compiler = cls
             features = elasticsearch_features
 
         class _CompiledSearchQuery(CompiledSearchQuery):
+            compiler = cls
             features = elasticsearch_features
 
         class _CompiledScroll(CompiledScroll):
+            compiler = cls
             features = elasticsearch_features
 
         class _CompiledCountQuery(CompiledCountQuery):
+            compiler = cls
             features = elasticsearch_features
 
         class _CompiledExistsQuery(CompiledExistsQuery):
+            compiler = cls
             features = elasticsearch_features
 
         class _CompiledDeleteByQuery(CompiledDeleteByQuery):
+            compiler = cls
             features = elasticsearch_features
 
         class _CompiledMultiSearch(CompiledMultiSearch):
+            compiler = cls
             features = elasticsearch_features
             compiled_search = _CompiledSearchQuery
 
         class _CompiledGet(CompiledGet):
+            compiler = cls
             features = elasticsearch_features
 
         class _CompiledMultiGet(CompiledMultiGet):
+            compiler = cls
             features = elasticsearch_features
 
         class _CompiledDelete(CompiledDelete):
+            compiler = cls
             features = elasticsearch_features
 
         class _CompiledMeta(CompiledMeta):
+            compiler = cls
             features = elasticsearch_features
 
         class _CompiledSource(CompiledSource):
+            compiler = cls
             features = elasticsearch_features
 
         class _CompiledBulk(CompiledBulk):
+            compiler = cls
             features = elasticsearch_features
             compiled_meta = _CompiledMeta
             compiled_source = _CompiledSource
 
         class _CompiledPutMapping(CompiledPutMapping):
+            compiler = cls
             features = elasticsearch_features
 
         cls.compiled_expression = _CompiledExpression
@@ -1102,9 +1131,6 @@ Compiler10 = Compiler_1_0
 Compiler20 = Compiler_2_0
 
 Compiler50 = Compiler_5_0
-
-# TODO: Got rid of the default compiler
-DefaultCompiler = Compiler_5_0
 
 
 def get_compiler_by_es_version(es_version):

@@ -13,14 +13,11 @@ class Expression(object):
     def _collect_doc_classes(self):
         return set()
 
-    def compile(self, compiler=None):
-        from .compiler import DefaultCompiler
-
-        compiler = compiler or DefaultCompiler
+    def compile(self, compiler):
         return compiler.compiled_expression(self)
 
-    def to_elastic(self, compiler=None):
-        return self.compile(compiler=compiler).body
+    def to_elastic(self, compiler):
+        return self.compile(compiler).body
 
     to_dict = to_elastic
 
@@ -583,17 +580,17 @@ class Field(Expression, FieldOperators):
     def get_type(self):
         return self._type
 
+    def get_mapping_options(self):
+        return self._mapping_options
+
     def _to_python(self, value):
         return self._type.to_python(value)
 
     def _from_python(self, value):
         return self._type.from_python(value)
 
-    def to_mapping(self, compiler=None):
-        from .compiler import DefaultCompiler
-
-        mapping_compiler = (compiler or DefaultCompiler).compiled_put_mapping
-        return mapping_compiler(self).body
+    def to_mapping(self, compiler):
+        return compiler.compiled_put_mapping(self).body
 
 
 class MappingField(Field):

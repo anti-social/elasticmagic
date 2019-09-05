@@ -4,6 +4,8 @@
 Search Query API
 ================
 
+.. automodule:: elasticmagic.search
+
 .. autoclass:: elasticmagic.search.SearchQuery
    :inherited-members:
    :members:
