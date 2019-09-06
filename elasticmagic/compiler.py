@@ -36,7 +36,8 @@ BOOL_OPERATORS_MAP = {
 }
 
 DOC_TYPE_FIELD_NAME = '_doc_type'
-
+DEFAULT_DOC_TYPE = '_doc'
+TYPE_ID_DELIMITER = '~'
 
 ESVersion = namedtuple('ESVersion', ['major', 'minor', 'patch'])
 
@@ -60,6 +61,14 @@ class CompilationError(Exception):
 
 class MultiSearchError(ElasticsearchException):
     pass
+
+
+def _is_emulate_doc_types_mode(features, doc_cls):
+    return (
+        not features.supports_mapping_types and
+        doc_cls.get_doc_type() and
+        doc_cls.has_parent_doc_cls()
+    )
 
 
 class Compiled(object):
@@ -772,11 +781,7 @@ class CompiledPutMapping(CompiledEndpoint):
         mapping.update(doc_cls.__mapping_options__)
         mapping.update(self.visit(doc_cls.mapping_fields))
         properties = self.visit(doc_cls.user_fields)
-        if (
-                not self.features.supports_mapping_types and
-                doc_cls.get_doc_type() and
-                doc_cls.has_parent_doc_cls()
-        ):
+        if _is_emulate_doc_types_mode(self.features, doc_cls):
             properties[DOC_TYPE_FIELD_NAME] = {'type': 'join'}
         mapping['properties'] = properties
         for f in doc_cls.dynamic_fields:
@@ -980,10 +985,19 @@ class CompiledMeta(Compiled):
         meta = {}
         if isinstance(doc, Document):
             self._populate_meta_from_document(doc, meta)
-            if hasattr(doc, '__doc_type__') and doc.__doc_type__:
-                meta['_type'] = doc.__doc_type__
+            doc_type = doc.get_doc_type()
+            if doc_type:
+                meta['_type'] = doc_type
         else:
             self._populate_meta_from_dict(doc, meta)
+
+        if _is_emulate_doc_types_mode(self.features, doc.__class__):
+            meta.pop('_parent', None)
+            meta['_id'] = '{}{}{}'.format(
+                doc.__doc_type__, TYPE_ID_DELIMITER, meta['_id']
+            )
+            meta['_type'] = DEFAULT_DOC_TYPE
+
         return meta
 
     def _populate_meta_from_document(self, doc, meta):
@@ -1065,6 +1079,14 @@ class CompiledSource(CompiledExpression):
                 raise ValidationError(
                     "'{}' is required".format(attr_field.get_attr_name())
                 )
+
+        if _is_emulate_doc_types_mode(self.features, doc):
+            doc_type_source = {'name': doc.__doc_type__}
+            if doc._parent is not None:
+                doc_type_source['parent'] = '{}{}{}'.format(
+                    doc.__parent__.__doc_type__, TYPE_ID_DELIMITER, doc._parent
+                )
+            source[DOC_TYPE_FIELD_NAME] = doc_type_source
 
         return source
 
