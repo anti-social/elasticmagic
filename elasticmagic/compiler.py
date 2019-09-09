@@ -6,6 +6,8 @@ from elasticsearch import ElasticsearchException
 
 from .compat import Iterable
 from .compat import Mapping
+from .document import DOC_TYPE_FIELD_NAME
+from .document import DOC_TYPE_ID_DELIMITER
 from .document import Document
 from .document import DynamicDocument
 from .expression import Bool
@@ -35,9 +37,7 @@ BOOL_OPERATORS_MAP = {
     operator.or_: Bool.should,
 }
 
-DOC_TYPE_FIELD_NAME = '_doc_type'
 DEFAULT_DOC_TYPE = '_doc'
-TYPE_ID_DELIMITER = '~'
 
 ESVersion = namedtuple('ESVersion', ['major', 'minor', 'patch'])
 
@@ -994,7 +994,7 @@ class CompiledMeta(Compiled):
         if _is_emulate_doc_types_mode(self.features, doc.__class__):
             meta.pop('_parent', None)
             meta['_id'] = '{}{}{}'.format(
-                doc.__doc_type__, TYPE_ID_DELIMITER, meta['_id']
+                doc.__doc_type__, DOC_TYPE_ID_DELIMITER, meta['_id']
             )
             meta['_type'] = DEFAULT_DOC_TYPE
 
@@ -1084,7 +1084,9 @@ class CompiledSource(CompiledExpression):
             doc_type_source = {'name': doc.__doc_type__}
             if doc._parent is not None:
                 doc_type_source['parent'] = '{}{}{}'.format(
-                    doc.__parent__.__doc_type__, TYPE_ID_DELIMITER, doc._parent
+                    doc.__parent__.__doc_type__,
+                    DOC_TYPE_ID_DELIMITER,
+                    doc._parent
                 )
             source[DOC_TYPE_FIELD_NAME] = doc_type_source
 

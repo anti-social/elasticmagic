@@ -7,6 +7,11 @@ from .util import cached_property
 from .compat import with_metaclass
 
 
+DOC_TYPE_FIELD_NAME = '_doc_type'
+DOC_TYPE_ID_DELIMITER = '~'
+DOC_TYPE_PARENT_DELIMITER = '#'
+
+
 class DocumentMeta(type):
     def __new__(meta, name, bases, dct):
         cls = type.__new__(meta, name, bases, dct)
@@ -135,23 +140,53 @@ class Document(with_metaclass(DocumentMeta)):
         self._matched_queries = None
         if _hit:
             self._score = _hit.get('_score')
+            source = _hit.get('_source')
+            fields = _hit.get('fields')
+            custom_doc_type = fields.get(DOC_TYPE_FIELD_NAME) \
+                if fields else None
+
             for attr_field in self._mapping_fields:
                 setattr(self, attr_field._attr_name,
                         _hit.get(attr_field._field._name))
-            if _hit.get('_source'):
-                for hit_key, hit_value in _hit['_source'].items():
+
+            if custom_doc_type:
+                doc_type = custom_doc_type[0]
+                _, _, self._id = _hit['_id'].rpartition(DOC_TYPE_ID_DELIMITER)
+                self._type = doc_type
+
+                parent_doc_cls = getattr(self, '__parent__', None)
+                parent_doc_type = parent_doc_cls.__doc_type__ \
+                    if parent_doc_cls else None
+                custom_parent_id = fields.get(
+                    '{}{}{}'.format(
+                        DOC_TYPE_FIELD_NAME,
+                        DOC_TYPE_PARENT_DELIMITER,
+                        parent_doc_type
+                    )
+                )
+                if custom_parent_id:
+                    parent_id = custom_parent_id[0]
+                    _, _, self._parent = parent_id.rpartition(
+                        DOC_TYPE_ID_DELIMITER
+                    )
+
+            if source:
+                for hit_key, hit_value in source.items():
                     setattr(
                         self,
                         *self._process_source_key_value(hit_key, hit_value)
                     )
-            if _hit.get('fields'):
+
+            if fields:
                 # we cannot construct document from fields
                 # in next example we cannot decide
                 # which tag has name and which has not:
                 # {"tags.id": [1, 2], "tags.name": ["Test"]}
-                self._hit_fields = self._process_fields(_hit['fields'])
+                self._hit_fields = self._process_fields(fields)
+
             if _hit.get('highlight'):
                 self._highlight = _hit['highlight']
+
             if _hit.get('matched_queries'):
                 self._matched_queries = _hit['matched_queries']
 

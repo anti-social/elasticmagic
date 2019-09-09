@@ -231,38 +231,64 @@ def test_document_meta_and_source_with_mapping_types(
         }
 
 
-# def test_document_from_hit():
-#     q = Question(_hit={
-#         '_id': 'question~1',
-#         '_type': '_doc',
-#         'fields': {
-#             '_doc_type': ['question'],
-#         },
-#         '_source': {
-#             'question': 'The Ultimate Question',
-#         }
-#     })
-#     assert q._id == '1'
-#     assert q._type == 'question'
-#     assert q.question == 'The Ultimate Question'
-#
-#     a = Answer(_hit={
-#         '_id': 'answer~1',
-#         '_type': '_doc',
-#         'fields': {
-#             '_doc_type': ['answer'],
-#             '_doc_type#question': ['question~1'],
-#         },
-#         '_source': {
-#             'answer': '42',
-#         }
-#     })
-#     assert a._id == '1'
-#     assert a._type == 'answer'
-#     assert a._parent == '1'
-#     assert a.answer == '42'
-#
-#
+def test_document_from_hit_no_mapping_types():
+    q = Question(_hit={
+        '_id': 'question~1',
+        '_type': '_doc',
+        'fields': {
+            '_doc_type': ['question'],
+        },
+        '_source': {
+            'question': 'The Ultimate Question',
+        }
+    })
+    assert q._id == '1'
+    assert q._type == 'question'
+    assert q.question == 'The Ultimate Question'
+
+    a = Answer(_hit={
+        '_id': 'answer~1',
+        '_type': '_doc',
+        'fields': {
+            '_doc_type': ['answer'],
+            '_doc_type#question': ['question~1'],
+        },
+        '_source': {
+            'answer': '42',
+        }
+    })
+    assert a._id == '1'
+    assert a._type == 'answer'
+    assert a._parent == '1'
+    assert a.answer == '42'
+
+
+def test_document_from_hit_with_mapping_types():
+    q = Question(_hit={
+        '_id': '1',
+        '_type': 'question',
+        '_source': {
+            'question': 'The Ultimate Question',
+        }
+    })
+    assert q._id == '1'
+    assert q._type == 'question'
+    assert q.question == 'The Ultimate Question'
+
+    a = Answer(_hit={
+        '_id': '1',
+        '_type': 'answer',
+        '_parent': '1',
+        '_source': {
+            'answer': '42',
+        }
+    })
+    assert a._id == '1'
+    assert a._type == 'answer'
+    assert a._parent == '1'
+    assert a.answer == '42'
+
+
 # def test_ids_query_no_type():
 #     q = Ids([1, 2, 3])
 #     res = q.to_elastic(compiler=Compiler60)
