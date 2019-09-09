@@ -6,6 +6,7 @@ from elasticmagic.compiler import Compiler_2_0
 from elasticmagic.compiler import Compiler_5_0
 from elasticmagic.compiler import Compiler_6_0
 from elasticmagic.expression import Ids, ParentId
+from elasticmagic.search import SearchQuery
 from elasticmagic.types import Text
 
 
@@ -289,50 +290,94 @@ def test_document_from_hit_with_mapping_types():
     assert a.answer == '42'
 
 
-# def test_ids_query_no_type():
-#     q = Ids([1, 2, 3])
-#     res = q.to_elastic(compiler=Compiler60)
-#     assert res == {
-#         'ids': {
-#             'values': [1, 2, 3]
-#         }
-#     }
-#
-#
-# def test_ids_query():
-#     q = Ids([1, 2, 3], type=Question)
-#     res = q.to_elastic(compiler=Compiler60)
-#
-#     assert res == {
-#         'ids': {
-#             'values': ['question~1', 'question~2', 'question~3']
-#         }
-#     }
-#
-#
-# def test_ids_query_with_multiple_types():
-#     # TODO
-#     # q = Ids([1, 2, 3], type=[Question, Answer])
-#     # res = q.to_elastic(compiler=Compiler60)
-#
-#     # assert res == {
-#     #     'ids': {
-#     #         'values': [
-#     #             'question~1', 'question~2', 'question~3',
-#     #             'answer~1', 'answer~2', 'answer~3',
-#     #         ]
-#     #     }
-#     # }
-#     pass
-#
-#
-# def test_parent_id_query():
-#     q = ParentId(Answer, 1)
-#     res = q.to_elastic(compiler=Compiler60)
-#
-#     assert res == {
-#         'parent_id': {
-#             'type': 'answer',
-#             'id': 'question~1'
-#         }
-#     }
+def test_ids_query_no_type(compiler):
+    q = Ids([1, 2, 3])
+    assert q.to_elastic(compiler) == {
+        'ids': {
+            'values': [1, 2, 3]
+        }
+    }
+
+
+def test_ids_query_no_mapping_types(compiler_no_mapping_types):
+    q = Ids([1, 2, 3], type=Question)
+    assert q.to_elastic(compiler_no_mapping_types) == {
+        'ids': {
+            'values': ['question~1', 'question~2', 'question~3']
+        }
+    }
+
+
+def test_ids_query_with_mapping_types(compiler_with_mapping_types):
+    q = Ids([1, 2, 3], type=Question)
+    assert q.to_elastic(compiler_with_mapping_types) == {
+        'ids': {
+            'type': 'question',
+            'values': [1, 2, 3]
+        }
+    }
+
+
+def test_parent_id_query_no_mapping_types(compiler_no_mapping_types):
+    q = ParentId(Answer, 1)
+    res = q.to_elastic(compiler_no_mapping_types)
+
+    assert res == {
+        'parent_id': {
+            'type': 'answer',
+            'id': 'question~1'
+        }
+    }
+
+
+def test_parent_id_query_with_mapping_types():
+    q = ParentId(Answer, 1)
+    res = q.to_elastic(Compiler_5_0)
+
+    assert res == {
+        'parent_id': {
+            'type': 'answer',
+            'id': 1
+        }
+    }
+
+
+def test_search_query_filter_by_ids_no_mapping_types(
+        compiler_no_mapping_types
+):
+    sq = (
+        SearchQuery(doc_cls=[Question, Answer])
+        .filter(Ids([1, 2, 3]))
+    )
+    assert sq.to_dict(compiler_no_mapping_types) == {
+        'query': {
+            'bool': {
+                'filter': {
+                    'ids': {
+                        'values': [
+                            'question~1', 'question~2', 'question~3',
+                            'answer~1', 'answer~2', 'answer~3'
+                        ]
+                    }
+                }
+            }
+        }
+    }
+
+
+def test_search_query_filter_by_ids_with_mapping_types():
+    sq = (
+        SearchQuery(doc_cls=[Question, Answer])
+        .filter(Ids([1, 2, 3]))
+    )
+    assert sq.to_dict(Compiler_5_0) == {
+        'query': {
+            'bool': {
+                'filter': {
+                    'ids': {
+                        'values': [1, 2, 3]
+                    }
+                }
+            }
+        }
+    }

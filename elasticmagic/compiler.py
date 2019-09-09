@@ -1,6 +1,7 @@
 import operator
 from collections import OrderedDict
 from collections import namedtuple
+from functools import partial
 
 from elasticsearch import ElasticsearchException
 
@@ -25,6 +26,7 @@ from .result import SearchResult
 from .search import BaseSearchQuery
 from .search import SearchQueryContext
 from .types import ValidationError
+from .util import collect_doc_classes
 
 
 BOOL_OPERATOR_NAMES = {
@@ -69,6 +71,10 @@ def _is_emulate_doc_types_mode(features, doc_cls):
         doc_cls.get_doc_type() and
         doc_cls.has_parent_doc_cls()
     )
+
+
+def _doc_type_and_id(doc_type, doc_id):
+    return '{}{}{}'.format(doc_type, DOC_TYPE_ID_DELIMITER, doc_id)
 
 
 class Compiled(object):
@@ -119,6 +125,10 @@ class CompiledEndpoint(Compiled):
 
 
 class CompiledExpression(Compiled):
+    def __init__(self, expr, params=None, doc_classes=None):
+        self.doc_classes = doc_classes
+        super(CompiledExpression, self).__init__(expr, params)
+
     def visit_literal(self, expr):
         return expr.obj
 
@@ -309,12 +319,61 @@ class CompiledExpression(Compiled):
                 params['fields'] = compiled_fields
         return params
 
+    def visit_ids(self, expr):
+        params = self.visit(expr.params)
+
+        if (
+                isinstance(expr.type, type) and
+                issubclass(expr.type, Document) and
+                _is_emulate_doc_types_mode(self.features, expr.type)
+        ):
+            params['values'] = [
+                _doc_type_and_id(expr.type.__doc_type__, v)
+                for v in expr.values
+            ]
+        elif (
+                self.doc_classes and
+                any(map(
+                    partial(_is_emulate_doc_types_mode, self.features),
+                    self.doc_classes
+                ))
+        ):
+            ids = []
+            for doc_cls in self.doc_classes:
+                if _is_emulate_doc_types_mode(self.features, doc_cls):
+                    ids.extend(
+                        _doc_type_and_id(doc_cls.__doc_type__, v)
+                        for v in expr.values
+                    )
+            params['values'] = ids
+        else:
+            params['values'] = expr.values
+            if expr.type:
+                doc_type = getattr(expr.type, '__doc_type__', None)
+                if doc_type:
+                    params['type'] = doc_type
+                else:
+                    params['type'] = self.visit(expr.type)
+
+        return {
+            'ids': params
+        }
+
     def visit_parent_id(self, expr):
         if not self.features.supports_parent_id_query:
             raise CompilationError(
                 'Elasticsearch before 5.x does not have support for '
                 'parent_id query'
             )
+
+        if _is_emulate_doc_types_mode(self.features, expr.child_type):
+            parent_id = _doc_type_and_id(
+                expr.child_type.__parent__.__doc_type__,
+                expr.parent_id
+            )
+        else:
+            parent_id = expr.parent_id
+
         child_type = expr.child_type
         if hasattr(child_type, '__doc_type__'):
             child_type = child_type.__doc_type__
@@ -323,7 +382,7 @@ class CompiledExpression(Compiled):
                 "Cannot detect child type, specify 'child_type' argument"
             )
 
-        return {'parent_id': {'type': child_type, 'id': expr.parent_id}}
+        return {'parent_id': {'type': child_type, 'id': parent_id}}
 
     def visit_has_parent(self, expr):
         params = self.visit(expr.params)
@@ -331,7 +390,7 @@ class CompiledExpression(Compiled):
         if hasattr(parent_type, '__doc_type__'):
             parent_type = parent_type.__doc_type__
         if not parent_type:
-            parent_doc_classes = expr.params._collect_doc_classes()
+            parent_doc_classes = collect_doc_classes(expr.params)
             if len(parent_doc_classes) == 1:
                 parent_type = next(iter(parent_doc_classes)).__doc_type__
             elif len(parent_doc_classes) > 1:
@@ -404,14 +463,18 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
     def __init__(self, query, params=None):
         if isinstance(query, BaseSearchQuery):
             expression = query.get_context()
+            doc_classes = expression.doc_classes
         elif query is None:
             expression = None
+            doc_classes = None
         else:
             expression = {
                 'query': query,
             }
-        self.query = query
-        super(CompiledSearchQuery, self).__init__(expression, params)
+            doc_classes = collect_doc_classes(query)
+        super(CompiledSearchQuery, self).__init__(
+            expression, params, doc_classes=doc_classes
+        )
 
     def api_method(self, client):
         return client.search
@@ -993,8 +1056,8 @@ class CompiledMeta(Compiled):
 
         if _is_emulate_doc_types_mode(self.features, doc.__class__):
             meta.pop('_parent', None)
-            meta['_id'] = '{}{}{}'.format(
-                doc.__doc_type__, DOC_TYPE_ID_DELIMITER, meta['_id']
+            meta['_id'] = _doc_type_and_id(
+                doc.__doc_type__, meta['_id']
             )
             meta['_type'] = DEFAULT_DOC_TYPE
 
@@ -1083,9 +1146,8 @@ class CompiledSource(CompiledExpression):
         if _is_emulate_doc_types_mode(self.features, doc):
             doc_type_source = {'name': doc.__doc_type__}
             if doc._parent is not None:
-                doc_type_source['parent'] = '{}{}{}'.format(
+                doc_type_source['parent'] = _doc_type_and_id(
                     doc.__parent__.__doc_type__,
-                    DOC_TYPE_ID_DELIMITER,
                     doc._parent
                 )
             source[DOC_TYPE_FIELD_NAME] = doc_type_source
