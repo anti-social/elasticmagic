@@ -711,9 +711,11 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
     def _get_doc_type(self, doc_cls=None):
         doc_cls = doc_cls or self._get_doc_cls()
         if isinstance(doc_cls, Iterable):
-            return ','.join(set(
-                d.__doc_type__ for d in doc_cls if hasattr(d, '__doc_type__')
+            doc_types = list(set(
+                d.get_doc_type() for d in doc_cls if d.get_doc_type()
             ))
+            doc_types.sort()
+            return ','.join(doc_types)
         elif self._doc_type:
             return self._doc_type
         elif doc_cls:

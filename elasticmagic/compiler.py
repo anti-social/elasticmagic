@@ -7,8 +7,10 @@ from elasticsearch import ElasticsearchException
 
 from .compat import Iterable
 from .compat import Mapping
+from .compat import string_types
 from .document import DOC_TYPE_FIELD_NAME
 from .document import DOC_TYPE_ID_DELIMITER
+from .document import DOC_TYPE_PARENT_DELIMITER
 from .document import Document
 from .document import DynamicDocument
 from .expression import Bool
@@ -75,6 +77,12 @@ def _is_emulate_doc_types_mode(features, doc_cls):
 
 def _doc_type_and_id(doc_type, doc_id):
     return '{}{}{}'.format(doc_type, DOC_TYPE_ID_DELIMITER, doc_id)
+
+
+def _doc_type_field_name(doc_type):
+    return '{}{}{}'.format(
+        DOC_TYPE_FIELD_NAME, DOC_TYPE_PARENT_DELIMITER, doc_type
+    )
 
 
 class Compiled(object):
@@ -487,7 +495,7 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
                 search_params['doc_type'] = self.expression.doc_type
         else:
             search_params = params
-        return search_params
+        return self._patch_doc_type(search_params)
 
     def process_result(self, raw_result):
         return SearchResult(
@@ -579,7 +587,48 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
             params['script_fields'] = self.visit(
                 query_ctx.script_fields
             )
+        return self._patch_docvalue_fields(params)
+
+    def _patch_docvalue_fields(self, params):
+        if self.features.supports_mapping_types:
+            return params
+
+        docvalue_fields = params.get('docvalue_fields')
+        # Wildcards in docvalue_fields aren't supported by top_hits aggregation
+        # doc_type_field = '{}*'.format(DOC_TYPE_FIELD_NAME)
+        parent_doc_types = set(
+            doc_cls.__doc_type__
+            for doc_cls in self.doc_classes
+            if doc_cls.get_doc_type() and doc_cls.has_parent_doc_cls()
+        )
+        if not parent_doc_types:
+            return params
+
+        doc_type_fields = [DOC_TYPE_FIELD_NAME]
+        for doc_type in parent_doc_types:
+            doc_type_fields.append(
+                _doc_type_field_name(doc_type)
+            )
+        doc_type_fields.sort()
+        if not docvalue_fields:
+            params['docvalue_fields'] = doc_type_fields
+        elif isinstance(docvalue_fields, string_types):
+            params['docvalue_fields'] = [docvalue_fields] + doc_type_fields
+        elif isinstance(docvalue_fields, list):
+            docvalue_fields.extend(doc_type_fields)
         return params
+
+    def _patch_doc_type(self, search_params):
+        if self.features.supports_mapping_types:
+            return search_params
+
+        should_use_default_type = self.doc_classes and any(map(
+            lambda doc_cls: doc_cls.has_parent_doc_cls(),
+            self.doc_classes
+        ))
+        if should_use_default_type and 'doc_type' in search_params:
+            search_params['doc_type'] = DEFAULT_DOC_TYPE
+        return search_params
 
 
 class CompiledScroll(CompiledEndpoint):

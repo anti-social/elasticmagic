@@ -349,7 +349,8 @@ def test_search_query_filter_by_ids_no_mapping_types(
         SearchQuery(doc_cls=[Question, Answer])
         .filter(Ids([1, 2, 3]))
     )
-    assert sq.to_dict(compiler_no_mapping_types) == {
+    compiled_query = compiler_no_mapping_types.compiled_query(sq)
+    assert compiled_query.body == {
         'query': {
             'bool': {
                 'filter': {
@@ -361,7 +362,13 @@ def test_search_query_filter_by_ids_no_mapping_types(
                     }
                 }
             }
-        }
+        },
+        'docvalue_fields': [
+            '_doc_type', '_doc_type#answer', '_doc_type#question'
+        ]
+    }
+    assert compiled_query.params == {
+        'doc_type': '_doc'
     }
 
 
@@ -370,7 +377,8 @@ def test_search_query_filter_by_ids_with_mapping_types():
         SearchQuery(doc_cls=[Question, Answer])
         .filter(Ids([1, 2, 3]))
     )
-    assert sq.to_dict(Compiler_5_0) == {
+    compiled_query = Compiler_5_0.compiled_query(sq)
+    assert compiled_query.body == {
         'query': {
             'bool': {
                 'filter': {
@@ -380,4 +388,7 @@ def test_search_query_filter_by_ids_with_mapping_types():
                 }
             }
         }
+    }
+    assert compiled_query.params == {
+        'doc_type': 'answer,question'
     }
