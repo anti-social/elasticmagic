@@ -2,7 +2,8 @@ from .cluster import Cluster
 from .compiler import MultiSearchError
 from .document import Document, DynamicDocument
 from .expression import (
-    Params, Term, Terms, Exists, Missing, Match, MultiMatch, MatchAll, Range,
+    Params, Term, Terms, Exists, Missing, Range,
+    Match, MatchPhrase, MatchPhrasePrefix, MultiMatch, MatchAll,
     Bool, Query, DisMax, Filtered, Ids, Prefix, Limit,
     And, Or, Not, Sort, Boosting, Common, ConstantScore, FunctionScore,
     Field, SpanFirst, SpanMulti, SpanNear, SpanNot, SpanOr, SpanTerm,
@@ -23,8 +24,9 @@ __all__ = [
 
     'Document', 'DynamicDocument',
 
-    'Params', 'Term', 'Terms', 'Exists', 'Missing', 'Match', 'MultiMatch',
-    'MatchAll', 'Range', 'Bool', 'Query', 'DisMax', 'Filtered', 'Ids',
+    'Params', 'Term', 'Terms', 'Exists', 'Missing',
+    'Match', 'MatchPhrase', 'MatchPhrasePrefix', 'MultiMatch', 'MatchAll',
+    'Range', 'Bool', 'Query', 'DisMax', 'Filtered', 'Ids',
     'Prefix', 'Limit', 'And', 'Or', 'Not', 'Sort', 'Boosting', 'Common',
     'ConstantScore', 'FunctionScore', 'Field',
     'SpanFirst', 'SpanMulti', 'SpanNear', 'SpanNot', 'SpanOr', 'SpanTerm',

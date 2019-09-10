@@ -32,13 +32,6 @@ class FrenchAnswer(Document):
 
 
 @pytest.fixture(
-    params=[Compiler_1_0, Compiler_2_0, Compiler_5_0, Compiler_6_0]
-)
-def compiler(request):
-    return request.param
-
-
-@pytest.fixture(
     params=[Compiler_1_0, Compiler_2_0, Compiler_5_0]
 )
 def compiler_with_mapping_types(request):

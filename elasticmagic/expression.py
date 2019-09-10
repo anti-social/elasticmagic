@@ -147,6 +147,36 @@ class Match(FieldQueryExpression):
         )
 
 
+class MatchPhrase(FieldQueryExpression):
+    __query_name__ = 'match_phrase'
+
+    def __init__(
+            self, field, query, slop=None, analyzer=None, boost=None,
+            **kwargs
+    ):
+        super(MatchPhrase, self).__init__(
+            field, query,
+            slop=slop, analyzer=analyzer, boost=boost,
+            **kwargs
+        )
+
+
+class MatchPhrasePrefix(FieldQueryExpression):
+    __query_name__ = 'match_phrase_prefix'
+
+    def __init__(
+            self, field, query, slop=None, analyzer=None, boost=None,
+            max_expansions=None,
+            **kwargs
+    ):
+        super(MatchPhrasePrefix, self).__init__(
+            field, query,
+            slop=slop, analyzer=analyzer, boost=boost,
+            max_expansions=max_expansions,
+            **kwargs
+        )
+
+
 class MultiMatch(QueryExpression):
     __visit_name__ = 'multi_match'
 
@@ -480,6 +510,12 @@ class FieldOperators(object):
 
     def match(self, query, **kwargs):
         return Match(self, query, **kwargs)
+
+    def match_phrase(self, query, **kwargs):
+        return MatchPhrase(self, query, **kwargs)
+
+    def match_phrase_prefix(self, query, **kwargs):
+        return MatchPhrasePrefix(self, query, **kwargs)
 
     def range(self, gte=None, lte=None, gt=None, lt=None, **kwargs):
         return Range(self, gte=gte, lte=lte, gt=gt, lt=lt, **kwargs)

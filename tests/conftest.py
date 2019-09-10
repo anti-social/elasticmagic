@@ -1,1 +1,1 @@
-from .fixtures import client, cluster, index
+from .fixtures import client, cluster, compiler, index
