@@ -295,6 +295,16 @@ class CompiledExpression(Compiled):
         params[agg.__agg_name__] = self.visit(agg.filter)
         return params
 
+    def visit_top_hits_agg(self, agg):
+        params = self.visit(agg.params)
+        if not self.features.supports_mapping_types:
+            params = CompiledSearchQuery._patch_docvalue_fields(
+                params, self.doc_classes
+            )
+        return {
+            agg.__agg_name__: params
+        }
+
     def visit_source(self, expr):
         if expr.include or expr.exclude:
             params = {}
@@ -599,18 +609,18 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
             params['script_fields'] = self.visit(
                 query_ctx.script_fields
             )
-        return self._patch_docvalue_fields(params)
+        if not self.features.supports_mapping_types:
+            return self._patch_docvalue_fields(params, self.doc_classes)
+        return params
 
-    def _patch_docvalue_fields(self, params):
-        if self.features.supports_mapping_types:
-            return params
-
+    @staticmethod
+    def _patch_docvalue_fields(params, doc_classes):
         docvalue_fields = params.get('docvalue_fields')
         # Wildcards in docvalue_fields aren't supported by top_hits aggregation
         # doc_type_field = '{}*'.format(DOC_TYPE_FIELD_NAME)
         parent_doc_types = set(
             doc_cls.__doc_type__
-            for doc_cls in self.doc_classes
+            for doc_cls in doc_classes
             if doc_cls.get_doc_type() and doc_cls.has_parent_doc_cls()
         )
         if not parent_doc_types:

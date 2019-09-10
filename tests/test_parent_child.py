@@ -1,6 +1,8 @@
 import pytest
 
 from elasticmagic import Document, Field
+from elasticmagic.agg import TopHits
+from elasticmagic.agg import TopHitsResult
 from elasticmagic.compiler import Compiler_1_0
 from elasticmagic.compiler import Compiler_2_0
 from elasticmagic.compiler import Compiler_5_0
@@ -333,6 +335,64 @@ def test_parent_id_query_with_mapping_types():
             'id': 1
         }
     }
+
+
+def test_top_hits_agg(
+        compiler_no_mapping_types
+):
+    agg = TopHits()
+    compiled_agg = compiler_no_mapping_types.compiled_expression(
+        agg, doc_classes=[Question, Answer]
+    )
+    assert compiled_agg.body == {
+        'top_hits': {
+            'docvalue_fields': [
+                '_doc_type', '_doc_type#answer', '_doc_type#question'
+            ]
+        }
+    }
+
+
+def test_top_hits_agg_result():
+    agg = TopHits()
+    raw_agg_result = {
+        'hits': {
+            'hits': [
+                {
+                    '_type': '_doc',
+                    '_id': 'question~1',
+                    'fields': {
+                        '_doc_type': ['question']
+                    }
+                },
+                {
+                    '_type': '_doc',
+                    '_id': 'answer~1',
+                    'fields': {
+                        '_doc_type': ['answer'],
+                        '_doc_type#question': ['question~1']
+                    }
+                }
+            ]
+        }
+    }
+    agg_res = TopHitsResult(
+        agg, raw_agg_result,
+        doc_cls_map={'question': Question, 'answer': Answer},
+        mapper_registry={},
+        instance_mapper=None
+    )
+    assert len(agg_res.hits) == 2
+    q = agg_res.hits[0]
+    assert isinstance(q, Question)
+    assert q._id == '1'
+    assert q._type == 'question'
+    assert q._parent is None
+    a = agg_res.hits[1]
+    assert isinstance(a, Answer)
+    assert a._id == '1'
+    assert a._type == 'answer'
+    assert a._parent == '1'
 
 
 def test_search_query_filter_by_ids_no_mapping_types(
