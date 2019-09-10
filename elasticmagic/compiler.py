@@ -9,10 +9,10 @@ from .compat import Iterable
 from .compat import Mapping
 from .compat import string_types
 from .document import DOC_TYPE_FIELD_NAME
-from .document import DOC_TYPE_ID_DELIMITER
-from .document import DOC_TYPE_PARENT_DELIMITER
 from .document import Document
 from .document import DynamicDocument
+from .document import mk_parent_field_name
+from .document import mk_uid
 from .expression import Bool
 from .expression import Exists
 from .expression import Filtered
@@ -72,16 +72,6 @@ def _is_emulate_doc_types_mode(features, doc_cls):
         not features.supports_mapping_types and
         doc_cls.get_doc_type() and
         doc_cls.has_parent_doc_cls()
-    )
-
-
-def _doc_type_and_id(doc_type, doc_id):
-    return '{}{}{}'.format(doc_type, DOC_TYPE_ID_DELIMITER, doc_id)
-
-
-def _doc_type_field_name(doc_type):
-    return '{}{}{}'.format(
-        DOC_TYPE_FIELD_NAME, DOC_TYPE_PARENT_DELIMITER, doc_type
     )
 
 
@@ -336,7 +326,7 @@ class CompiledExpression(Compiled):
                 _is_emulate_doc_types_mode(self.features, expr.type)
         ):
             params['values'] = [
-                _doc_type_and_id(expr.type.__doc_type__, v)
+                mk_uid(expr.type.__doc_type__, v)
                 for v in expr.values
             ]
         elif (
@@ -350,7 +340,7 @@ class CompiledExpression(Compiled):
             for doc_cls in self.doc_classes:
                 if _is_emulate_doc_types_mode(self.features, doc_cls):
                     ids.extend(
-                        _doc_type_and_id(doc_cls.__doc_type__, v)
+                        mk_uid(doc_cls.__doc_type__, v)
                         for v in expr.values
                     )
             params['values'] = ids
@@ -375,7 +365,7 @@ class CompiledExpression(Compiled):
             )
 
         if _is_emulate_doc_types_mode(self.features, expr.child_type):
-            parent_id = _doc_type_and_id(
+            parent_id = mk_uid(
                 expr.child_type.__parent__.__doc_type__,
                 expr.parent_id
             )
@@ -605,9 +595,9 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
             return params
 
         doc_type_fields = [DOC_TYPE_FIELD_NAME]
-        for doc_type in parent_doc_types:
+        for parent_doc_type in parent_doc_types:
             doc_type_fields.append(
-                _doc_type_field_name(doc_type)
+                mk_parent_field_name(parent_doc_type)
             )
         doc_type_fields.sort()
         if not docvalue_fields:
@@ -1105,7 +1095,7 @@ class CompiledMeta(Compiled):
 
         if _is_emulate_doc_types_mode(self.features, doc.__class__):
             meta.pop('_parent', None)
-            meta['_id'] = _doc_type_and_id(
+            meta['_id'] = mk_uid(
                 doc.__doc_type__, meta['_id']
             )
             meta['_type'] = DEFAULT_DOC_TYPE
@@ -1195,7 +1185,7 @@ class CompiledSource(CompiledExpression):
         if _is_emulate_doc_types_mode(self.features, doc):
             doc_type_source = {'name': doc.__doc_type__}
             if doc._parent is not None:
-                doc_type_source['parent'] = _doc_type_and_id(
+                doc_type_source['parent'] = mk_uid(
                     doc.__parent__.__doc_type__,
                     doc._parent
                 )

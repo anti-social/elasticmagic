@@ -392,3 +392,44 @@ def test_search_query_filter_by_ids_with_mapping_types():
     assert compiled_query.params == {
         'doc_type': 'answer,question'
     }
+
+
+def test_process_search_result(
+        compiler_no_mapping_types
+):
+    sq = SearchQuery(doc_cls=[Question, Answer])
+    compiled_query = compiler_no_mapping_types.compiled_query(sq)
+    search_result = compiled_query.process_result(
+        {
+            'hits': {
+                'hits': [
+                    {
+                        '_id': 'question~1',
+                        '_type': '_doc',
+                        'fields': {
+                            '_doc_type': ['question']
+                        }
+                    },
+                    {
+                        '_id': 'answer~1',
+                        '_type': '_doc',
+                        'fields': {
+                            '_doc_type': ['answer'],
+                            '_doc_type#question': ['question~1']
+                        }
+                    },
+                ]
+            }
+        }
+    )
+    assert len(search_result.hits) == 2
+    q1 = search_result.hits[0]
+    assert isinstance(q1, Question)
+    assert q1._id == '1'
+    assert q1._type == 'question'
+    assert q1._parent is None
+    a1 = search_result.hits[1]
+    assert isinstance(a1, Answer)
+    assert a1._id == '1'
+    assert a1._type == 'answer'
+    assert a1._parent == '1'

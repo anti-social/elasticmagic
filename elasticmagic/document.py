@@ -12,6 +12,16 @@ DOC_TYPE_ID_DELIMITER = '~'
 DOC_TYPE_PARENT_DELIMITER = '#'
 
 
+def mk_uid(doc_type, doc_id):
+    return '{}{}{}'.format(doc_type, DOC_TYPE_ID_DELIMITER, doc_id)
+
+
+def mk_parent_field_name(parent_doc_type):
+    return '{}{}{}'.format(
+        DOC_TYPE_FIELD_NAME, DOC_TYPE_PARENT_DELIMITER, parent_doc_type
+    )
+
+
 class DocumentMeta(type):
     def __new__(meta, name, bases, dct):
         cls = type.__new__(meta, name, bases, dct)
@@ -154,15 +164,11 @@ class Document(with_metaclass(DocumentMeta)):
                 _, _, self._id = _hit['_id'].rpartition(DOC_TYPE_ID_DELIMITER)
                 self._type = doc_type
 
-                parent_doc_cls = getattr(self, '__parent__', None)
-                parent_doc_type = parent_doc_cls.__doc_type__ \
+                parent_doc_cls = self.get_parent_doc_cls()
+                parent_doc_type = parent_doc_cls.get_doc_type() \
                     if parent_doc_cls else None
                 custom_parent_id = fields.get(
-                    '{}{}{}'.format(
-                        DOC_TYPE_FIELD_NAME,
-                        DOC_TYPE_PARENT_DELIMITER,
-                        parent_doc_type
-                    )
+                    mk_parent_field_name(parent_doc_type)
                 )
                 if custom_parent_id:
                     parent_id = custom_parent_id[0]
