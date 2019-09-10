@@ -295,9 +295,12 @@ class SearchQueryTest(BaseTestCase):
         )
         self.assertEqual(collect_doc_classes(sq), set())
 
-        self.assert_expression(
+        sq = (
             SearchQuery()
-            .function_score({'random_score': {"seed": 1234}}),
+            .function_score({'random_score': {"seed": 1234}})
+        )
+        self.assert_expression(
+            sq,
             {
                 "query": {
                     "function_score": {
@@ -310,6 +313,29 @@ class SearchQueryTest(BaseTestCase):
                 }
             }
         )
+        self.assertEqual(collect_doc_classes(sq), set())
+
+        sq = (
+            SearchQuery()
+            .function_score({'field_value_factor': {'field': f.popularity}})
+        )
+        self.assert_expression(
+            sq,
+            {
+                "query": {
+                    "function_score": {
+                        "functions": [
+                            {
+                                "field_value_factor": {
+                                    "field": "popularity"
+                                }
+                            }
+                        ],
+                    }
+                }
+            }
+        )
+        self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
 
         sq = (
             SearchQuery(MultiMatch('Iphone 6', fields=[f.name, f.description]))

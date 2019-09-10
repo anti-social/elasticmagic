@@ -686,6 +686,9 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
                     self._fields,
                     self._filters,
                     self._post_filters,
+                    tuple(
+                        fs.functions for fs in self._function_scores.values()
+                    ),
                     tuple(self._aggregations.values()),
                     self._order_by,
                     self._rescores,
