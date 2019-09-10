@@ -18,6 +18,9 @@ from .expression import Exists
 from .expression import Filtered
 from .expression import FunctionScore
 from .expression import HighlightedField
+from .expression import MatchPhrase
+from .expression import MatchPhrasePrefix
+from .expression import Params
 from .result import BulkResult
 from .result import CountResult
 from .result import DeleteByQueryResult
@@ -53,6 +56,7 @@ ElasticsearchFeatures = namedtuple(
         'supports_parent_id_query',
         'supports_bool_filter',
         'supports_search_exists_api',
+        'supports_match_type',
         'supports_mapping_types',
         'stored_fields_param',
     ]
@@ -147,10 +151,11 @@ class CompiledExpression(Compiled):
             expr.__query_name__: self.visit(expr.params)
         }
 
-    def visit_field_query(self, expr):
-        if expr.params:
+    def visit_field_query(self, expr, **kwargs):
+        expr_params = Params(expr.params, **kwargs)
+        if expr_params:
             params = {expr.__query_key__: self.visit(expr.query)}
-            params.update(expr.params)
+            params.update(expr_params)
             return {
                 expr.__query_name__: {
                     self.visit(expr.field): params
@@ -162,6 +167,23 @@ class CompiledExpression(Compiled):
                     self.visit(expr.field): self.visit(expr.query)
                 }
             }
+
+    def visit_match(self, expr):
+        if not self.features.supports_match_type and expr.type:
+            if expr.type == 'phrase':
+                return self.visit(
+                    MatchPhrase(expr.field, expr.query, **expr.params)
+                )
+            elif expr.type == 'phrase_prefix':
+                return self.visit(
+                    MatchPhrasePrefix(expr.field, expr.query, *expr.params)
+                )
+            else:
+                raise ValueError(
+                    'Match query type is not supported: [{}]'.format(expr.type)
+                )
+        params = self.visit_field_query(expr, type=expr.type)
+        return params
 
     def visit_range(self, expr):
         field_params = {
@@ -1280,6 +1302,7 @@ def _featured_compiler(elasticsearch_features):
         supports_parent_id_query=False,
         supports_bool_filter=False,
         supports_search_exists_api=True,
+        supports_match_type=True,
         supports_mapping_types=True,
         stored_fields_param='fields',
     )
@@ -1295,6 +1318,7 @@ class Compiler_1_0(object):
         supports_parent_id_query=False,
         supports_bool_filter=True,
         supports_search_exists_api=True,
+        supports_match_type=True,
         supports_mapping_types=True,
         stored_fields_param='fields',
     )
@@ -1310,6 +1334,7 @@ class Compiler_2_0(object):
         supports_parent_id_query=True,
         supports_bool_filter=True,
         supports_search_exists_api=False,
+        supports_match_type=True,
         supports_mapping_types=True,
         stored_fields_param='stored_fields',
     )
@@ -1325,6 +1350,7 @@ class Compiler_5_0(object):
         supports_parent_id_query=True,
         supports_bool_filter=True,
         supports_search_exists_api=False,
+        supports_match_type=False,
         supports_mapping_types=False,
         stored_fields_param='stored_fields',
     )

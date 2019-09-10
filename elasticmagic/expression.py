@@ -127,6 +127,7 @@ class Terms(FieldExpression):
 
 
 class Match(FieldQueryExpression):
+    __visit_name__ = 'match'
     __query_name__ = 'match'
 
     def __init__(
@@ -137,9 +138,10 @@ class Match(FieldQueryExpression):
             zero_terms_query=None, cutoff_frequency=None, lenient=None,
             **kwargs
     ):
+        self.type = type
         super(Match, self).__init__(
             field, query,
-            type=type, analyzer=analyzer, boost=boost,
+            analyzer=analyzer, boost=boost,
             operator=operator, minimum_should_match=minimum_should_match,
             fuzziness=fuzziness, prefix_length=prefix_length,
             max_expansions=max_expansions, zero_terms_query=zero_terms_query,

@@ -9,6 +9,7 @@ from elasticmagic import (
 )
 from elasticmagic.compiler import Compiler_1_0
 from elasticmagic.compiler import Compiler_5_0
+from elasticmagic.compiler import Compiler_6_0
 from elasticmagic.expression import BooleanExpression
 from elasticmagic.types import (
     Type, String, Integer, List, GeoPoint, Completion, Text
@@ -1073,3 +1074,24 @@ def test_match_phrase_prefix(compiler):
     )
     assert expr.to_elastic(compiler) == \
         field_expr.to_elastic(compiler)
+
+
+def test_match_with_type():
+    expr = Match(Field('name', Text()), 'Test match type', type='phrase')
+    assert expr.to_elastic(Compiler_5_0) == {
+        'match': {
+            'name': {
+                'query': 'Test match type',
+                'type': 'phrase'
+            }
+        }
+    }
+
+
+def test_match_with_type_rewrite():
+    expr = Match(Field('name', Text()), 'Test match type', type='phrase')
+    assert expr.to_elastic(Compiler_6_0) == {
+        'match_phrase': {
+            'name': 'Test match type'
+        }
+    }
