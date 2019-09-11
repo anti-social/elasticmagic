@@ -486,3 +486,71 @@ def test_process_search_result(
     assert a1._id == '1'
     assert a1._type == 'answer'
     assert a1._parent == '1'
+
+
+def test_get_no_mapping_types(compiler_no_mapping_types):
+    compiled_get = compiler_no_mapping_types.compiled_get(1, doc_cls=Question)
+    assert compiled_get.params == {
+        'doc_type': '_doc',
+        'id': 'question~1'
+    }
+    compiled_get = compiler_no_mapping_types.compiled_get(
+        {'id': 1}, doc_cls=Question
+    )
+    assert compiled_get.params == {
+        'doc_type': '_doc',
+        'id': 'question~1'
+    }
+    compiled_get = compiler_no_mapping_types.compiled_get(Question(_id=1))
+    assert compiled_get.params == {
+        'doc_type': '_doc',
+        'id': 'question~1'
+    }
+
+
+def test_multi_get_no_mapping_types(compiler_no_mapping_types):
+    compiled_multi_get = compiler_no_mapping_types.compiled_multi_get(
+        [Question(_id=1), Answer(_id=1)]
+    )
+    assert compiled_multi_get.body == {
+        'docs': [
+            {
+                '_type': '_doc',
+                '_id': 'question~1'
+            },
+            {
+                '_type': '_doc',
+                '_id': 'answer~1'
+            }
+        ]
+    }
+    compiled_multi_get = compiler_no_mapping_types.compiled_multi_get(
+        [{'_id': 1, 'doc_cls': Question}, {'_id': 1, 'doc_cls': Answer}]
+    )
+    assert compiled_multi_get.body == {
+        'docs': [
+            {
+                '_type': '_doc',
+                '_id': 'question~1'
+            },
+            {
+                '_type': '_doc',
+                '_id': 'answer~1'
+            }
+        ]
+    }
+    compiled_multi_get = compiler_no_mapping_types.compiled_multi_get(
+        [1, 2], doc_cls=Answer
+    )
+    assert compiled_multi_get.body == {
+        'docs': [
+            {
+                '_type': '_doc',
+                '_id': 'answer~1'
+            },
+            {
+                '_type': '_doc',
+                '_id': 'answer~2'
+            }
+        ]
+    }

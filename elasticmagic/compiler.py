@@ -965,6 +965,12 @@ class CompiledGet(CompiledEndpoint):
                 self.doc_cls, '__doc_type__', None
             )
         get_params.update(params)
+
+        if _is_emulate_doc_types_mode(self.features, self.doc_cls):
+            get_params['id'] = mk_uid(
+                self.doc_cls.get_doc_type(), get_params['id']
+            )
+            get_params['doc_type'] = DEFAULT_DOC_TYPE
         return get_params
 
     def process_result(self, raw_result):
@@ -1030,6 +1036,11 @@ class CompiledMultiGet(CompiledEndpoint):
 
             if not doc.get('_type') and hasattr(doc_cls, '__doc_type__'):
                 doc['_type'] = doc_cls.__doc_type__
+
+            doc_cls = doc_cls or self.default_doc_cls
+            if _is_emulate_doc_types_mode(self.features, doc_cls):
+                doc['_id'] = mk_uid(doc_cls.get_doc_type(), doc['_id'])
+                doc['_type'] = DEFAULT_DOC_TYPE
 
             docs.append(doc)
             self.doc_classes.append(doc_cls)
