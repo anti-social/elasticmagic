@@ -127,6 +127,7 @@ class Terms(FieldExpression):
 
 
 class Match(FieldQueryExpression):
+    __visit_name__ = 'match'
     __query_name__ = 'match'
 
     def __init__(
@@ -137,13 +138,44 @@ class Match(FieldQueryExpression):
             zero_terms_query=None, cutoff_frequency=None, lenient=None,
             **kwargs
     ):
+        self.type = type
         super(Match, self).__init__(
             field, query,
-            type=type, analyzer=analyzer, boost=boost,
+            analyzer=analyzer, boost=boost,
             operator=operator, minimum_should_match=minimum_should_match,
             fuzziness=fuzziness, prefix_length=prefix_length,
             max_expansions=max_expansions, zero_terms_query=zero_terms_query,
             cutoff_frequency=cutoff_frequency, lenient=lenient, **kwargs
+        )
+
+
+class MatchPhrase(FieldQueryExpression):
+    __query_name__ = 'match_phrase'
+
+    def __init__(
+            self, field, query, slop=None, analyzer=None, boost=None,
+            **kwargs
+    ):
+        super(MatchPhrase, self).__init__(
+            field, query,
+            slop=slop, analyzer=analyzer, boost=boost,
+            **kwargs
+        )
+
+
+class MatchPhrasePrefix(FieldQueryExpression):
+    __query_name__ = 'match_phrase_prefix'
+
+    def __init__(
+            self, field, query, slop=None, analyzer=None, boost=None,
+            max_expansions=None,
+            **kwargs
+    ):
+        super(MatchPhrasePrefix, self).__init__(
+            field, query,
+            slop=slop, analyzer=analyzer, boost=boost,
+            max_expansions=max_expansions,
+            **kwargs
         )
 
 
@@ -291,10 +323,12 @@ class Filtered(QueryExpression):
 
 
 class Ids(QueryExpression):
-    __query_name__ = 'ids'
+    __visit_name__ = 'ids'
 
     def __init__(self, values, type=None, **kwargs):
-        super(Ids, self).__init__(values=values, type=type, **kwargs)
+        self.values = values
+        self.type = type
+        super(Ids, self).__init__(**kwargs)
 
 
 class Range(FieldExpression):
@@ -478,6 +512,12 @@ class FieldOperators(object):
 
     def match(self, query, **kwargs):
         return Match(self, query, **kwargs)
+
+    def match_phrase(self, query, **kwargs):
+        return MatchPhrase(self, query, **kwargs)
+
+    def match_phrase_prefix(self, query, **kwargs):
+        return MatchPhrasePrefix(self, query, **kwargs)
 
     def range(self, gte=None, lte=None, gt=None, lt=None, **kwargs):
         return Range(self, gte=gte, lte=lte, gt=gt, lt=lt, **kwargs)

@@ -1,6 +1,7 @@
 from elasticmagic import DynamicDocument
 from elasticmagic import (
-    Params, Term, Terms, Exists, Missing, Match, MatchAll, MultiMatch, Range,
+    Params, Term, Terms, Exists, Missing, Match, MatchPhrase,
+    MatchPhrasePrefix, MatchAll, MultiMatch, Range,
     Bool, Query, And, Or, Not, Sort, Field, Limit,
     Boosting, Common, ConstantScore, FunctionScore, DisMax, Filtered, Ids, Prefix,
     SpanFirst, SpanMulti, SpanNear, SpanNot, SpanOr, SpanTerm, 
@@ -8,9 +9,10 @@ from elasticmagic import (
 )
 from elasticmagic.compiler import Compiler_1_0
 from elasticmagic.compiler import Compiler_5_0
+from elasticmagic.compiler import Compiler_6_0
 from elasticmagic.expression import BooleanExpression
 from elasticmagic.types import (
-    Type, String, Integer, List, GeoPoint, Completion,
+    Type, String, Integer, List, GeoPoint, Completion, Text
 )
 
 from .base import BaseTestCase
@@ -997,3 +999,99 @@ class ExpressionTestCase(BaseTestCase):
                 }
             }
         )
+
+
+def test_match_phrase(compiler):
+    expr = MatchPhrase(
+        Field('name', Text()),
+        'Ha-ha (c)'
+    )
+    assert expr.to_elastic(compiler) == {
+        'match_phrase': {
+            'name': 'Ha-ha (c)'
+        }
+    }
+
+    expr = MatchPhrase(
+        Field('name', Text()),
+        'Ha-ha (c)',
+        slop=2, boost=10, analyzer='name_text'
+    )
+    field_expr = Field('name', Text()).match_phrase(
+        'Ha-ha (c)', slop=2, boost=10, analyzer='name_text'
+    )
+    assert expr.to_elastic(compiler) == {
+        'match_phrase': {
+            'name': {
+                'query': 'Ha-ha (c)',
+                'slop': 2,
+                'boost': 10,
+                'analyzer': 'name_text',
+            }
+        }
+    }
+    assert expr.to_elastic(compiler) == \
+        field_expr.to_elastic(compiler)
+
+    field_expr = Field('name', Text()).match_phrase(
+        'Ha-ha (c)',
+        slop=2, boost=10, analyzer='name_text'
+    )
+    assert expr.to_elastic(compiler) == \
+        field_expr.to_elastic(compiler)
+
+
+def test_match_phrase_prefix(compiler):
+    expr = MatchPhrasePrefix(
+        Field('name', Text()),
+        'Hi ther'
+    )
+    assert expr.to_elastic(compiler) == {
+        'match_phrase_prefix': {
+            'name': 'Hi ther'
+        }
+    }
+
+    expr = MatchPhrasePrefix(
+        Field('name', Text()),
+        'Hi ther',
+        slop=2, boost=10, analyzer='name_text', max_expansions=100
+    )
+    assert expr.to_elastic(compiler) == {
+        'match_phrase_prefix': {
+            'name': {
+                'query': 'Hi ther',
+                'slop': 2,
+                'boost': 10,
+                'analyzer': 'name_text',
+                'max_expansions': 100,
+            }
+        }
+    }
+
+    field_expr = Field('name', Text()).match_phrase_prefix(
+        'Hi ther', slop=2, boost=10, analyzer='name_text', max_expansions=100
+    )
+    assert expr.to_elastic(compiler) == \
+        field_expr.to_elastic(compiler)
+
+
+def test_match_with_type():
+    expr = Match(Field('name', Text()), 'Test match type', type='phrase')
+    assert expr.to_elastic(Compiler_5_0) == {
+        'match': {
+            'name': {
+                'query': 'Test match type',
+                'type': 'phrase'
+            }
+        }
+    }
+
+
+def test_match_with_type_rewrite():
+    expr = Match(Field('name', Text()), 'Test match type', type='phrase')
+    assert expr.to_elastic(Compiler_6_0) == {
+        'match_phrase': {
+            'name': 'Test match type'
+        }
+    }
