@@ -618,12 +618,19 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
         docvalue_fields = params.get('docvalue_fields')
         # Wildcards in docvalue_fields aren't supported by top_hits aggregation
         # doc_type_field = '{}*'.format(DOC_TYPE_FIELD_NAME)
-        parent_doc_types = set(
-            doc_cls.__doc_type__
-            for doc_cls in doc_classes
-            if doc_cls.get_doc_type() and doc_cls.has_parent_doc_cls()
-        )
-        if not parent_doc_types:
+        parent_doc_types = set()
+        should_inject_docvalue_fields = False
+        for doc_cls in doc_classes:
+            if not doc_cls.has_parent_doc_cls:
+                continue
+            parent_doc_cls = doc_cls.get_parent_doc_cls()
+            should_inject_docvalue_fields = True
+            if not parent_doc_cls:
+                continue
+            parent_doc_type = parent_doc_cls.get_doc_type()
+            if parent_doc_type:
+                parent_doc_types.add(parent_doc_type)
+        if not should_inject_docvalue_fields:
             return params
 
         doc_type_fields = [DOC_TYPE_FIELD_NAME]

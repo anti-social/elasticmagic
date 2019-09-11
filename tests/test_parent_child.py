@@ -347,7 +347,7 @@ def test_top_hits_agg(
     assert compiled_agg.body == {
         'top_hits': {
             'docvalue_fields': [
-                '_doc_type', '_doc_type#answer', '_doc_type#question'
+                '_doc_type', '_doc_type#question'
             ]
         }
     }
@@ -399,6 +399,29 @@ def test_search_query_filter_by_ids_no_mapping_types(
         compiler_no_mapping_types
 ):
     sq = (
+        SearchQuery(doc_cls=[Question])
+        .filter(Ids([1, 2, 3]))
+    )
+    compiled_query = compiler_no_mapping_types.compiled_query(sq)
+    assert compiled_query.body == {
+        'query': {
+            'bool': {
+                'filter': {
+                    'ids': {
+                        'values': [
+                            'question~1', 'question~2', 'question~3'
+                        ]
+                    }
+                }
+            }
+        },
+        'docvalue_fields': ['_doc_type']
+    }
+    assert compiled_query.params == {
+        'doc_type': '_doc'
+    }
+
+    sq = (
         SearchQuery(doc_cls=[Question, Answer])
         .filter(Ids([1, 2, 3]))
     )
@@ -417,7 +440,7 @@ def test_search_query_filter_by_ids_no_mapping_types(
             }
         },
         'docvalue_fields': [
-            '_doc_type', '_doc_type#answer', '_doc_type#question'
+            '_doc_type', '_doc_type#question'
         ]
     }
     assert compiled_query.params == {
