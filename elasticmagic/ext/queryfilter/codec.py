@@ -21,9 +21,9 @@ class TypeCodec(object):
         raise NotImplementedError
 
 
-class AnyCodec(TypeCodec):
+class StringCodec(TypeCodec):
     def decode(self, value, es_type=None):
-        return value
+        return force_unicode(value)
 
     def encode(self, value, es_type=None):
         return force_unicode(value)
@@ -120,7 +120,7 @@ class SimpleCodec(BaseCodec):
     DEFAULT_OP = 'exact'
 
     CODECS = {
-        None: AnyCodec,
+        None: StringCodec,
         float: FloatCodec,
         int: IntCodec,
         bool: BoolCodec,
@@ -170,7 +170,7 @@ class SimpleCodec(BaseCodec):
             return None
 
         es_type, python_type = self._get_es_and_python_types(es_type)
-        value_codec = self.CODECS.get(python_type, AnyCodec)()
+        value_codec = self.CODECS.get(python_type, StringCodec)()
         return value_codec.decode(value, es_type=es_type)
 
     def decode(self, params, types=None):
@@ -200,7 +200,7 @@ class SimpleCodec(BaseCodec):
             return self.NULL_VAL
 
         es_type, python_type = self._get_es_and_python_types(es_type)
-        value_codec = self.CODECS.get(python_type, AnyCodec)()
+        value_codec = self.CODECS.get(python_type, StringCodec)()
         return value_codec.encode(value, es_type=es_type)
 
     def encode(self, values, types=None):

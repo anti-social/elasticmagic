@@ -22,6 +22,13 @@ def test_base_codec():
 def test_simple_codec_decode():
     codec = SimpleCodec()
     assert \
+        codec.decode({'category_id': [1, '2', 'null']}) == \
+        {
+            'category_id': {
+                'exact': ['1', '2', None],
+            }
+        }
+    assert \
         codec.decode({'country': ['ru', 'ua', 'null']}) == \
         {
             'country': {
