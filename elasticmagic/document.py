@@ -204,7 +204,10 @@ class Document(with_metaclass(DocumentMeta)):
     def _process_source_key_value(self, key, value):
         if key in self._field_name_map:
             attr_field = self._field_name_map[key]
-            return attr_field._attr_name, attr_field._to_python(value)
+            return (
+                attr_field._attr_name,
+                attr_field.get_type().to_python(value)
+            )
         return key, value
 
     def _process_fields(self, hit_fields):
