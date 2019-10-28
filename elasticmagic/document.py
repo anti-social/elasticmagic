@@ -7,7 +7,9 @@ from .util import cached_property
 from .compat import with_metaclass
 
 
-DOC_TYPE_FIELD_NAME = '_doc_type'
+DOC_TYPE_JOIN_FIELD = '_doc_type'
+DOC_TYPE_NAME_FIELD = '_doc_type_name'
+DOC_TYPE_PARENT_FIELD = '_doc_type_parent'
 DOC_TYPE_ID_DELIMITER = '~'
 DOC_TYPE_PARENT_DELIMITER = '#'
 
@@ -16,10 +18,12 @@ def mk_uid(doc_type, doc_id):
     return '{}{}{}'.format(doc_type, DOC_TYPE_ID_DELIMITER, doc_id)
 
 
-def mk_parent_field_name(parent_doc_type):
-    return '{}{}{}'.format(
-        DOC_TYPE_FIELD_NAME, DOC_TYPE_PARENT_DELIMITER, parent_doc_type
-    )
+def get_doc_type_for_hit(hit):
+    fields = hit.get('fields', {})
+    custom_doc_type = fields.get(DOC_TYPE_NAME_FIELD)
+    if custom_doc_type:
+        return custom_doc_type[0]
+    return hit['_type']
 
 
 class DocumentMeta(type):
@@ -152,7 +156,7 @@ class Document(with_metaclass(DocumentMeta)):
             self._score = _hit.get('_score')
             source = _hit.get('_source')
             fields = _hit.get('fields')
-            custom_doc_type = fields.get(DOC_TYPE_FIELD_NAME) \
+            custom_doc_type = fields.get(DOC_TYPE_NAME_FIELD) \
                 if fields else None
 
             for attr_field in self._mapping_fields:
@@ -164,12 +168,7 @@ class Document(with_metaclass(DocumentMeta)):
                 _, _, self._id = _hit['_id'].rpartition(DOC_TYPE_ID_DELIMITER)
                 self._type = doc_type
 
-                parent_doc_cls = self.get_parent_doc_cls()
-                parent_doc_type = parent_doc_cls.get_doc_type() \
-                    if parent_doc_cls else None
-                custom_parent_id = fields.get(
-                    mk_parent_field_name(parent_doc_type)
-                )
+                custom_parent_id = fields.get(DOC_TYPE_PARENT_FIELD)
                 if custom_parent_id:
                     parent_id = custom_parent_id[0]
                     _, _, self._parent = parent_id.rpartition(

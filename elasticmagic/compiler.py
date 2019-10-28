@@ -8,10 +8,12 @@ from elasticsearch import ElasticsearchException
 from .compat import Iterable
 from .compat import Mapping
 from .compat import string_types
-from .document import DOC_TYPE_FIELD_NAME
+from .document import DOC_TYPE_JOIN_FIELD
+from .document import DOC_TYPE_NAME_FIELD
+from .document import DOC_TYPE_PARENT_FIELD
 from .document import Document
 from .document import DynamicDocument
-from .document import mk_parent_field_name
+from .document import get_doc_type_for_hit
 from .document import mk_uid
 from .expression import Bool
 from .expression import Exists
@@ -80,6 +82,24 @@ def _is_emulate_doc_types_mode(features, doc_cls):
         not features.supports_mapping_types and
         doc_cls.get_doc_type() and
         doc_cls.has_parent_doc_cls()
+    )
+
+
+def _add_doc_type_fields_into_stored_fields(
+        stored_fields, has_source
+):
+    extra_stored_fields = []
+    if has_source:
+        extra_stored_fields.append('_source')
+    extra_stored_fields.extend([DOC_TYPE_NAME_FIELD, DOC_TYPE_PARENT_FIELD])
+    if not stored_fields:
+        return extra_stored_fields
+    elif isinstance(stored_fields, string_types):
+        return [stored_fields] + extra_stored_fields
+    elif isinstance(stored_fields, list):
+        return stored_fields + extra_stored_fields
+    raise ValueError(
+        'Unsupported stored_fields type: {}'.format(type(stored_fields))
     )
 
 
@@ -321,9 +341,7 @@ class CompiledExpression(Compiled):
     def visit_top_hits_agg(self, agg):
         params = self.visit(agg.params)
         if not self.features.supports_mapping_types:
-            params = CompiledSearchQuery._patch_docvalue_fields(
-                params, self.doc_classes
-            )
+            self._patch_stored_fields(params, self.doc_classes)
         return {
             agg.__agg_name__: params
         }
@@ -505,6 +523,30 @@ class CompiledExpression(Compiled):
             params['filter'] = self.visit(func.filter)
         return params
 
+    def _patch_stored_fields(self, params, doc_classes):
+        parent_doc_types = set()
+        should_inject_stored_fields = False
+        for doc_cls in doc_classes:
+            if not doc_cls.has_parent_doc_cls():
+                continue
+            parent_doc_cls = doc_cls.get_parent_doc_cls()
+            should_inject_stored_fields = True
+            if not parent_doc_cls:
+                continue
+            parent_doc_type = parent_doc_cls.get_doc_type()
+            if parent_doc_type:
+                parent_doc_types.add(parent_doc_type)
+        if not should_inject_stored_fields:
+            return params
+
+        stored_fields_param = self.features.stored_fields_param
+        stored_fields = params.get(stored_fields_param)
+        params[stored_fields_param] = _add_doc_type_fields_into_stored_fields(
+            stored_fields, params.get('_source', True)
+        )
+
+        return params
+
 
 class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
     features = None
@@ -629,41 +671,7 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
                 query_ctx.script_fields
             )
         if not self.features.supports_mapping_types:
-            return self._patch_docvalue_fields(params, self.doc_classes)
-        return params
-
-    @staticmethod
-    def _patch_docvalue_fields(params, doc_classes):
-        docvalue_fields = params.get('docvalue_fields')
-        # Wildcards in docvalue_fields aren't supported by top_hits aggregation
-        # doc_type_field = '{}*'.format(DOC_TYPE_FIELD_NAME)
-        parent_doc_types = set()
-        should_inject_docvalue_fields = False
-        for doc_cls in doc_classes:
-            if not doc_cls.has_parent_doc_cls:
-                continue
-            parent_doc_cls = doc_cls.get_parent_doc_cls()
-            should_inject_docvalue_fields = True
-            if not parent_doc_cls:
-                continue
-            parent_doc_type = parent_doc_cls.get_doc_type()
-            if parent_doc_type:
-                parent_doc_types.add(parent_doc_type)
-        if not should_inject_docvalue_fields:
-            return params
-
-        doc_type_fields = [DOC_TYPE_FIELD_NAME]
-        for parent_doc_type in parent_doc_types:
-            doc_type_fields.append(
-                mk_parent_field_name(parent_doc_type)
-            )
-        doc_type_fields.sort()
-        if not docvalue_fields:
-            params['docvalue_fields'] = doc_type_fields
-        elif isinstance(docvalue_fields, string_types):
-            params['docvalue_fields'] = [docvalue_fields] + doc_type_fields
-        elif isinstance(docvalue_fields, list):
-            docvalue_fields.extend(doc_type_fields)
+            self._patch_stored_fields(params, self.doc_classes)
         return params
 
     def _patch_doc_type(self, search_params):
@@ -828,7 +836,16 @@ class CompiledPutMapping(CompiledEndpoint):
         return client.indices.put_mapping
 
     def prepare_params(self, params):
-        if params.get('doc_type') is None:
+        if (
+                not self.features.supports_mapping_types and
+                (
+                    isinstance(self.expression, self._MultipleMappings) or
+                    issubclass(self.expression, Document) and
+                    self.expression.has_parent_doc_cls()
+                )
+        ):
+            params['doc_type'] = DEFAULT_DOC_TYPE
+        elif params.get('doc_type') is None:
             params['doc_type'] = getattr(
                 self.expression, '__doc_type__', None
             )
@@ -931,7 +948,7 @@ class CompiledPutMapping(CompiledEndpoint):
                 self._merge_properties(mappings, mapping['properties'])
 
         if not self.features.supports_mapping_types and relations:
-            doc_type_property = mappings['properties'][DOC_TYPE_FIELD_NAME]
+            doc_type_property = mappings['properties'][DOC_TYPE_JOIN_FIELD]
             doc_type_property['relations'] = relations
 
         return mappings
@@ -942,7 +959,21 @@ class CompiledPutMapping(CompiledEndpoint):
         mapping.update(self.visit(doc_cls.mapping_fields))
         properties = self.visit(doc_cls.user_fields)
         if _is_emulate_doc_types_mode(self.features, doc_cls):
-            properties[DOC_TYPE_FIELD_NAME] = {'type': 'join'}
+            properties[DOC_TYPE_JOIN_FIELD] = {
+                'type': 'join'
+            }
+            properties[DOC_TYPE_NAME_FIELD] = {
+                'type': 'keyword',
+                'index': False,
+                'doc_values': False,
+                'store': True,
+            }
+            properties[DOC_TYPE_PARENT_FIELD] = {
+                'type': 'keyword',
+                'index': False,
+                'doc_values': False,
+                'store': True,
+            }
         mapping['properties'] = properties
         for f in doc_cls.dynamic_fields:
             self._visit_dynamic_field(f)
@@ -997,15 +1028,25 @@ class CompiledGet(CompiledEndpoint):
                 self.doc_cls.get_doc_type(), get_params['id']
             )
             get_params['doc_type'] = DEFAULT_DOC_TYPE
+            self._patch_stored_fields(get_params)
         return get_params
+
+    def _patch_stored_fields(self, params):
+        stored_fields_param = self.features.stored_fields_param
+        stored_fields = params.get(stored_fields_param)
+        if stored_fields:
+            stored_fields = stored_fields.split(',')
+        stored_fields = _add_doc_type_fields_into_stored_fields(
+            stored_fields, params.get('_source', True) not in (False, 'false')
+        )
+
+        params[stored_fields_param] = ','.join(stored_fields)
 
     def process_result(self, raw_result):
         return self.doc_cls(_hit=raw_result)
 
 
 class CompiledMultiGet(CompiledEndpoint):
-    compiled_get = None
-
     class _DocsOrIds(object):
         __visit_name__ = 'docs_or_ids'
 
@@ -1067,6 +1108,9 @@ class CompiledMultiGet(CompiledEndpoint):
             if _is_emulate_doc_types_mode(self.features, doc_cls):
                 doc['_id'] = mk_uid(doc_cls.get_doc_type(), doc['_id'])
                 doc['_type'] = DEFAULT_DOC_TYPE
+                doc[self.features.stored_fields_param] = [
+                    '_source', DOC_TYPE_NAME_FIELD, DOC_TYPE_PARENT_FIELD
+                ]
 
             docs.append(doc)
             self.doc_classes.append(doc_cls)
@@ -1076,7 +1120,7 @@ class CompiledMultiGet(CompiledEndpoint):
     def process_result(self, raw_result):
         docs = []
         for doc_cls, raw_doc in zip(self.doc_classes, raw_result['docs']):
-            doc_type = raw_doc.get('_type')
+            doc_type = get_doc_type_for_hit(raw_doc)
             if doc_cls is None and doc_type in self.doc_cls_map:
                 doc_cls = self.doc_cls_map.get(doc_type)
             if doc_cls is None:
@@ -1252,13 +1296,16 @@ class CompiledSource(CompiledExpression):
                 )
 
         if _is_emulate_doc_types_mode(self.features, doc):
-            doc_type_source = {'name': doc.__doc_type__}
+            doc_type_source = {}
+            source[DOC_TYPE_NAME_FIELD] = doc_type_source['name'] = \
+                doc.__doc_type__
             if doc._parent is not None:
-                doc_type_source['parent'] = mk_uid(
-                    doc.__parent__.__doc_type__,
-                    doc._parent
-                )
-            source[DOC_TYPE_FIELD_NAME] = doc_type_source
+                source[DOC_TYPE_PARENT_FIELD] = doc_type_source['parent'] = \
+                    mk_uid(
+                        doc.__parent__.__doc_type__,
+                        doc._parent
+                    )
+            source[DOC_TYPE_JOIN_FIELD] = doc_type_source
 
         return source
 

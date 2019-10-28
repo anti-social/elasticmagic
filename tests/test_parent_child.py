@@ -73,6 +73,18 @@ def test_document_mapping_no_mapping_types(
                 '_doc_type': {
                     'type': 'join'
                 },
+                '_doc_type_name': {
+                    'type': 'keyword',
+                    'index': False,
+                    'doc_values': False,
+                    'store': True
+                },
+                '_doc_type_parent': {
+                    'type': 'keyword',
+                    'index': False,
+                    'doc_values': False,
+                    'store': True
+                },
                 'question': {
                     'type': 'text'
                 }
@@ -86,6 +98,9 @@ def test_multiple_document_mappings_with_mapping_types(
     compiled_mapping = compiler_with_mapping_types.compiled_put_mapping(
         [Question, Answer]
     )
+    assert compiled_mapping.params == {
+        'doc_type': None,
+    }
     assert \
         compiled_mapping.body == \
         {
@@ -112,6 +127,9 @@ def test_multiple_document_mappings_no_mapping_types(
     compiled_mapping = compiler_no_mapping_types.compiled_put_mapping(
         [Question, Answer]
     )
+    assert compiled_mapping.params == {
+        'doc_type': '_doc',
+    }
     assert \
         compiled_mapping.body == \
         {
@@ -121,6 +139,18 @@ def test_multiple_document_mappings_no_mapping_types(
                     'relations': {
                         'question': ['answer']
                     }
+                },
+                '_doc_type_name': {
+                    'type': 'keyword',
+                    'index': False,
+                    'doc_values': False,
+                    'store': True
+                },
+                '_doc_type_parent': {
+                    'type': 'keyword',
+                    'index': False,
+                    'doc_values': False,
+                    'store': True
                 },
                 'question': {
                     'type': 'text'
@@ -160,6 +190,7 @@ def test_document_meta_and_source_no_mapping_types(
             '_doc_type': {
                 'name': 'question'
             },
+            '_doc_type_name': 'question',
             'question': 'The Ultimate Question'
         }
 
@@ -179,11 +210,13 @@ def test_document_meta_and_source_no_mapping_types(
     assert \
         amazingly_accurate_answer.to_source(compiler_no_mapping_types) == \
         {
-            "_doc_type": {
-                "name": "answer",
-                "parent": "question~1",
+            '_doc_type': {
+                'name': 'answer',
+                'parent': 'question~1',
             },
-            "answer": "42",
+            '_doc_type_name': 'answer',
+            '_doc_type_parent': 'question~1',
+            'answer': '42',
         }
 
 
@@ -232,7 +265,7 @@ def test_document_from_hit_no_mapping_types():
         '_id': 'question~1',
         '_type': '_doc',
         'fields': {
-            '_doc_type': ['question'],
+            '_doc_type_name': ['question'],
         },
         '_source': {
             'question': 'The Ultimate Question',
@@ -246,8 +279,8 @@ def test_document_from_hit_no_mapping_types():
         '_id': 'answer~1',
         '_type': '_doc',
         'fields': {
-            '_doc_type': ['answer'],
-            '_doc_type#question': ['question~1'],
+            '_doc_type_name': ['answer'],
+            '_doc_type_parent': ['question~1'],
         },
         '_source': {
             'answer': '42',
@@ -346,8 +379,8 @@ def test_top_hits_agg(
     )
     assert compiled_agg.body == {
         'top_hits': {
-            'docvalue_fields': [
-                '_doc_type', '_doc_type#question'
+            'stored_fields': [
+                '_source', '_doc_type_name', '_doc_type_parent'
             ]
         }
     }
@@ -362,15 +395,15 @@ def test_top_hits_agg_result():
                     '_type': '_doc',
                     '_id': 'question~1',
                     'fields': {
-                        '_doc_type': ['question']
+                        '_doc_type_name': ['question']
                     }
                 },
                 {
                     '_type': '_doc',
                     '_id': 'answer~1',
                     'fields': {
-                        '_doc_type': ['answer'],
-                        '_doc_type#question': ['question~1']
+                        '_doc_type_name': ['answer'],
+                        '_doc_type_parent': ['question~1']
                     }
                 }
             ]
@@ -415,7 +448,7 @@ def test_search_query_filter_by_ids_no_mapping_types(
                 }
             }
         },
-        'docvalue_fields': ['_doc_type']
+        'stored_fields': ['_source', '_doc_type_name', '_doc_type_parent']
     }
     assert compiled_query.params == {
         'doc_type': '_doc'
@@ -439,8 +472,8 @@ def test_search_query_filter_by_ids_no_mapping_types(
                 }
             }
         },
-        'docvalue_fields': [
-            '_doc_type', '_doc_type#question'
+        'stored_fields': [
+            '_source', '_doc_type_name', '_doc_type_parent'
         ]
     }
     assert compiled_query.params == {
@@ -483,15 +516,15 @@ def test_process_search_result(
                         '_id': 'question~1',
                         '_type': '_doc',
                         'fields': {
-                            '_doc_type': ['question']
+                            '_doc_type_name': ['question']
                         }
                     },
                     {
                         '_id': 'answer~1',
                         '_type': '_doc',
                         'fields': {
-                            '_doc_type': ['answer'],
-                            '_doc_type#question': ['question~1']
+                            '_doc_type_name': ['answer'],
+                            '_doc_type_parent': ['question~1']
                         }
                     },
                 ]
@@ -515,19 +548,22 @@ def test_get_no_mapping_types(compiler_no_mapping_types):
     compiled_get = compiler_no_mapping_types.compiled_get(1, doc_cls=Question)
     assert compiled_get.params == {
         'doc_type': '_doc',
-        'id': 'question~1'
+        'id': 'question~1',
+        'stored_fields': '_source,_doc_type_name,_doc_type_parent'
     }
     compiled_get = compiler_no_mapping_types.compiled_get(
         {'id': 1}, doc_cls=Question
     )
     assert compiled_get.params == {
         'doc_type': '_doc',
-        'id': 'question~1'
+        'id': 'question~1',
+        'stored_fields': '_source,_doc_type_name,_doc_type_parent'
     }
     compiled_get = compiler_no_mapping_types.compiled_get(Question(_id=1))
     assert compiled_get.params == {
         'doc_type': '_doc',
-        'id': 'question~1'
+        'id': 'question~1',
+        'stored_fields': '_source,_doc_type_name,_doc_type_parent'
     }
 
 
@@ -539,11 +575,13 @@ def test_multi_get_no_mapping_types(compiler_no_mapping_types):
         'docs': [
             {
                 '_type': '_doc',
-                '_id': 'question~1'
+                '_id': 'question~1',
+                'stored_fields': ['_source', '_doc_type_name', '_doc_type_parent']
             },
             {
                 '_type': '_doc',
-                '_id': 'answer~1'
+                '_id': 'answer~1',
+                'stored_fields': ['_source', '_doc_type_name', '_doc_type_parent']
             }
         ]
     }
@@ -554,11 +592,13 @@ def test_multi_get_no_mapping_types(compiler_no_mapping_types):
         'docs': [
             {
                 '_type': '_doc',
-                '_id': 'question~1'
+                '_id': 'question~1',
+                'stored_fields': ['_source', '_doc_type_name', '_doc_type_parent']
             },
             {
                 '_type': '_doc',
-                '_id': 'answer~1'
+                '_id': 'answer~1',
+                'stored_fields': ['_source', '_doc_type_name', '_doc_type_parent']
             }
         ]
     }
@@ -569,11 +609,13 @@ def test_multi_get_no_mapping_types(compiler_no_mapping_types):
         'docs': [
             {
                 '_type': '_doc',
-                '_id': 'answer~1'
+                '_id': 'answer~1',
+                'stored_fields': ['_source', '_doc_type_name', '_doc_type_parent']
             },
             {
                 '_type': '_doc',
-                '_id': 'answer~2'
+                '_id': 'answer~2',
+                'stored_fields': ['_source', '_doc_type_name', '_doc_type_parent']
             }
         ]
     }

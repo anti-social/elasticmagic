@@ -1,7 +1,7 @@
 from .compat import string_types
 from .compat import Iterable
-from .document import DOC_TYPE_FIELD_NAME
 from .document import DynamicDocument
+from .document import get_doc_type_for_hit
 
 
 class Result(object):
@@ -45,12 +45,7 @@ class SearchResult(Result):
         self.max_score = hits.get('max_score')
         self.hits = []
         for hit in hits.get('hits', []):
-            fields = hit.get('fields', {})
-            custom_doc_type = fields.get(DOC_TYPE_FIELD_NAME)
-            if custom_doc_type:
-                doc_type = custom_doc_type[0]
-            else:
-                doc_type = hit['_type']
+            doc_type = get_doc_type_for_hit(hit)
             doc_cls = self._doc_cls_map.get(doc_type, DynamicDocument)
             self.hits.append(doc_cls(_hit=hit, _result=self))
 
@@ -118,8 +113,9 @@ class ActionResult(Result):
 
 class ErrorReason(object):
     def __init__(self, raw_error):
-        self.type = raw_error['type']
-        self.reason = raw_error['reason']
+        self.type = raw_error.get('type')
+        self.reason = raw_error.get('reason')
+        self.caused_by = raw_error.get('caused_by')
 
 
 class BulkResult(Result):

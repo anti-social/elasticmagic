@@ -635,12 +635,6 @@ class Field(Expression, FieldOperators):
     def get_mapping_options(self):
         return self._mapping_options
 
-    # def _to_python(self, value):
-    #     return self._type.to_python(value)
-
-    # def _from_python(self, value):
-    #     return self._type.from_python(value)
-
     def to_mapping(self, compiler):
         return compiler.compiled_put_mapping(self).body
 

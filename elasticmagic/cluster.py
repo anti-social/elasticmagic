@@ -132,12 +132,12 @@ class Cluster(BaseCluster):
         compiled_query = compiler(*args, **kwargs)
         api_method = compiled_query.api_method(self._client)
         if compiled_query.body is None:
-            return compiled_query.process_result(
-                api_method(**compiled_query.params)
+            raw_res = api_method(**compiled_query.params)
+        else:
+            raw_res = api_method(
+                body=compiled_query.body, **compiled_query.params
             )
-        return compiled_query.process_result(
-            api_method(body=compiled_query.body, **compiled_query.params)
-        )
+        return compiled_query.process_result(raw_res)
 
     def get_compiler(self):
         if self._compiler:

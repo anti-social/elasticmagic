@@ -13,14 +13,12 @@ class AsyncCluster(BaseCluster):
         compiled_query = compiler(*args, **kwargs)
         api_method = compiled_query.api_method(self._client)
         if compiled_query.body is None:
-            return compiled_query.process_result(
-                await api_method(**compiled_query.params)
-            )
-        return compiled_query.process_result(
-            await api_method(
+            raw_res = await api_method(**compiled_query.params)
+        else:
+            raw_res = await api_method(
                 body=compiled_query.body, **compiled_query.params
             )
-        )
+        return compiled_query.process_result(raw_res)
 
     async def get_es_version(self):
         if not self._es_version:
