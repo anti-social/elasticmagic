@@ -1,6 +1,7 @@
 mock
 setuptools
 nose
+attrs==19.1.0
 # https://github.com/pytest-dev/pytest-asyncio/issues/104
 pytest==4.0.2
 pytest-asyncio
