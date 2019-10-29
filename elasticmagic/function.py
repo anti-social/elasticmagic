@@ -2,19 +2,6 @@
 from .expression import Params, ParamsExpression
 
 
-class Script(ParamsExpression):
-    __visit_name__ = 'script'
-
-    def __init__(
-            self, lang=None, inline=None, id=None, file=None, params=None
-    ):
-        assert inline or id or file, \
-            "Specify one of the next arguments: 'inline', 'id' of 'file'"
-        super(Script, self).__init__(
-            lang=lang, inline=inline, id=id, file=file, params=params
-        )
-
-
 class Function(ParamsExpression):
     __visit_name__ = 'function'
 

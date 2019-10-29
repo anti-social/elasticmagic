@@ -5,12 +5,13 @@ from elasticmagic import (
     Bool, Query, And, Or, Not, Sort, Field, Limit,
     Boosting, Common, ConstantScore, FunctionScore, DisMax, Filtered, Ids, Prefix,
     SpanFirst, SpanMulti, SpanNear, SpanNot, SpanOr, SpanTerm, 
-    Nested, HasParent, HasChild,
+    Nested, HasParent, HasChild
 )
-from elasticmagic.compiler import Compiler_1_0
+from elasticmagic.compiler import Compiler_1_0, CompilationError
 from elasticmagic.compiler import Compiler_5_0
+from elasticmagic.compiler import Compiler_5_6
 from elasticmagic.compiler import Compiler_6_0
-from elasticmagic.expression import BooleanExpression
+from elasticmagic.expression import BooleanExpression, Script
 from elasticmagic.types import (
     Type, String, Integer, List, GeoPoint, Completion, Text
 )
@@ -145,6 +146,57 @@ class ExpressionTestCase(BaseTestCase):
                 }
             }
         )
+        script_inline = "(doc[params.field_name].size() > 0 && " \
+                        "doc[params.field_name].value > 0) ? " \
+                        "params.adv_boost : 0"
+        script_params = dict(adv_boost=70, field_name='advert_weight')
+        self.assert_expression(
+            Script(inline=script_inline, lang='painless', params=script_params),
+            dict(inline=script_inline, lang='painless', params=script_params)
+        )
+        self.assert_expression(
+            Script(inline=script_inline, params=script_params),
+            dict(inline=script_inline, params=script_params)
+        )
+        self.assert_expression(
+            Script(inline=script_inline),
+            dict(inline=script_inline)
+        )
+        self.assert_expression(
+            Script(inline=script_inline),
+            dict(source=script_inline),
+            compiler=Compiler_5_6
+        )
+        self.assert_expression(
+            Script(inline=script_inline),
+            dict(source=script_inline),
+            compiler=Compiler_6_0
+        )
+        self.assert_expression(
+            Script(id="ajkshfajsndajvn2143jlan"),
+            dict(stored="ajkshfajsndajvn2143jlan"),
+            compiler=Compiler_5_0
+        )
+        self.assert_expression(
+            Script(id="ajkshfajsndajvn2143jlan"),
+            dict(id="ajkshfajsndajvn2143jlan"),
+            compiler=Compiler_5_6
+        )
+        self.assert_expression(
+            Script(id="ajkshfajsndajvn2143jlan"),
+            dict(id="ajkshfajsndajvn2143jlan"),
+            compiler=Compiler_6_0
+        )
+        self.assert_expression(
+            Script(file="home/es/test.py"),
+            dict(file="home/es/test.py")
+        )
+        with self.assertRaises(CompilationError):
+            Script(params=dict(hello='no')).to_dict(compiler=Compiler_5_0)
+        with self.assertRaises(CompilationError):
+            Script(params=dict(file='no')).to_dict(compiler=Compiler_6_0)
+        with self.assertRaises(CompilationError):
+            Script(inline=script_inline).to_dict(compiler=Compiler_1_0)
 
         e = MultiMatch(
             "Will Smith",

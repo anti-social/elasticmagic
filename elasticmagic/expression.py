@@ -244,6 +244,18 @@ class Bool(QueryExpression):
         return cls(should=expressions)
 
 
+class Script(Expression):
+    __visit_name__ = 'script'
+
+    def __init__(self, inline=None, lang=None,
+                 params=None, id=None, file=None):
+        self.inline = inline
+        self.id = id
+        self.lang = lang
+        self.file = file
+        self.script_params = params
+
+
 class Boosting(QueryExpression):
     __query_name__ = 'boosting'
 
