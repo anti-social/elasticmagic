@@ -59,6 +59,10 @@ ElasticsearchFeatures = namedtuple(
         'supports_match_type',
         'supports_mapping_types',
         'stored_fields_param',
+        'script_source_field_name',
+        'script_id_field_name',
+        'supports_script_file',
+        'supports_nested_script',
     ]
 )
 
@@ -119,6 +123,25 @@ class Compiled(object):
 
     def visit_list(self, lst):
         return [self.visit(v) for v in lst]
+
+    def visit_script(self, script):
+        if not self.features.supports_nested_script:
+            raise CompilationError(
+                'Elasticsearch v0.x and v1.x does not support Script')
+        res = dict()
+        if script.lang:
+            res['lang'] = script.lang
+        if script.script_params:
+            res['params'] = script.script_params
+        if script.inline:
+            res[self.features.script_source_field_name] = script.inline
+        elif script.id:
+            res[self.features.script_id_field_name] = script.id
+        elif self.features.supports_script_file and script.file:
+            res['file'] = script.file
+        else:
+            raise CompilationError('Invalid arguments for Script')
+        return self.visit_dict(res)
 
 
 class CompiledEndpoint(Compiled):
@@ -457,10 +480,6 @@ class CompiledExpression(Compiled):
                 )
         params['type'] = child_type
         return {'has_child': params}
-
-    def visit_script(self, script):
-        # TODO Wrap into a dictionary with 'script' key
-        return self.visit(script.params)
 
     def visit_function(self, func):
         params = {func.__func_name__: self.visit(func.params)}
@@ -1333,6 +1352,10 @@ def _featured_compiler(elasticsearch_features):
         supports_match_type=True,
         supports_mapping_types=True,
         stored_fields_param='fields',
+        script_source_field_name='script',
+        script_id_field_name='script_id',
+        supports_script_file=True,
+        supports_nested_script=False,
     )
 )
 class Compiler_1_0(object):
@@ -1349,6 +1372,10 @@ class Compiler_1_0(object):
         supports_match_type=True,
         supports_mapping_types=True,
         stored_fields_param='fields',
+        script_source_field_name='inline',
+        script_id_field_name='id',
+        supports_script_file=True,
+        supports_nested_script=True,
     )
 )
 class Compiler_2_0(object):
@@ -1365,6 +1392,10 @@ class Compiler_2_0(object):
         supports_match_type=True,
         supports_mapping_types=True,
         stored_fields_param='stored_fields',
+        script_source_field_name='inline',
+        script_id_field_name='stored',
+        supports_script_file=True,
+        supports_nested_script=True,
     )
 )
 class Compiler_5_0(object):
@@ -1378,9 +1409,33 @@ class Compiler_5_0(object):
         supports_parent_id_query=True,
         supports_bool_filter=True,
         supports_search_exists_api=False,
+        supports_match_type=True,
+        supports_mapping_types=True,
+        stored_fields_param='stored_fields',
+        script_source_field_name='source',
+        script_id_field_name='id',
+        supports_script_file=True,
+        supports_nested_script=True,
+    )
+)
+class Compiler_5_6(object):
+    pass
+
+
+@_featured_compiler(
+    ElasticsearchFeatures(
+        supports_old_boolean_queries=False,
+        supports_missing_query=False,
+        supports_parent_id_query=True,
+        supports_bool_filter=True,
+        supports_search_exists_api=False,
         supports_match_type=False,
         supports_mapping_types=False,
         stored_fields_param='stored_fields',
+        script_source_field_name='source',
+        script_id_field_name='id',
+        supports_script_file=False,
+        supports_nested_script=True,
     )
 )
 class Compiler_6_0(object):
@@ -1399,8 +1454,10 @@ def get_compiler_by_es_version(es_version):
         return Compiler_1_0
     elif es_version.major == 2:
         return Compiler_2_0
-    elif es_version.major == 5:
+    elif es_version.major == 5 and es_version.minor <= 5:
         return Compiler_5_0
+    elif es_version.major == 5 and es_version.minor > 5:
+        return Compiler_5_6
     elif es_version.major == 6:
         return Compiler_6_0
     return Compiler_6_0

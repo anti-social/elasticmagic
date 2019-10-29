@@ -37,13 +37,13 @@ def test_factor():
 def test_script_score():
     assert ScriptScore(
         Script(lang='painless',
-               inline='_score * doc[field].value',
+               inline='_score * doc[params.field].value',
                params={'field': PostDocument.popularity})
     ).to_elastic(Compiler_5_0) == {
         "script_score": {
             "script": {
                 "lang": "painless",
-                "inline": "_score * doc[field].value",
+                "inline": "_score * doc[params.field].value",
                 "params": {"field": "popularity"}
             }
         }

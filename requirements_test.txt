@@ -4,3 +4,4 @@ nose
 pytest==4.0.2
 pytest-cov
 coverage
+attrs==19.1.0
