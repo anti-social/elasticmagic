@@ -2,6 +2,9 @@ from ...index import BaseIndex
 
 
 class AsyncIndex(BaseIndex):
+    async def get_es_version(self):
+        return await self._cluster.get_es_version()
+
     async def get_compiler(self):
         return await self._cluster.get_compiler()
 

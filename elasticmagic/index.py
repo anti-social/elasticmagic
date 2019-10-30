@@ -49,6 +49,9 @@ class BaseIndex(with_metaclass(ABCMeta)):
 class Index(BaseIndex):
     # Methods that do requests to elasticsearch
 
+    def get_es_version(self):
+        return self._cluster.get_es_version()
+
     def get_compiler(self):
         return self._cluster.get_compiler()
 

@@ -101,6 +101,9 @@ class BaseCluster(with_metaclass(ABCMeta)):
     def _put_mapping_params(self, params):
         return self._preprocess_params(params, 'doc_cls_or_mapping')
 
+    def _create_index_params(self, params):
+        return self._preprocess_params(params, 'settings', 'mappings')
+
     def _add_params(self, params):
         from . import actions
 
