@@ -3,7 +3,7 @@ import pytest
 from elasticmagic import Document, Field
 from elasticmagic.agg import TopHits
 from elasticmagic.agg import TopHitsResult
-from elasticmagic.compiler import Compiler_1_0
+from elasticmagic.compiler import Compiler_1_0, CompilationError
 from elasticmagic.compiler import Compiler_2_0
 from elasticmagic.compiler import Compiler_5_0
 from elasticmagic.compiler import Compiler_6_0
@@ -100,30 +100,10 @@ def test_document_mapping_no_mapping_types(
 def test_multiple_document_mappings_with_mapping_types(
         compiler_with_mapping_types
 ):
-    compiled_mapping = compiler_with_mapping_types.compiled_put_mapping(
-        [Question, Answer]
-    )
-    assert compiled_mapping.params == {
-        'doc_type': None,
-    }
-    assert \
-        compiled_mapping.body == \
-        {
-            'question': {
-                'properties': {
-                    'question': {
-                        'type': 'text'
-                    }
-                }
-            },
-            'answer': {
-                'properties': {
-                    'answer': {
-                        'type': 'text'
-                    }
-                }
-            }
-        }
+    with pytest.raises(CompilationError):
+        compiler_with_mapping_types.compiled_put_mapping(
+            [Question, Answer]
+        )
 
 
 def test_multiple_document_mappings_no_mapping_types(
@@ -179,6 +159,100 @@ def test_put_multiple_mappings_with_conflicting_fields(
         compiler_no_mapping_types.compiled_put_mapping(
             [Question, Answer, FrenchAnswer]
         )
+
+
+def test_create_index_with_multiple_mappings_no_mapping_types(
+        compiler_no_mapping_types
+):
+    compiled_create_index = compiler_no_mapping_types.compiled_create_index(
+        settings={
+            'index': {
+                'number_of_replicas': 0,
+            }
+        },
+        mappings=[Question, Answer]
+    )
+    assert compiled_create_index.body == {
+        'settings': {
+            'index': {
+                'number_of_replicas': 0,
+            }
+        },
+        'mappings': {
+            '_doc': {
+                'properties': {
+                    '_doc_type': {
+                        'type': 'object',
+                        'properties': {
+                            'name': {
+                                'type': 'keyword',
+                                'index': False,
+                                'doc_values': False,
+                                'store': True
+                            },
+                            'parent': {
+                                'type': 'keyword',
+                                'index': False,
+                                'doc_values': False,
+                                'store': True
+                            },
+                        }
+                    },
+                    '_doc_type_join': {
+                        'type': 'join',
+                        'relations': {
+                            'question': ['answer']
+                        }
+                    },
+                    'question': {
+                        'type': 'text'
+                    },
+                    'answer': {
+                        'type': 'text'
+                    }
+                }
+            }
+        }
+    }
+
+
+def test_create_index_with_multiple_mappings_with_mapping_types(
+        compiler_with_mapping_types
+):
+    compiled_create_index = compiler_with_mapping_types.compiled_create_index(
+        settings={
+            'index': {
+                'number_of_replicas': 0,
+            }
+        },
+        mappings=[Question, Answer]
+    )
+    assert compiled_create_index.body == {
+        'settings': {
+            'index': {
+                'number_of_replicas': 0,
+            }
+        },
+        'mappings': {
+            'question': {
+                'properties': {
+                    'question': {
+                        'type': 'text'
+                    }
+                }
+            },
+            'answer': {
+                '_parent': {
+                    'type': 'question'
+                },
+                'properties': {
+                    'answer': {
+                        'type': 'text'
+                    }
+                }
+            }
+        }
+    }
 
 
 def test_document_meta_and_source_no_mapping_types(

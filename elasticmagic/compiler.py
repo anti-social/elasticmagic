@@ -87,10 +87,10 @@ def _is_emulate_doc_types_mode(features, doc_cls):
 
 
 def _add_doc_type_fields_into_stored_fields(
-        stored_fields, has_source
+        stored_fields, add_source
 ):
     extra_stored_fields = []
-    if has_source:
+    if add_source:
         extra_stored_fields.append('_source')
     extra_stored_fields.extend([DOC_TYPE_NAME_FIELD, DOC_TYPE_PARENT_FIELD])
     if not stored_fields:
@@ -837,19 +837,33 @@ class CompiledPutMapping(CompiledEndpoint):
         return client.indices.put_mapping
 
     def prepare_params(self, params):
+        doc_type = params.get('doc_type')
         if (
-                not self.features.supports_mapping_types and
-                (
+                isinstance(self.expression, type) and
+                issubclass(self.expression, Document) and
+                not doc_type
+        ):
+            if _is_emulate_doc_types_mode(self.features, self.expression):
+                params['doc_type'] = DEFAULT_DOC_TYPE
+            else:
+                params['doc_type'] = self.expression.get_doc_type()
+        elif self.features.supports_mapping_types:
+            if isinstance(self.expression, self._MultipleMappings):
+                put_params = params
+                params = []
+                for doc_cls_or_mapping in self.expression.mappings:
+                    if issubclass(doc_cls_or_mapping, Document):
+                        put_params['doc_type'] = \
+                            doc_cls_or_mapping.get_doc_type()
+                        params.append(put_params.copy())
+        else:
+            if (
                     isinstance(self.expression, self._MultipleMappings) or
                     issubclass(self.expression, Document) and
                     self.expression.has_parent_doc_cls()
-                )
-        ):
-            params['doc_type'] = DEFAULT_DOC_TYPE
-        elif params.get('doc_type') is None:
-            params['doc_type'] = getattr(
-                self.expression, '__doc_type__', None
-            )
+            ):
+                params['doc_type'] = DEFAULT_DOC_TYPE
+
         return params
 
     def process_result(self, raw_result):
@@ -933,26 +947,34 @@ class CompiledPutMapping(CompiledEndpoint):
             mapping_properties[name] = value
 
     def visit_multiple_mappings(self, multiple_mappings):
-        mappings = {}
-        relations = {}
-        for mapping_or_doc_cls in multiple_mappings.mappings:
-            if issubclass(mapping_or_doc_cls, Document):
-                doc_type = mapping_or_doc_cls.get_doc_type()
-                parent_doc_type = self._get_parent_doc_type(mapping_or_doc_cls)
-                if doc_type and parent_doc_type:
-                    relations.setdefault(parent_doc_type, []).append(doc_type)
+        if self.features.supports_mapping_types:
+            raise CompilationError(
+                'You can only put multiple mappings at the index creation time'
+            )
+        else:
+            mappings = {}
+            relations = {}
+            for mapping_or_doc_cls in multiple_mappings.mappings:
+                if issubclass(mapping_or_doc_cls, Document):
+                    doc_type = mapping_or_doc_cls.get_doc_type()
+                    parent_doc_type = self._get_parent_doc_type(
+                        mapping_or_doc_cls
+                    )
+                    if doc_type and parent_doc_type:
+                        relations.setdefault(parent_doc_type, []) \
+                            .append(doc_type)
 
-            mapping = self.visit(mapping_or_doc_cls)
-            if self.features.supports_mapping_types:
-                mappings.update(mapping)
-            else:
-                self._merge_properties(mappings, mapping['properties'])
+                mapping = self.visit(mapping_or_doc_cls)
+                if self.features.supports_mapping_types:
+                    mappings.update(mapping)
+                else:
+                    self._merge_properties(mappings, mapping['properties'])
 
-        if not self.features.supports_mapping_types and relations:
-            doc_type_property = mappings['properties'][DOC_TYPE_JOIN_FIELD]
-            doc_type_property['relations'] = relations
+            if not self.features.supports_mapping_types and relations:
+                doc_type_property = mappings['properties'][DOC_TYPE_JOIN_FIELD]
+                doc_type_property['relations'] = relations
 
-        return mappings
+            return mappings
 
     def visit_document(self, doc_cls):
         mapping = self._dict_type()
@@ -980,6 +1002,10 @@ class CompiledPutMapping(CompiledEndpoint):
                     }
                 }
             }
+        elif doc_cls.get_parent_doc_cls():
+            mapping['_parent'] = {
+                'type': doc_cls.get_parent_doc_cls().get_doc_type()
+            }
         mapping['properties'] = properties
         for f in doc_cls.dynamic_fields:
             self._visit_dynamic_field(f)
@@ -991,6 +1017,58 @@ class CompiledPutMapping(CompiledEndpoint):
             }
         else:
             return mapping
+
+
+class CompiledCreateIndex(CompiledEndpoint):
+    compiled_put_mapping = None
+
+    class _CreateIndex(object):
+        __visit_name__ = 'create_index'
+
+        def __init__(self, settings, mappings):
+            self.settings = settings
+            self.mappings = mappings
+
+    def __init__(self, settings=None, mappings=None, params=None):
+        super(CompiledCreateIndex, self).__init__(
+            self._CreateIndex(settings, mappings), params
+        )
+
+    def api_method(self, client):
+        return client.indices.create
+
+    def process_result(self, raw_result):
+        return raw_result
+
+    def visit_create_index(self, create_index):
+        body = {}
+        if create_index.settings:
+            body['settings'] = self.visit(create_index.settings)
+        if create_index.mappings:
+            if (
+                    self.features.supports_mapping_types and
+                    isinstance(create_index.mappings, (list, tuple))
+            ):
+                mappings = {}
+                # if mappings is a list it must be list of document classes
+                for doc_cls in create_index.mappings:
+                    mappings.update(
+                        self.compiled_put_mapping(doc_cls).body
+                    )
+            else:
+                compiled_mappings = self.compiled_put_mapping(
+                    create_index.mappings
+                )
+                if isinstance(create_index.mappings, (list, tuple)):
+                    doc_type = DEFAULT_DOC_TYPE
+                else:
+                    doc_type = create_index.mappings.get_doc_type()
+                mappings = {
+                    doc_type: compiled_mappings.body
+                }
+            body['mappings'] = mappings
+
+        return body
 
 
 class CompiledGet(CompiledEndpoint):
@@ -1043,9 +1121,8 @@ class CompiledGet(CompiledEndpoint):
         if stored_fields:
             stored_fields = stored_fields.split(',')
         stored_fields = _add_doc_type_fields_into_stored_fields(
-            stored_fields, params.get('_source', True) not in (False, 'false')
+            stored_fields, not stored_fields
         )
-
         params[stored_fields_param] = ','.join(stored_fields)
 
     def process_result(self, raw_result):
@@ -1376,6 +1453,11 @@ def _featured_compiler(elasticsearch_features):
             compiler = cls
             features = elasticsearch_features
 
+        class _CompiledCreateIndex(CompiledCreateIndex):
+            compiler = cls
+            features = elasticsearch_features
+            compiled_put_mapping = _CompiledPutMapping
+
         cls.compiled_expression = _CompiledExpression
         cls.compiled_search_query = _CompiledSearchQuery
         cls.compiled_query = cls.compiled_search_query
@@ -1389,6 +1471,7 @@ def _featured_compiler(elasticsearch_features):
         cls.compiled_delete = _CompiledDelete
         cls.compiled_bulk = _CompiledBulk
         cls.compiled_put_mapping = _CompiledPutMapping
+        cls.compiled_create_index = _CompiledCreateIndex
         return cls
 
     return inject_features

@@ -12,13 +12,15 @@ class AsyncCluster(BaseCluster):
     async def _do_request(self, compiler, *args, **kwargs):
         compiled_query = compiler(*args, **kwargs)
         api_method = compiled_query.api_method(self._client)
-        if compiled_query.body is None:
-            raw_res = await api_method(**compiled_query.params)
-        else:
-            raw_res = await api_method(
-                body=compiled_query.body, **compiled_query.params
-            )
+        raw_res = await self._do_api_call(
+            api_method, compiled_query.params, compiled_query.body
+        )
         return compiled_query.process_result(raw_res)
+
+    async def _do_api_call(self, api_method, api_kwargs, body):
+        if body is not None:
+            api_kwargs['body'] = body
+        return await api_method(**api_kwargs)
 
     async def get_es_version(self):
         if not self._es_version:
@@ -111,6 +113,14 @@ class AsyncCluster(BaseCluster):
         )
 
     msearch = multi_search
+
+    async def create_index(
+            self, index, settings=None, mappings=None, **kwargs
+    ):
+        return await self._do_request(
+            (await self.get_compiler()).compiled_create_index,
+            settings, mappings, self._create_index_params(locals())
+        )
 
     async def put_mapping(
             self, doc_cls_or_mapping, index, doc_type=None,
