@@ -6,11 +6,12 @@ from elasticmagic import (
     SearchQuery, Params, Term, MultiMatch,
     FunctionScore, Sort, QueryRescorer, agg
 )
+from elasticmagic.compiler import Compiler_5_0
 from elasticmagic.search import FunctionScoreSettings
 from elasticmagic.function import FieldValueFactor, Weight
 from elasticmagic.util import collect_doc_classes
 from elasticmagic.types import String, Integer, Float, Object
-from elasticmagic.expression import Field
+from elasticmagic.expression import Field, Script
 
 from .base import BaseTestCase, OrderTolerantString
 
@@ -555,7 +556,87 @@ class SearchQueryTest(BaseTestCase):
             }
         )
         self.assertEqual(collect_doc_classes(sq), {self.index['type']})
-
+        sq = SearchQuery().script_fields(
+            rating=Script(
+                inline='doc[params.brand].value +'
+                       'doc[params.color].value',
+                params=dict(
+                    brand='brand',
+                    color='color',
+                )
+            )
+        )
+        self.assert_expression(
+            sq,
+            dict(
+                script_fields=dict(
+                    rating=dict(
+                        script=dict(
+                            inline='doc[params.brand].value +'
+                                   'doc[params.color].value',
+                            params=dict(
+                                brand='brand',
+                                color='color',
+                            )
+                        )
+                    )
+                )
+            )
+        )
+        sq = sq.script_fields(
+            brand=dict(
+                inline='doc[params.brand].value',
+                params=dict(brand='brand')
+            )
+        )
+        self.assert_expression(
+            sq,
+            dict(
+                script_fields=dict(
+                    rating=dict(
+                        script=dict(
+                            inline='doc[params.brand].value +'
+                                   'doc[params.color].value',
+                            params=dict(
+                                brand='brand',
+                                color='color',
+                            )
+                        )
+                    ),
+                    brand=dict(
+                        inline='doc[params.brand].value',
+                        params=dict(brand='brand')
+                    )
+                )
+            )
+        )
+        sq = sq.script_fields(True)
+        self.assert_expression(
+            sq,
+            dict(
+                script_fields=dict(
+                    rating=dict(
+                        script=dict(
+                            inline='doc[params.brand].value +'
+                                   'doc[params.color].value',
+                            params=dict(
+                                brand='brand',
+                                color='color',
+                            )
+                        )
+                    ),
+                    brand=dict(
+                        inline='doc[params.brand].value',
+                        params=dict(brand='brand')
+                    )
+                )
+            )
+        )
+        sq = sq.script_fields(None)
+        self.assert_expression(
+            sq,
+            dict()
+        )
         sq = SearchQuery().post_filter(self.index['shirt'].color == 'red')
         self.assert_expression(
             sq,
@@ -1044,9 +1125,11 @@ class SearchQueryTest(BaseTestCase):
             .with_instance_mapper(obj_mapper)
         )
         self.assertEqual(collect_doc_classes(sq), {CarDocument})
-        results = sq.get_result()
-        self.assertEqual(len(results), 2)
-
+        get_result = sq.get_result()
+        self.assertEqual(len(get_result), 2)
+        self.assertEqual(len(sq.results), 2)
+        self.assertEqual(len(sq.result), 2)
+        self.assertEqual(type(sq.get_query_compiler()), type(Compiler_5_0))
         self.client.search.assert_called_with(
             index='test',
             doc_type='car',

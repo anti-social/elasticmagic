@@ -11,8 +11,7 @@ from .compat import zip, with_metaclass
 from .compat import Iterable
 from .util import _with_clone
 from .util import merge_params, collect_doc_classes
-from .expression import Params, Source, Highlight, Rescore
-
+from .expression import Params, Source, Highlight, Rescore, Script
 
 __all__ = [
     'BaseSearchQuery', 'SearchQuery', 'SearchQueryContext',
@@ -200,7 +199,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         return self.stored_fields(*fields)
 
     @_with_clone
-    def script_fields(self, **kwargs):
+    def script_fields(self, *args, **kwargs):
         """Allows to evaluate fields based on scripts.
 
         .. testcode:: script_fields
@@ -235,25 +234,34 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
                }
            }
 
-           # FIXME
-           # assert search_query.to_dict(Compiler_5_0) == {
-           #     'script_fields': {
-           #         'rating': {
-           #             'script': {
-           #                 'inline': 'doc[params.positive_opinions_field].value / '
-           #                           'doc[params.total_opinions_field].value * 5',
-           #                 'params': {
-           #                     'total_opinions_field': 'total_opinions',
-           #                     'positive_opinions_field': 'positive_opinions'
-           #                 }
-           #             }
-           #         }
-           #     }
-           # }
+           assert search_query.to_dict(Compiler_5_0) == {
+               'script_fields': {
+                   'rating': {
+                       'script': {
+                           'inline': 'doc[params.positive_opinions_field].value / '
+                                     'doc[params.total_opinions_field].value * 5',
+                           'params': {
+                               'total_opinions_field': 'total_opinions',
+                               'positive_opinions_field': 'positive_opinions'
+                           }
+                       }
+                   }
+               }
+           }
 
         See `script fields <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-script-fields.html>`_
         """  # noqa:E501
-        self._script_fields = Params(kwargs)
+        if len(args) == 1 and args[0] is None:
+            if '_script_fields' in self.__dict__:
+                del self._script_fields
+        for key in kwargs:
+            if isinstance(kwargs[key], Script):
+                kwargs[key] = dict(script=kwargs[key])
+        script_fields = dict()
+        for key in self._script_fields:
+            script_fields[key] = self._script_fields[key]
+        script_fields.update(kwargs)
+        self._script_fields = Params(script_fields)
 
     @_with_clone
     def query(self, q):
