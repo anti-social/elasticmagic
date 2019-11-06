@@ -7,9 +7,10 @@ from .util import cached_property
 from .compat import with_metaclass
 
 
-DOC_TYPE_JOIN_FIELD = '_doc_type'
-DOC_TYPE_NAME_FIELD = '_doc_type_name'
-DOC_TYPE_PARENT_FIELD = '_doc_type_parent'
+DOC_TYPE_FIELD = '_doc_type'
+DOC_TYPE_NAME_FIELD = '{}.name'.format(DOC_TYPE_FIELD)
+DOC_TYPE_PARENT_FIELD = '{}.parent'.format(DOC_TYPE_FIELD)
+DOC_TYPE_JOIN_FIELD = '_doc_type_join'
 DOC_TYPE_ID_DELIMITER = '~'
 DOC_TYPE_PARENT_DELIMITER = '#'
 

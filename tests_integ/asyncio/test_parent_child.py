@@ -93,7 +93,7 @@ def check_question_meta(q):
     assert q._routing is None
     assert q._parent is None
     fields = q.get_hit_fields()
-    assert fields['_doc_type_name'] == ['question']
+    assert fields['_doc_type.name'] == ['question']
 
 
 def check_standard_question_doc(q):
@@ -111,8 +111,8 @@ def check_answer_meta(a):
     assert a._routing == '1'
     assert a._parent == '1'
     fields = a.get_hit_fields()
-    assert fields['_doc_type_name'] == ['answer']
-    assert fields['_doc_type_parent'] == ['question~1']
+    assert fields['_doc_type.name'] == ['answer']
+    assert fields['_doc_type.parent'] == ['question~1']
 
 
 def check_standard_answer_doc(a):
@@ -129,21 +129,25 @@ async def test_update_mapping(es_client, index_name, es_index_empty):
                 '_doc': {
                     'properties': {
                         '_doc_type': {
+                            'properties': {
+                                'name': {
+                                    'type': 'keyword',
+                                    'index': False,
+                                    'doc_values': False,
+                                    'store': True
+                                },
+                                'parent': {
+                                    'type': 'keyword',
+                                    'index': False,
+                                    'doc_values': False,
+                                    'store': True
+                                },
+                            }
+                        },
+                        '_doc_type_join': {
                             'type': 'join',
                             'relations': {},
                             'eager_global_ordinals': True
-                        },
-                        '_doc_type_name': {
-                            'type': 'keyword',
-                            'index': False,
-                            'doc_values': False,
-                            'store': True
-                        },
-                        '_doc_type_parent': {
-                            'type': 'keyword',
-                            'index': False,
-                            'doc_values': False,
-                            'store': True
                         },
                         'text': {
                             'type': 'text'
@@ -161,23 +165,27 @@ async def test_update_mapping(es_client, index_name, es_index_empty):
                 '_doc': {
                     'properties': {
                         '_doc_type': {
+                            'properties': {
+                                'name': {
+                                    'type': 'keyword',
+                                    'index': False,
+                                    'doc_values': False,
+                                    'store': True
+                                },
+                                'parent': {
+                                    'type': 'keyword',
+                                    'index': False,
+                                    'doc_values': False,
+                                    'store': True
+                                },
+                            }
+                        },
+                        '_doc_type_join': {
                             'type': 'join',
                             'relations': {
                                 'question': 'answer'
                             },
                             'eager_global_ordinals': True
-                        },
-                        '_doc_type_name': {
-                            'type': 'keyword',
-                            'index': False,
-                            'doc_values': False,
-                            'store': True
-                        },
-                        '_doc_type_parent': {
-                            'type': 'keyword',
-                            'index': False,
-                            'doc_values': False,
-                            'store': True
                         },
                         'title': {
                             'type': 'text'

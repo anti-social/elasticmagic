@@ -71,19 +71,24 @@ def test_document_mapping_no_mapping_types(
         {
             'properties': {
                 '_doc_type': {
+                    'type': 'object',
+                    'properties': {
+                        'name': {
+                            'type': 'keyword',
+                            'index': False,
+                            'doc_values': False,
+                            'store': True
+                        },
+                        'parent': {
+                            'type': 'keyword',
+                            'index': False,
+                            'doc_values': False,
+                            'store': True
+                        },
+                    }
+                },
+                '_doc_type_join': {
                     'type': 'join'
-                },
-                '_doc_type_name': {
-                    'type': 'keyword',
-                    'index': False,
-                    'doc_values': False,
-                    'store': True
-                },
-                '_doc_type_parent': {
-                    'type': 'keyword',
-                    'index': False,
-                    'doc_values': False,
-                    'store': True
                 },
                 'question': {
                     'type': 'text'
@@ -135,22 +140,27 @@ def test_multiple_document_mappings_no_mapping_types(
         {
             'properties': {
                 '_doc_type': {
+                    'type': 'object',
+                    'properties': {
+                        'name': {
+                            'type': 'keyword',
+                            'index': False,
+                            'doc_values': False,
+                            'store': True
+                        },
+                        'parent': {
+                            'type': 'keyword',
+                            'index': False,
+                            'doc_values': False,
+                            'store': True
+                        },
+                    }
+                },
+                '_doc_type_join': {
                     'type': 'join',
                     'relations': {
                         'question': ['answer']
                     }
-                },
-                '_doc_type_name': {
-                    'type': 'keyword',
-                    'index': False,
-                    'doc_values': False,
-                    'store': True
-                },
-                '_doc_type_parent': {
-                    'type': 'keyword',
-                    'index': False,
-                    'doc_values': False,
-                    'store': True
                 },
                 'question': {
                     'type': 'text'
@@ -190,7 +200,9 @@ def test_document_meta_and_source_no_mapping_types(
             '_doc_type': {
                 'name': 'question'
             },
-            '_doc_type_name': 'question',
+            '_doc_type_join': {
+                'name': 'question'
+            },
             'question': 'The Ultimate Question'
         }
 
@@ -214,8 +226,10 @@ def test_document_meta_and_source_no_mapping_types(
                 'name': 'answer',
                 'parent': 'question~1',
             },
-            '_doc_type_name': 'answer',
-            '_doc_type_parent': 'question~1',
+            '_doc_type_join': {
+                'name': 'answer',
+                'parent': 'question~1',
+            },
             'answer': '42',
         }
 
@@ -265,7 +279,7 @@ def test_document_from_hit_no_mapping_types():
         '_id': 'question~1',
         '_type': '_doc',
         'fields': {
-            '_doc_type_name': ['question'],
+            '_doc_type.name': ['question'],
         },
         '_source': {
             'question': 'The Ultimate Question',
@@ -279,8 +293,8 @@ def test_document_from_hit_no_mapping_types():
         '_id': 'answer~1',
         '_type': '_doc',
         'fields': {
-            '_doc_type_name': ['answer'],
-            '_doc_type_parent': ['question~1'],
+            '_doc_type.name': ['answer'],
+            '_doc_type.parent': ['question~1'],
         },
         '_source': {
             'answer': '42',
@@ -380,7 +394,7 @@ def test_top_hits_agg(
     assert compiled_agg.body == {
         'top_hits': {
             'stored_fields': [
-                '_source', '_doc_type_name', '_doc_type_parent'
+                '_source', '_doc_type.name', '_doc_type.parent'
             ]
         }
     }
@@ -395,15 +409,15 @@ def test_top_hits_agg_result():
                     '_type': '_doc',
                     '_id': 'question~1',
                     'fields': {
-                        '_doc_type_name': ['question']
+                        '_doc_type.name': ['question']
                     }
                 },
                 {
                     '_type': '_doc',
                     '_id': 'answer~1',
                     'fields': {
-                        '_doc_type_name': ['answer'],
-                        '_doc_type_parent': ['question~1']
+                        '_doc_type.name': ['answer'],
+                        '_doc_type.parent': ['question~1']
                     }
                 }
             ]
@@ -448,7 +462,7 @@ def test_search_query_filter_by_ids_no_mapping_types(
                 }
             }
         },
-        'stored_fields': ['_source', '_doc_type_name', '_doc_type_parent']
+        'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
     }
     assert compiled_query.params == {
         'doc_type': '_doc'
@@ -473,7 +487,7 @@ def test_search_query_filter_by_ids_no_mapping_types(
             }
         },
         'stored_fields': [
-            '_source', '_doc_type_name', '_doc_type_parent'
+            '_source', '_doc_type.name', '_doc_type.parent'
         ]
     }
     assert compiled_query.params == {
@@ -516,15 +530,15 @@ def test_process_search_result(
                         '_id': 'question~1',
                         '_type': '_doc',
                         'fields': {
-                            '_doc_type_name': ['question']
+                            '_doc_type.name': ['question']
                         }
                     },
                     {
                         '_id': 'answer~1',
                         '_type': '_doc',
                         'fields': {
-                            '_doc_type_name': ['answer'],
-                            '_doc_type_parent': ['question~1']
+                            '_doc_type.name': ['answer'],
+                            '_doc_type.parent': ['question~1']
                         }
                     },
                 ]
@@ -549,7 +563,7 @@ def test_get_no_mapping_types(compiler_no_mapping_types):
     assert compiled_get.params == {
         'doc_type': '_doc',
         'id': 'question~1',
-        'stored_fields': '_source,_doc_type_name,_doc_type_parent'
+        'stored_fields': '_source,_doc_type.name,_doc_type.parent'
     }
     compiled_get = compiler_no_mapping_types.compiled_get(
         {'id': 1}, doc_cls=Question
@@ -557,13 +571,13 @@ def test_get_no_mapping_types(compiler_no_mapping_types):
     assert compiled_get.params == {
         'doc_type': '_doc',
         'id': 'question~1',
-        'stored_fields': '_source,_doc_type_name,_doc_type_parent'
+        'stored_fields': '_source,_doc_type.name,_doc_type.parent'
     }
     compiled_get = compiler_no_mapping_types.compiled_get(Question(_id=1))
     assert compiled_get.params == {
         'doc_type': '_doc',
         'id': 'question~1',
-        'stored_fields': '_source,_doc_type_name,_doc_type_parent'
+        'stored_fields': '_source,_doc_type.name,_doc_type.parent'
     }
 
 
@@ -576,12 +590,12 @@ def test_multi_get_no_mapping_types(compiler_no_mapping_types):
             {
                 '_type': '_doc',
                 '_id': 'question~1',
-                'stored_fields': ['_source', '_doc_type_name', '_doc_type_parent']
+                'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
             },
             {
                 '_type': '_doc',
                 '_id': 'answer~1',
-                'stored_fields': ['_source', '_doc_type_name', '_doc_type_parent']
+                'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
             }
         ]
     }
@@ -593,12 +607,12 @@ def test_multi_get_no_mapping_types(compiler_no_mapping_types):
             {
                 '_type': '_doc',
                 '_id': 'question~1',
-                'stored_fields': ['_source', '_doc_type_name', '_doc_type_parent']
+                'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
             },
             {
                 '_type': '_doc',
                 '_id': 'answer~1',
-                'stored_fields': ['_source', '_doc_type_name', '_doc_type_parent']
+                'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
             }
         ]
     }
@@ -610,12 +624,12 @@ def test_multi_get_no_mapping_types(compiler_no_mapping_types):
             {
                 '_type': '_doc',
                 '_id': 'answer~1',
-                'stored_fields': ['_source', '_doc_type_name', '_doc_type_parent']
+                'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
             },
             {
                 '_type': '_doc',
                 '_id': 'answer~2',
-                'stored_fields': ['_source', '_doc_type_name', '_doc_type_parent']
+                'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
             }
         ]
     }
