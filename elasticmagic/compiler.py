@@ -9,6 +9,7 @@ from .compat import Iterable
 from .compat import Mapping
 from .compat import string_types
 from .document import DOC_TYPE_JOIN_FIELD
+from .document import DOC_TYPE_FIELD
 from .document import DOC_TYPE_NAME_FIELD
 from .document import DOC_TYPE_PARENT_FIELD
 from .document import Document
@@ -962,17 +963,22 @@ class CompiledPutMapping(CompiledEndpoint):
             properties[DOC_TYPE_JOIN_FIELD] = {
                 'type': 'join'
             }
-            properties[DOC_TYPE_NAME_FIELD] = {
-                'type': 'keyword',
-                'index': False,
-                'doc_values': False,
-                'store': True,
-            }
-            properties[DOC_TYPE_PARENT_FIELD] = {
-                'type': 'keyword',
-                'index': False,
-                'doc_values': False,
-                'store': True,
+            properties[DOC_TYPE_FIELD] = {
+                'type': 'object',
+                'properties': {
+                    'name': {
+                        'type': 'keyword',
+                        'index': False,
+                        'doc_values': False,
+                        'store': True,
+                    },
+                    'parent': {
+                        'type': 'keyword',
+                        'index': False,
+                        'doc_values': False,
+                        'store': True,
+                    }
+                }
             }
         mapping['properties'] = properties
         for f in doc_cls.dynamic_fields:
@@ -1297,14 +1303,13 @@ class CompiledSource(CompiledExpression):
 
         if _is_emulate_doc_types_mode(self.features, doc):
             doc_type_source = {}
-            source[DOC_TYPE_NAME_FIELD] = doc_type_source['name'] = \
-                doc.__doc_type__
+            doc_type_source['name'] = doc.__doc_type__
             if doc._parent is not None:
-                source[DOC_TYPE_PARENT_FIELD] = doc_type_source['parent'] = \
-                    mk_uid(
-                        doc.__parent__.__doc_type__,
-                        doc._parent
-                    )
+                doc_type_source['parent'] = mk_uid(
+                    doc.__parent__.__doc_type__,
+                    doc._parent
+                )
+            source[DOC_TYPE_FIELD] = doc_type_source
             source[DOC_TYPE_JOIN_FIELD] = doc_type_source
 
         return source
