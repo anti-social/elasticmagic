@@ -22,7 +22,7 @@ class Expression(object):
     to_dict = to_elastic
 
 
-class Literal(object):
+class Literal(Expression):
     __visit_name__ = 'literal'
 
     def __init__(self, obj):
@@ -105,6 +105,7 @@ class FieldQueryExpression(FieldExpression):
 
 
 class Term(FieldQueryExpression):
+    __visit_name__ = 'term'
     __query_name__ = 'term'
     __query_key__ = 'value'
 

@@ -5,6 +5,7 @@ from functools import partial
 
 from elasticsearch import ElasticsearchException
 
+from elasticmagic.attribute import AttributedField
 from .compat import Iterable
 from .compat import Mapping
 from .compat import string_types
@@ -21,6 +22,7 @@ from .expression import Exists
 from .expression import Filtered
 from .expression import FunctionScore
 from .expression import HighlightedField
+from .expression import Ids
 from .expression import MatchPhrase
 from .expression import MatchPhrasePrefix
 from .expression import Params
@@ -81,6 +83,7 @@ class MultiSearchError(ElasticsearchException):
 def _is_emulate_doc_types_mode(features, doc_cls):
     return (
         not features.supports_mapping_types and
+        doc_cls and
         doc_cls.get_doc_type() and
         doc_cls.has_parent_doc_cls()
     )
@@ -237,7 +240,43 @@ class CompiledExpression(Compiled):
             'range': dict(self.visit(expr.range_params), **field_params)
         }
 
+    @staticmethod
+    def _get_field_doc_cls(field):
+        if isinstance(field, AttributedField):
+            return field.get_parent()
+
+    def visit_term(self, term):
+        field_name = self.visit(term.field)
+        if field_name == '_id':
+            doc_cls = self._get_field_doc_cls(term.field)
+            print(doc_cls)
+            print(self.doc_classes)
+            if _is_emulate_doc_types_mode(self.features, doc_cls):
+                return self.visit(Ids([term.query], doc_cls))
+            elif (
+                    self.doc_classes and
+                    any(map(
+                        partial(_is_emulate_doc_types_mode, self.features),
+                        self.doc_classes
+                    ))
+            ):
+                return self.visit(Ids([term.query], self.doc_classes))
+        return self.visit_field_query(term)
+
     def visit_terms(self, expr):
+        field_name = self.visit(expr.field)
+        if field_name == '_id':
+            doc_cls = self._get_field_doc_cls(expr.field)
+            if _is_emulate_doc_types_mode(self.features, doc_cls):
+                return self.visit(Ids(expr.terms, doc_cls))
+            elif (
+                    self.doc_classes and
+                    any(map(
+                        partial(_is_emulate_doc_types_mode, self.features),
+                        self.doc_classes
+                    ))
+            ):
+                return self.visit(Ids(expr.terms, self.doc_classes))
         params = {self.visit(expr.field): self.visit(expr.terms)}
         params.update(self.visit(expr.params))
         return {
@@ -400,7 +439,7 @@ class CompiledExpression(Compiled):
                 _is_emulate_doc_types_mode(self.features, expr.type)
         ):
             params['values'] = [
-                mk_uid(expr.type.__doc_type__, v)
+                mk_uid(expr.type.get_doc_type(), v)
                 for v in expr.values
             ]
         elif (
