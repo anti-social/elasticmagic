@@ -7,7 +7,7 @@ from elasticmagic import (
     Ids,
     HasParent, HasChild)
 from elasticmagic.compiler import CompilationError
-from elasticmagic.expression import ParentId
+from elasticmagic.expression import ParentId, Bool, Term, Terms
 from elasticmagic.types import (
     Float,
     Text,
@@ -502,6 +502,106 @@ async def test_top_hits_agg(es_index, es_version, docs):
     assert len(hits) == 1
 
     check_standard_question_doc(hits[0], es_version)
+
+
+@pytest.mark.asyncio
+async def test_term_query(es_index, es_version, docs):
+    sq = (
+        es_index.search_query()
+        .filter(
+            Question.rank == 4.2,
+        )
+    )
+    res = await sq.get_result()
+
+    assert res.total == 1
+    check_standard_question_doc(res.hits[0], es_version)
+
+
+@pytest.mark.asyncio
+async def test_id_term_query(es_index, es_version, docs):
+    sq = (
+        es_index.search_query()
+        .filter(
+            Bool.should(
+                Question._id == 1,
+                Answer._id == 1,
+            )
+        )
+    )
+    res = await sq.get_result()
+
+    assert res.total == 2
+    check_standard_question_doc(res.hits[0], es_version)
+    check_standard_answer_doc(res.hits[1], es_version)
+
+
+@pytest.mark.asyncio
+async def test_id_term_query_with_doc_cls(es_index, es_version, docs):
+    sq = (
+        es_index.search_query(doc_cls=[Question, Answer])
+        .filter(Term('_id',  1))
+    )
+    res = await sq.get_result()
+
+    assert res.total == 2
+    check_standard_question_doc(res.hits[0], es_version)
+    check_standard_answer_doc(res.hits[1], es_version)
+
+
+@pytest.mark.asyncio
+async def test_id_term_query_no_doc_cls(es_index, es_version, docs):
+    # We cannot rewrite the query in this case
+    sq = (
+        es_index.search_query()
+        .filter(Term('_id',  1))
+    )
+    res = await sq.get_result()
+
+    if es_version.major < 6:
+        assert res.total == 2
+    else:
+        assert res.total == 0
+
+
+@pytest.mark.asyncio
+async def test_id_terms_query(es_index, es_version, docs):
+    sq = (
+        es_index.search_query()
+        .filter(Question._id.in_([1]))
+    )
+    res = await sq.get_result()
+
+    assert res.total == 1
+    check_standard_question_doc(res.hits[0], es_version)
+
+
+@pytest.mark.asyncio
+async def test_id_terms_query_with_doc_cls(es_index, es_version, docs):
+    # We cannot rewrite the query in this case
+    sq = (
+        es_index.search_query(doc_cls=Answer)
+        .filter(Terms('_id', [1]))
+    )
+    res = await sq.get_result()
+
+    assert res.total == 1
+    check_standard_answer_doc(res.hits[0], es_version)
+
+
+@pytest.mark.asyncio
+async def test_id_terms_query_no_doc_cls(es_index, es_version, docs):
+    # We cannot rewrite the query in this case
+    sq = (
+        es_index.search_query()
+        .filter(Terms('_id', [1]))
+    )
+    res = await sq.get_result()
+
+    if es_version.major < 6:
+        assert res.total == 2
+    else:
+        assert res.total == 0
 
 
 @pytest.mark.asyncio
