@@ -38,8 +38,8 @@ def event_loop(request):
 
 
 @pytest.fixture
-async def es_client(event_loop):
-    es_url = os.environ.get('ES_URL', 'localhost:9200')
+async def es_client(event_loop, es_url):
+    es_url = os.environ.get('ES_URL', es_url)
     es_client = AsyncElasticsearch([es_url], event_loop=event_loop)
     yield es_client
     await es_client.transport.close()
