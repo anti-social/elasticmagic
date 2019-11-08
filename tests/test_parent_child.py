@@ -1,13 +1,25 @@
 import pytest
 
-from elasticmagic import Document, Field
-from elasticmagic.agg import TopHits
-from elasticmagic.agg import TopHitsResult
-from elasticmagic.compiler import Compiler_1_0, CompilationError
-from elasticmagic.compiler import Compiler_2_0
-from elasticmagic.compiler import Compiler_5_0
-from elasticmagic.compiler import Compiler_6_0
-from elasticmagic.expression import Ids, ParentId
+from elasticmagic import (
+    Document,
+    Field,
+)
+from elasticmagic.agg import (
+    TopHits,
+    TopHitsResult,
+)
+from elasticmagic.compiler import (
+    CompilationError,
+    Compiler_1_0,
+    Compiler_2_0,
+    Compiler_5_0,
+    Compiler_5_6,
+    Compiler_6_0,
+)
+from elasticmagic.expression import (
+    Ids,
+    ParentId,
+)
 from elasticmagic.search import SearchQuery
 from elasticmagic.types import Text
 
@@ -34,7 +46,7 @@ class FrenchAnswer(Document):
 
 
 @pytest.fixture(
-    params=[Compiler_1_0, Compiler_2_0, Compiler_5_0]
+    params=[Compiler_1_0, Compiler_2_0, Compiler_5_0, Compiler_5_6]
 )
 def compiler_with_mapping_types(request):
     return request.param
