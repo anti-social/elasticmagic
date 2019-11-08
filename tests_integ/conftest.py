@@ -6,6 +6,18 @@ from elasticmagic import Document, Field
 from elasticmagic.types import Text
 
 
+def pytest_addoption(parser):
+    parser.addoption("--es-url", action="store", default="localhost:9200")
+
+
+def pytest_generate_tests(metafunc):
+    # This is called for every test. Only get/set command line arguments
+    # if the argument is specified in the list of test "fixturenames".
+    option_value = metafunc.config.option.es_url
+    if 'es_url' in metafunc.fixturenames:
+        metafunc.parametrize("es_url", [option_value])
+
+
 class Car(Document):
     __doc_type__ = 'car'
 

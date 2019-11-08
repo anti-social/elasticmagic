@@ -10,8 +10,8 @@ from ..conftest import Car
 
 
 @pytest.fixture
-def es_client():
-    es_url = os.environ.get('ES_URL', 'localhost:9200')
+def es_client(es_url):
+    es_url = os.environ.get('ES_URL', es_url)
     es_client = Elasticsearch([es_url])
     yield es_client
     if hasattr(es_client.transport, 'close'):
