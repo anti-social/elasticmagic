@@ -3,11 +3,19 @@ import pytest
 from elasticmagic import (
     agg,
     Document,
+    DynamicDocument,
     Field,
     Ids,
-    HasParent, HasChild)
+    HasParent,
+    HasChild
+)
 from elasticmagic.compiler import CompilationError
-from elasticmagic.expression import ParentId, Bool, Term, Terms
+from elasticmagic.expression import (
+    Bool,
+    ParentId,
+    Term,
+    Terms,
+)
 from elasticmagic.types import (
     Float,
     Text,
@@ -101,8 +109,8 @@ async def docs(es_index):
     yield docs
 
 
-def check_question_meta(q, es_version):
-    assert isinstance(q, Question)
+def check_question_meta(q, es_version, doc_cls=Question):
+    assert isinstance(q, doc_cls)
     assert q._id == '1'
     assert q._type == 'question'
     assert q._routing is None
@@ -114,8 +122,8 @@ def check_question_meta(q, es_version):
         assert fields['_doc_type.name'] == ['question']
 
 
-def check_standard_question_doc(q, es_version):
-    check_question_meta(q, es_version)
+def check_standard_question_doc(q, es_version, doc_cls=Question):
+    check_question_meta(q, es_version, doc_cls=doc_cls)
     assert q.title == 'The Ultimate Question'
     assert q.text == \
         'The Ultimate Answer to Life, The Universe, and Everything'
@@ -415,13 +423,41 @@ async def test_search(es_index, es_version, docs):
     assert res.total == 2
     assert len(res.hits) == 2
     assert res.error is None
-
     check_standard_question_doc(res.hits[0], es_version)
-
     check_standard_answer_doc(res.hits[1], es_version)
 
     cached_res = await sq.get_result()
     assert cached_res is res
+
+
+@pytest.mark.asyncio
+async def test_search_explicit_doc_cls(es_index, es_version, docs):
+    sq = es_index.search_query(doc_cls=Question)
+    res = await sq.get_result()
+
+    assert res.total == 1
+    assert len(res.hits) == 1
+    assert res.error is None
+    check_standard_question_doc(res.hits[0], es_version)
+
+
+@pytest.mark.asyncio
+async def test_search_explicit_doc_type(es_index, es_version, docs):
+    # We cannot find out _id and _parent for ES >= 6 in this case
+    sq = es_index.search_query(doc_type='question')
+    res = await sq.get_result()
+
+    if es_version.major < 6:
+        assert res.total == 1
+        assert len(res.hits) == 1
+        assert res.error is None
+        check_standard_question_doc(
+            res.hits[0], es_version, doc_cls=DynamicDocument
+        )
+    else:
+        assert res.total == 2
+        assert len(res.hits) == 2
+        assert res.error is None
 
 
 @pytest.mark.asyncio

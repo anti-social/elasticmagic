@@ -75,15 +75,11 @@ def test_simple_filter(index):
                     "must": {
                         "match": {"name": "test"}
                     },
-                    "filter": {
-                        "bool": {
-                            "must": [
-                                {"term": {"status": 0}},
-                                {"terms": {"type": [0, 1, 3]}},
-                                {"term": {"vendor": "Subaru"}}
-                            ]
-                        }
-                    }
+                    "filter": [
+                        {"term": {"status": 0}},
+                        {"terms": {"type": [0, 1, 3]}},
+                        {"term": {"vendor": "Subaru"}}
+                    ]
                 }
             }
         }
@@ -944,34 +940,30 @@ def test_simple_query_filter(index):
         {
             "query": {
                 "bool": {
-                    "filter": {
-                        "bool": {
-                            "must": [
-                                {
-                                    "term": {"year": 2014}
-                                },
-                                {
-                                    "bool": {
-                                        "should": [
-                                            {
-                                                "range": {
-                                                    "price": {"lte": 10000}
-                                                }
-                                            },
-                                            {
-                                                "range": {
-                                                    "price": {
-                                                        "gt": 10000,
-                                                        "lte": 20000
-                                                    }
-                                                }
+                    "filter": [
+                        {
+                            "term": {"year": 2014}
+                        },
+                        {
+                            "bool": {
+                                "should": [
+                                    {
+                                        "range": {
+                                            "price": {"lte": 10000}
+                                        }
+                                    },
+                                    {
+                                        "range": {
+                                            "price": {
+                                                "gt": 10000,
+                                                "lte": 20000
                                             }
-                                        ]
+                                        }
                                     }
-                                }
-                            ]
+                                ]
+                            }
                         }
-                    }
+                    ]
                 }
             }
         }
