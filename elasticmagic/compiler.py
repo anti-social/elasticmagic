@@ -26,6 +26,7 @@ from .expression import Ids
 from .expression import MatchPhrase
 from .expression import MatchPhrasePrefix
 from .expression import Params
+from .expression import Terms
 from .result import BulkResult
 from .result import CountResult
 from .result import DeleteByQueryResult
@@ -105,6 +106,10 @@ def _add_doc_type_fields_into_stored_fields(
     raise ValueError(
         'Unsupported stored_fields type: {}'.format(type(stored_fields))
     )
+
+
+def _mk_doc_type(doc_types):
+    return ','.join(doc_types)
 
 
 class Compiled(object):
@@ -249,8 +254,6 @@ class CompiledExpression(Compiled):
         field_name = self.visit(term.field)
         if field_name == '_id':
             doc_cls = self._get_field_doc_cls(term.field)
-            print(doc_cls)
-            print(self.doc_classes)
             if _is_emulate_doc_types_mode(self.features, doc_cls):
                 return self.visit(Ids([term.query], doc_cls))
             elif (
@@ -595,14 +598,19 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
         if isinstance(query, BaseSearchQuery):
             expression = query.get_context()
             doc_classes = expression.doc_classes
+            self.doc_types = expression.doc_types
         elif query is None:
             expression = None
             doc_classes = None
+            self.doc_types = None
         else:
             expression = {
                 'query': query,
             }
             doc_classes = collect_doc_classes(query)
+            self.doc_types = SearchQueryContext._get_unique_doc_types(
+                doc_classes=doc_classes
+            )
         super(CompiledSearchQuery, self).__init__(
             expression, params, doc_classes=doc_classes
         )
@@ -614,10 +622,12 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
         if isinstance(self.expression, SearchQueryContext):
             search_params = dict(self.expression.search_params)
             search_params.update(params)
-            if self.expression.doc_type:
-                search_params['doc_type'] = self.expression.doc_type
         else:
             search_params = params
+
+        if self.features.supports_mapping_types and self.doc_types:
+            search_params['doc_type'] = _mk_doc_type(self.doc_types)
+
         return self._patch_doc_type(search_params)
 
     def process_result(self, raw_result):
@@ -646,14 +656,29 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
         return q
 
     @classmethod
-    def get_filtered_query(cls, query_context, wrap_function_score=True):
+    def get_filtered_query(
+            cls, query_context, wrap_function_score=True, doc_classes=None
+    ):
         q = cls.get_query(
             query_context, wrap_function_score=wrap_function_score
         )
+        filter_clauses = []
         if query_context.filters:
-            filter_clauses = list(query_context.iter_filters())
+            filter_clauses.extend(query_context.iter_filters())
+        if not cls.features.supports_mapping_types and doc_classes:
+            doc_types = []
+            for doc_cls in doc_classes:
+                if _is_emulate_doc_types_mode(cls.features, doc_cls):
+                    doc_types.append(doc_cls.get_doc_type())
+            if doc_types:
+                filter_clauses.append(
+                    Terms(DOC_TYPE_JOIN_FIELD, doc_types)
+                )
+        if filter_clauses:
             if cls.features.supports_bool_filter:
-                return Bool(must=q, filter=Bool.must(*filter_clauses))
+                if len(filter_clauses) == 1:
+                    return Bool(must=q, filter=filter_clauses[0])
+                return Bool(must=q, filter=filter_clauses)
             return Filtered(
                 query=q, filter=Bool.must(*filter_clauses)
             )
@@ -668,7 +693,7 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
     def visit_search_query_context(self, query_ctx):
         params = {}
 
-        q = self.get_filtered_query(query_ctx)
+        q = self.get_filtered_query(query_ctx, doc_classes=self.doc_classes)
         if q is not None:
             params['query'] = self.visit(q)
 
@@ -722,7 +747,7 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
             lambda doc_cls: doc_cls.has_parent_doc_cls(),
             self.doc_classes
         ))
-        if should_use_default_type and 'doc_type' in search_params:
+        if should_use_default_type:
             search_params['doc_type'] = DEFAULT_DOC_TYPE
         return search_params
 

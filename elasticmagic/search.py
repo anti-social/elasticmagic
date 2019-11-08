@@ -7,7 +7,7 @@ import warnings
 from abc import ABCMeta
 from collections import namedtuple, OrderedDict
 
-from .compat import zip, with_metaclass
+from .compat import zip, with_metaclass, string_types
 from .compat import Iterable
 from .util import _with_clone
 from .util import merge_params, collect_doc_classes
@@ -294,9 +294,6 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         """Adds a filters into elasticsearch
         `filter context <https://www.elastic.co/guide/en/elasticsearch/reference/current/query-filter-context.html>`_.
 
-        Multiple expressions may be specified, so they will be joined together
-        using ``Bool.must`` expression.
-
         Returns new :class:`.SearchQuery` object with applied filters.
 
         .. testcode:: filter
@@ -309,11 +306,11 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         .. testcode:: filter
 
            assert search_query.to_dict(Compiler_5_0) == {
-               'query': {'bool': {'filter': {'bool': {'must': [
+               'query': {'bool': {'filter': [
                    {'term': {'status': 'published'}},
                    {'range': {
                        'publish_date': {
-                           'gte': datetime.date(2015, 1, 1)}}}]}}}}}
+                           'gte': datetime.date(2015, 1, 1)}}}]}}}
 
         Filter expression can be a python dictionary object:
 
@@ -711,27 +708,6 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
             raise ValueError('Search query is not bound to index or cluster')
         return self._index or self._cluster
 
-    def _get_doc_cls(self):
-        if self._doc_cls:
-            doc_cls = self._doc_cls
-        else:
-            doc_cls = self._collect_doc_classes()
-
-        return doc_cls
-
-    def _get_doc_type(self, doc_cls=None):
-        doc_cls = doc_cls or self._get_doc_cls()
-        if isinstance(doc_cls, Iterable):
-            doc_types = list(set(
-                d.get_doc_type() for d in doc_cls if d.get_doc_type()
-            ))
-            doc_types.sort()
-            return ','.join(doc_types)
-        elif self._doc_type:
-            return self._doc_type
-        elif doc_cls:
-            return doc_cls.__doc_type__
-
     def get_compiler_context(self):
         return SearchQueryContext(self)
 
@@ -920,18 +896,42 @@ class SearchQueryContext(object):
         self.index = search_query._index
         doc_cls = search_query._doc_cls
         if not doc_cls:
-            self.doc_classes = search_query._collect_doc_classes()
+            doc_classes = search_query._collect_doc_classes()
         elif not isinstance(doc_cls, Iterable):
-            self.doc_classes = [doc_cls]
+            doc_classes = [doc_cls]
         else:
-            self.doc_classes = doc_cls
-        self.doc_type = search_query._get_doc_type(self.doc_classes)
+            doc_classes = doc_cls
+        self.doc_classes = tuple(doc_classes)
+
+        if not search_query._doc_type:
+            doc_types = []
+        elif isinstance(search_query._doc_type, string_types):
+            doc_types = [
+                t.strip() for t in search_query._doc_type.split(',')
+            ]
+        else:
+            doc_types = list(search_query._doc_type)
+        self.doc_types = self._get_unique_doc_types(
+            doc_types, self.doc_classes
+        )
+
         self.script_fields = search_query._script_fields
 
         self.search_params = search_query._search_params
 
         self.instance_mapper = search_query._instance_mapper
         self.iter_instances = search_query._iter_instances
+
+    @staticmethod
+    def _get_unique_doc_types(doc_types=None, doc_classes=None):
+        doc_types = list(doc_types) if doc_types else []
+        unique_doc_types = set(doc_types)
+        if isinstance(doc_classes, (list, tuple, set)):
+            for doc_cls in doc_classes:
+                doc_type = doc_cls.get_doc_type()
+                if doc_type and doc_type not in unique_doc_types:
+                    doc_types.append(doc_type)
+        return tuple(doc_types)
 
     def iter_filters_with_meta(self):
         return zip(self.filters, self.filters_meta)

@@ -120,22 +120,18 @@ class SearchQueryTest(BaseTestCase):
                         "must": {
                             "term": {"user": "kimchy"}
                         },
-                        "filter": {
-                            "bool": {
-                                "must": [
-                                    {
-                                        "range": {
-                                            "age": {"gte": 16}
-                                        }
-                                    },
-                                    {
-                                        "term": {
-                                            "lang": "English"
-                                        }
-                                    }
-                                ]
+                        "filter": [
+                            {
+                                "range": {
+                                    "age": {"gte": 16}
+                                }
+                            },
+                            {
+                                "term": {
+                                    "lang": "English"
+                                }
                             }
-                        }
+                        ]
                     }
                 }
             }

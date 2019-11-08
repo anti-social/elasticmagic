@@ -539,13 +539,20 @@ def test_search_query_filter_by_ids_no_mapping_types(
     assert compiled_query.body == {
         'query': {
             'bool': {
-                'filter': {
-                    'ids': {
-                        'values': [
-                            'question~1', 'question~2', 'question~3'
-                        ]
-                    }
-                }
+                'filter': [
+                    {
+                        'ids': {
+                            'values': [
+                                'question~1', 'question~2', 'question~3'
+                            ]
+                        }
+                    },
+                    {
+                        'terms': {
+                            '_doc_type_join': ['question']
+                        }
+                    },
+                ]
             }
         },
         'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
@@ -562,14 +569,21 @@ def test_search_query_filter_by_ids_no_mapping_types(
     assert compiled_query.body == {
         'query': {
             'bool': {
-                'filter': {
-                    'ids': {
-                        'values': [
-                            'question~1', 'question~2', 'question~3',
-                            'answer~1', 'answer~2', 'answer~3'
-                        ]
+                'filter': [
+                    {
+                        'ids': {
+                            'values': [
+                                'question~1', 'question~2', 'question~3',
+                                'answer~1', 'answer~2', 'answer~3'
+                            ]
+                        }
+                    },
+                    {
+                        'terms': {
+                            '_doc_type_join': ['question', 'answer']
+                        }
                     }
-                }
+                ]
             }
         },
         'stored_fields': [
@@ -599,7 +613,7 @@ def test_search_query_filter_by_ids_with_mapping_types():
         }
     }
     assert compiled_query.params == {
-        'doc_type': 'answer,question'
+        'doc_type': 'question,answer'
     }
 
 
