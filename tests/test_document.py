@@ -351,7 +351,11 @@ class DocumentTestCase(BaseTestCase):
                 'highlight': {
                     'test_name': '<em>Test</em> name'
                 },
-                'matched_queries': ['field_1', 'field_2']
+                'matched_queries': ['field_1', 'field_2'],
+                '_explanation': {
+                    'value': 3.14,
+                    'description': 'pi',
+                }
             }
         )
         self.assertEqual(hit_doc._id, '123')
@@ -373,6 +377,10 @@ class DocumentTestCase(BaseTestCase):
         self.assertEqual(hit_doc.get_highlight(), {'test_name': '<em>Test</em> name'})
         self.assertIn('field_1', hit_doc.get_matched_queries())
         self.assertIn('field_2', hit_doc.get_matched_queries())
+        self.assertEqual(
+            hit_doc.get_explanation(),
+            {'value': 3.14, 'description': 'pi'}
+        )
 
         hit_doc = ProductDocument(
             _hit={

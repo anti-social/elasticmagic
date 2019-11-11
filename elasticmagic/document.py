@@ -153,6 +153,7 @@ class Document(with_metaclass(DocumentMeta)):
         self._hit_fields = None
         self._highlight = None
         self._matched_queries = None
+        self._explanation = None
         if _hit:
             self._score = _hit.get('_score')
             source = _hit.get('_source')
@@ -195,6 +196,9 @@ class Document(with_metaclass(DocumentMeta)):
 
             if _hit.get('matched_queries'):
                 self._matched_queries = _hit['matched_queries']
+
+            if _hit.get('_explanation'):
+                self._explanation = _hit['_explanation']
 
         for fkey, fvalue in kwargs.items():
             setattr(self, fkey, fvalue)
@@ -262,6 +266,9 @@ class Document(with_metaclass(DocumentMeta)):
 
     def get_hit_fields(self):
         return self.get_fields()
+
+    def get_explanation(self):
+        return self._explanation or {}
 
     @classmethod
     def to_mapping(cls, compiler, ordered=False):
