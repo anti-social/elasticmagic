@@ -835,6 +835,15 @@ class SearchQuery(BaseSearchQuery):
         """  # noqa:E501
         return self._index_or_cluster.exists(self).exists
 
+    def explain(self, doc, **kwargs):
+        """Computes a score explanation for the current search query and the document.
+
+        :return: :class:`.result.ExplainResult`
+
+        https://www.elastic.co/guide/en/elasticsearch/reference/current/search-explain.html
+        """  # noqa:E501
+        return self._index_or_cluster.explain(self, doc, **kwargs)
+
     def delete(
             self, conflicts=None, refresh=None, timeout=None,
             scroll=None, scroll_size=None,

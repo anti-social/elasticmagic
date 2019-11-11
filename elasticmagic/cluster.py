@@ -85,6 +85,9 @@ class BaseCluster(with_metaclass(ABCMeta)):
     def _search_params(self, params):
         return self._preprocess_params(params, 'q')
 
+    def _explain_params(self, params):
+        return self._preprocess_params(params, 'q', 'doc')
+
     def _scroll_params(self, params):
         return self._preprocess_params(params, 'doc_cls', 'instance_mapper')
 
@@ -186,6 +189,12 @@ class Cluster(BaseCluster):
         return self._do_request(
             self.get_compiler().compiled_search_query,
             q, self._search_params(locals())
+        )
+
+    def explain(self, q, doc, index, **kwargs):
+        return self._do_request(
+            self.get_compiler().compiled_explain,
+            q, doc, self._explain_params(locals())
         )
 
     def count(

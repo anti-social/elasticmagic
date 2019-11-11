@@ -92,6 +92,9 @@ class Index(BaseIndex):
             **kwargs
         )
 
+    def explain(self, q, doc, **kwargs):
+        return self._cluster.explain(q, doc, index=self._name, **kwargs)
+
     def multi_search(
             self, queries, doc_type=None, routing=None, preference=None,
             search_type=None, **kwargs

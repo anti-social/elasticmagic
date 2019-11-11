@@ -28,6 +28,9 @@ class AsyncSearchQuery(BaseSearchQuery):
             await self._index_or_cluster.exists(self)
         ).exists
 
+    async def explain(self, doc, **kwargs):
+        return await self._index_or_cluster.explain(self, doc, **kwargs)
+
     async def delete(
             self, conflicts=None, refresh=None, timeout=None,
             scroll=None, scroll_size=None,

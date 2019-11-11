@@ -32,6 +32,7 @@ from .result import CountResult
 from .result import DeleteByQueryResult
 from .result import DeleteResult
 from .result import ExistsResult
+from .result import ExplainResult
 from .result import PutMappingResult
 from .result import SearchResult
 from .search import BaseSearchQuery
@@ -105,6 +106,31 @@ def _add_doc_type_fields_into_stored_fields(
         return stored_fields + extra_stored_fields
     raise ValueError(
         'Unsupported stored_fields type: {}'.format(type(stored_fields))
+    )
+
+
+def _patch_stored_fields_in_params(features, params, add_source_field):
+    stored_fields_param = features.stored_fields_param
+    stored_fields = params.get(stored_fields_param)
+    if isinstance(stored_fields, string_types):
+        stored_fields = stored_fields.split(',')
+    stored_fields = _add_doc_type_fields_into_stored_fields(
+        stored_fields, add_source_field
+    )
+    params[stored_fields_param] = ','.join(stored_fields)
+    return params
+
+
+def _has_custom_source(params):
+    source = params.get('_source')
+    return bool(
+        (
+            source not in (False, 'false') and
+            source != [False] and
+            source != ['false']
+        ) or
+        params.get('_source_include') or
+        params.get('_source_exclude')
     )
 
 
@@ -752,6 +778,62 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
         return search_params
 
 
+class CompiledExplain(CompiledSearchQuery):
+    def __init__(self, query, doc, params=None):
+        self.doc = doc
+        self.doc_cls = self.doc.__class__
+        self._source = None
+        self._stored_fields = None
+        super(CompiledExplain, self).__init__(query, params)
+
+    def api_method(self, client):
+        return client.explain
+
+    def prepare_params(self, params):
+        params['id'] = self.doc._id
+        params['doc_type'] = self.doc.get_doc_type()
+        if not params.get('routing'):
+            params['routing'] = self.doc._routing
+        if self._source:
+            if self._source.fields:
+                params['_source'] = self._source.fields
+            if self._source.include:
+                params['_source_include'] = self._source.include
+            if self._source.exclude:
+                params['_source_exclude'] = self._source.exclude
+        if self._stored_fields:
+            params['stored_fields'] = self._stored_fields
+        if _is_emulate_doc_types_mode(self.features, self.doc_cls):
+            params['id'] = mk_uid(
+                self.doc_cls.get_doc_type(), params['id']
+            )
+            params['doc_type'] = DEFAULT_DOC_TYPE
+            _patch_stored_fields_in_params(
+                self.features, params, not _has_custom_source(params)
+            )
+        return params
+
+    def process_result(self, raw_result):
+        return ExplainResult(
+            raw_result, self.doc_cls,
+            # Only store hit in a result when there were custom source or
+            # stored fields
+            _store_hit=bool(self._source or self._stored_fields)
+        )
+
+    def visit_search_query_context(self, query_ctx):
+        body = {}
+
+        q = self.get_filtered_query(query_ctx)
+        if q is not None:
+            body['query'] = self.visit(q)
+
+        self._source = query_ctx.source
+        self._stored_fields = self.visit(query_ctx.fields)
+
+        return body
+
+
 class CompiledScroll(CompiledEndpoint):
     def __init__(self, params, doc_cls=None, instance_mapper=None):
         self.doc_cls = doc_cls
@@ -1176,18 +1258,11 @@ class CompiledGet(CompiledEndpoint):
                 self.doc_cls.get_doc_type(), get_params['id']
             )
             get_params['doc_type'] = DEFAULT_DOC_TYPE
-            self._patch_stored_fields(get_params)
+            _patch_stored_fields_in_params(
+                self.features, get_params,
+                not get_params.get(self.features.stored_fields_param)
+            )
         return get_params
-
-    def _patch_stored_fields(self, params):
-        stored_fields_param = self.features.stored_fields_param
-        stored_fields = params.get(stored_fields_param)
-        if stored_fields:
-            stored_fields = stored_fields.split(',')
-        stored_fields = _add_doc_type_fields_into_stored_fields(
-            stored_fields, not stored_fields
-        )
-        params[stored_fields_param] = ','.join(stored_fields)
 
     def process_result(self, raw_result):
         return self.doc_cls(_hit=raw_result)
@@ -1478,6 +1553,10 @@ def _featured_compiler(elasticsearch_features):
             compiler = cls
             features = elasticsearch_features
 
+        class _CompiledExplain(CompiledExplain):
+            compiler = cls
+            features = elasticsearch_features
+
         class _CompiledDeleteByQuery(CompiledDeleteByQuery):
             compiler = cls
             features = elasticsearch_features
@@ -1528,6 +1607,7 @@ def _featured_compiler(elasticsearch_features):
         cls.compiled_scroll = _CompiledScroll
         cls.compiled_count_query = _CompiledCountQuery
         cls.compiled_exists_query = _CompiledExistsQuery
+        cls.compiled_explain = _CompiledExplain
         cls.compiled_delete_by_query = _CompiledDeleteByQuery
         cls.compiled_multi_search = _CompiledMultiSearch
         cls.compiled_get = _CompiledGet

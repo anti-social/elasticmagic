@@ -257,8 +257,11 @@ class Document(with_metaclass(DocumentMeta)):
     def get_matched_queries(self):
         return self._matched_queries or []
 
-    def get_hit_fields(self):
+    def get_fields(self):
         return self._hit_fields or {}
+
+    def get_hit_fields(self):
+        return self.get_fields()
 
     @classmethod
     def to_mapping(cls, compiler, ordered=False):
