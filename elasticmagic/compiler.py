@@ -779,9 +779,17 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
 
 
 class CompiledExplain(CompiledSearchQuery):
-    def __init__(self, query, doc, params=None):
-        self.doc = doc
-        self.doc_cls = self.doc.__class__
+    def __init__(self, query, doc_or_id, params=None, doc_cls=None):
+        if isinstance(doc_or_id, Document):
+            self.doc_id = doc_or_id._id
+            self.doc_cls = doc_or_id.__class__
+            self.doc_type = self.doc_cls.get_doc_type()
+            self.routing = self.doc_cls._routing
+        else:
+            self.doc_id = doc_or_id
+            self.doc_cls = doc_cls
+            self.doc_type = doc_cls.get_doc_type() if doc_cls else None
+            self.routing = None
         self._source = None
         self._stored_fields = None
         super(CompiledExplain, self).__init__(query, params)
@@ -790,10 +798,11 @@ class CompiledExplain(CompiledSearchQuery):
         return client.explain
 
     def prepare_params(self, params):
-        params['id'] = self.doc._id
-        params['doc_type'] = self.doc.get_doc_type()
-        if not params.get('routing'):
-            params['routing'] = self.doc._routing
+        params['id'] = self.doc_id
+        if not params.get('doc_type'):
+            params['doc_type'] = self.doc_type
+        if not params.get('routing') and self.routing:
+            params['routing'] = self.routing
         if self._source:
             if self._source.fields:
                 params['_source'] = self._source.fields

@@ -68,10 +68,12 @@ class AsyncCluster(BaseCluster):
             q, self._search_params(locals())
         )
 
-    async def explain(self, q, doc, index, **kwargs):
+    async def explain(
+            self, q, doc_or_id, index, doc_cls=None, routing=None, **kwargs
+    ):
         return await self._do_request(
             (await self.get_compiler()).compiled_explain,
-            q, doc, self._explain_params(locals())
+            q, doc_or_id, self._explain_params(locals()), doc_cls=doc_cls
         )
 
     async def count(

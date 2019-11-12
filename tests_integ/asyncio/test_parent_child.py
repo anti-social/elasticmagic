@@ -718,39 +718,50 @@ def check_answer_explain_result(res, is_matched=True):
 
 @pytest.mark.asyncio
 @pytest.mark.explain
-async def test_explain(es_index, es_version, docs):
+async def test_explain(es_index, docs):
     sq = (
         es_index.search_query(Question.title.match('ultimate'))
-
     )
     res = await sq.explain(Question(_id=1))
 
     check_question_explain_result(res)
-    if 1 or es_version.major < 6:
-        assert res.hit is None
-    else:
-        check_question_meta(res.hit, es_version)
-        assert res.hit.title is None
-        assert res.hit.text is None
-        assert res.hit.rank is None
+    assert res.hit is None
 
 
 @pytest.mark.asyncio
 @pytest.mark.explain
-async def test_explain_child(es_index, es_version, docs):
+async def test_explain_by_id(es_index, docs):
+    sq = (
+        es_index.search_query(Question.title.match('ultimate'))
+    )
+    res = await sq.explain(1, doc_cls=Question)
+
+    check_question_explain_result(res)
+    assert res.hit is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.explain
+async def test_explain_child(es_index, docs):
     sq = (
         es_index.search_query(Answer.text.match('42'))
-
     )
     res = await sq.explain(Answer(_id=1, _routing=1))
 
     check_answer_explain_result(res)
-    assert isinstance(res.explanation, dict)
-    if 1 or es_version.major < 6:
-        assert res.hit is None
-    else:
-        check_answer_meta(res.hit, es_version)
-        assert res.hit.text is None
+    assert res.hit is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.explain
+async def test_explain_child_by_id(es_index, docs):
+    sq = (
+        es_index.search_query(Answer.text.match('42'))
+    )
+    res = await sq.explain(1, doc_cls=Answer, routing=1)
+
+    check_answer_explain_result(res)
+    assert res.hit is None
 
 
 @pytest.mark.asyncio
@@ -759,7 +770,6 @@ async def test_explain_with_source(es_index, es_version, docs):
     sq = (
         es_index.search_query(Question.title.match('ultimate'))
         .source(True)
-
     )
     res = await sq.explain(Question(_id=1))
 
@@ -783,21 +793,14 @@ async def test_explain_with_stored_fields(es_index, es_version, docs):
 
 @pytest.mark.asyncio
 @pytest.mark.explain
-async def test_explain_not_matched(es_index, es_version, docs):
+async def test_explain_not_matched(es_index, docs):
     sq = (
         es_index.search_query(Question.title.match('primary'))
-
     )
     res = await sq.explain(Question(_id=1))
 
     check_question_explain_result(res, is_matched=False)
-    if 1 or es_version.major < 6:
-        assert res.hit is None
-    else:
-        check_question_meta(res.hit, es_version)
-        assert res.hit.title is None
-        assert res.hit.text is None
-        assert res.hit.rank is None
+    assert res.hit is None
 
 
 @pytest.mark.asyncio
@@ -805,7 +808,6 @@ async def test_explain_not_matched(es_index, es_version, docs):
 async def test_explain_not_found(es_index, docs):
     sq = (
         es_index.search_query(Question.title.match('ultimate'))
-
     )
     with pytest.raises(NotFoundError):
         await sq.explain(Question(_id=2))
