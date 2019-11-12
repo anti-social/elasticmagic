@@ -21,6 +21,8 @@ from elasticmagic.types import (
     Text,
 )
 
+from elasticsearch.exceptions import NotFoundError
+
 
 class Question(Document):
     __doc_type__ = 'question'
@@ -315,6 +317,7 @@ async def test_update_mapping(
 
 
 @pytest.mark.asyncio
+@pytest.mark.get
 async def test_get_document(es_index, es_version, docs):
     q = await es_index.get(Question(_id=1))
     check_standard_question_doc(q, es_version)
@@ -324,6 +327,7 @@ async def test_get_document(es_index, es_version, docs):
 
 
 @pytest.mark.asyncio
+@pytest.mark.get
 async def test_get_document_with_stored_fields(es_index, es_version, docs):
     q = await es_index.get(Question(_id=1), stored_fields='rank')
     check_question_meta(q, es_version)
@@ -334,6 +338,7 @@ async def test_get_document_with_stored_fields(es_index, es_version, docs):
 
 
 @pytest.mark.asyncio
+@pytest.mark.get
 async def test_get_document_with_source(
         es_index, es_version, docs
 ):
@@ -348,6 +353,7 @@ async def test_get_document_with_source(
 
 
 @pytest.mark.asyncio
+@pytest.mark.get
 async def test_get_document_no_source(
         es_index, es_version, docs
 ):
@@ -362,6 +368,7 @@ async def test_get_document_no_source(
 
 
 @pytest.mark.asyncio
+@pytest.mark.get
 async def test_get_document_with_stored_fields_and_source(
         es_index, es_version, docs
 ):
@@ -375,6 +382,7 @@ async def test_get_document_with_stored_fields_and_source(
 
 
 @pytest.mark.asyncio
+@pytest.mark.get
 async def test_get_document_with_stored_fields_and_source_include(
         es_index, es_version, docs
 ):
@@ -391,6 +399,7 @@ async def test_get_document_with_stored_fields_and_source_include(
 
 
 @pytest.mark.asyncio
+@pytest.mark.get
 async def test_get_document_with_stored_fields_and_source_exclude(
         es_index, es_version, docs
 ):
@@ -407,6 +416,7 @@ async def test_get_document_with_stored_fields_and_source_exclude(
 
 
 @pytest.mark.asyncio
+@pytest.mark.multi_get
 async def test_multi_get(es_index, es_version, docs):
     docs = await es_index.multi_get(
         [Question(_id=1), Answer(_id=1, _routing=1)]
@@ -690,3 +700,114 @@ async def test_has_child_query(es_index, es_version, docs):
     res = await sq.get_result()
 
     check_standard_question_doc(res.hits[0], es_version)
+
+
+def check_question_explain_result(res, is_matched=True):
+    assert res._id == '1'
+    assert res._type == 'question'
+    assert res.matched is is_matched
+    assert isinstance(res.explanation, dict)
+
+
+def check_answer_explain_result(res, is_matched=True):
+    assert res._id == '1'
+    assert res._type == 'answer'
+    assert res.matched is is_matched
+    assert isinstance(res.explanation, dict)
+
+
+@pytest.mark.asyncio
+@pytest.mark.explain
+async def test_explain(es_index, docs):
+    sq = (
+        es_index.search_query(Question.title.match('ultimate'))
+    )
+    res = await sq.explain(Question(_id=1))
+
+    check_question_explain_result(res)
+    assert res.hit is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.explain
+async def test_explain_by_id(es_index, docs):
+    sq = (
+        es_index.search_query(Question.title.match('ultimate'))
+    )
+    res = await sq.explain(1, doc_cls=Question)
+
+    check_question_explain_result(res)
+    assert res.hit is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.explain
+async def test_explain_child(es_index, docs):
+    sq = (
+        es_index.search_query(Answer.text.match('42'))
+    )
+    res = await sq.explain(Answer(_id=1, _routing=1))
+
+    check_answer_explain_result(res)
+    assert res.hit is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.explain
+async def test_explain_child_by_id(es_index, docs):
+    sq = (
+        es_index.search_query(Answer.text.match('42'))
+    )
+    res = await sq.explain(1, doc_cls=Answer, routing=1)
+
+    check_answer_explain_result(res)
+    assert res.hit is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.explain
+async def test_explain_with_source(es_index, es_version, docs):
+    sq = (
+        es_index.search_query(Question.title.match('ultimate'))
+        .source(True)
+    )
+    res = await sq.explain(Question(_id=1))
+
+    check_question_explain_result(res)
+    check_standard_question_doc(res.hit, es_version)
+
+
+@pytest.mark.asyncio
+@pytest.mark.explain
+async def test_explain_with_stored_fields(es_index, es_version, docs):
+    sq = (
+        es_index.search_query(Question.title.match('ultimate'))
+        .stored_fields(Question.rank)
+    )
+    res = await sq.explain(Question(_id=1))
+
+    check_question_explain_result(res)
+    check_question_meta(res.hit, es_version)
+    assert res.hit.get_fields()['rank'] == [4.2]
+
+
+@pytest.mark.asyncio
+@pytest.mark.explain
+async def test_explain_not_matched(es_index, docs):
+    sq = (
+        es_index.search_query(Question.title.match('primary'))
+    )
+    res = await sq.explain(Question(_id=1))
+
+    check_question_explain_result(res, is_matched=False)
+    assert res.hit is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.explain
+async def test_explain_not_found(es_index, docs):
+    sq = (
+        es_index.search_query(Question.title.match('ultimate'))
+    )
+    with pytest.raises(NotFoundError):
+        await sq.explain(Question(_id=2))

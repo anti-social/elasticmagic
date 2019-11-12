@@ -384,3 +384,37 @@ class IndexTest(BaseTestCase):
             "version": "latest"
         })
 
+    def test_explain_without_doc_cls(self):
+        self.client.explain.return_value = {
+            "_index": "test",
+            "_type": "tweet",
+            "_id": "0",
+            "matched": True,
+            "explanation": {
+                "value": 1.55077,
+                "description": "score(doc=0,freq=1.0 = termFreq=1.0)"
+            }
+        }
+        result = self.index.explain(MatchAll(), 0, doc_type='tweet')
+        self.client.explain.assert_called_with(
+            id=0,
+            doc_type='tweet',
+            index='test',
+            body={
+                'query': {
+                    'match_all': {}
+                }
+            }
+        )
+        self.assertEqual(result._id, '0')
+        self.assertEqual(result._type, 'tweet')
+        self.assertEqual(result._index, 'test')
+        self.assertTrue(result.matched)
+        self.assertDictEqual(
+            result.explanation,
+            {
+                "value": 1.55077,
+                "description": "score(doc=0,freq=1.0 = termFreq=1.0)"
+            }
+        )
+        self.assertIsNone(result.hit)

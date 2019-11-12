@@ -4,6 +4,18 @@ from .document import DynamicDocument
 from .document import get_doc_type_for_hit
 
 
+def _doc_cls_map(doc_cls):
+    if doc_cls is None:
+        doc_classes = ()
+    elif not isinstance(doc_cls, Iterable):
+        doc_classes = (doc_cls,)
+    else:
+        doc_classes = doc_cls
+    return {
+        doc_cls.__doc_type__: doc_cls for doc_cls in doc_classes
+    }
+
+
 class Result(object):
     def __init__(self, raw_result):
         self.raw = raw_result
@@ -18,15 +30,8 @@ class SearchResult(Result):
 
         self._query_aggs = aggregations or {}
 
-        if doc_cls is None:
-            doc_classes = ()
-        elif not isinstance(doc_cls, Iterable):
-            doc_classes = (doc_cls,)
-        else:
-            doc_classes = doc_cls
-        self._doc_cls_map = {
-            doc_cls.__doc_type__: doc_cls for doc_cls in doc_classes
-        }
+        self._doc_cls_map = _doc_cls_map(doc_cls)
+        doc_classes = list(self._doc_cls_map.values())
 
         self._mapper_registry = {}
         if isinstance(instance_mapper, dict):
@@ -88,6 +93,31 @@ class ExistsResult(Result):
     def __init__(self, raw_result):
         super(ExistsResult, self).__init__(raw_result)
         self.exists = raw_result['exists']
+
+
+class ExplainResult(Result):
+    def __init__(self, raw_result, doc_cls=None, _store_hit=False):
+        super(ExplainResult, self).__init__(raw_result)
+
+        self.matched = raw_result['matched']
+        self.explanation = raw_result['explanation']
+
+        raw_hit = raw_result.get('get', {}).copy()
+        self._id = raw_result['_id']
+        self._type = raw_result['_type']
+        self._index = raw_result['_index']
+        self.hit = None
+        if raw_hit:
+            raw_hit['_id'] = raw_result['_id']
+            raw_hit['_type'] = raw_result['_type']
+            raw_hit['_index'] = raw_result['_index']
+            doc_type = get_doc_type_for_hit(raw_hit)
+            doc_cls = _doc_cls_map(doc_cls).get(doc_type, DynamicDocument)
+            hit = doc_cls(raw_hit)
+            self._id = hit._id
+            self._type = hit._type
+            if _store_hit:
+                self.hit = hit
 
 
 class ActionResult(Result):
