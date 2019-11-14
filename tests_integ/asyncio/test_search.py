@@ -4,6 +4,18 @@ from .conftest import Car
 
 
 @pytest.mark.asyncio
+async def test_to_dict(es_index, cars):
+    sq = (
+        es_index.search_query()
+        .limit(1)
+    )
+
+    assert await sq.to_dict() == {
+        'size': 1
+    }
+
+
+@pytest.mark.asyncio
 async def test_get_result(es_index, cars):
     sq = (
         es_index.search_query(Car.name.match('Sally'))

@@ -5,6 +5,10 @@ class AsyncSearchQuery(BaseSearchQuery):
     """Asynchronous version of the :class:`.SearchQuery`
     """
 
+    async def to_dict(self, compiler=None):
+        compiler = compiler or await self.get_compiler()
+        return compiler.compiled_query(self).body
+
     async def get_compiler(self):
         return await self._index_or_cluster.get_compiler()
 

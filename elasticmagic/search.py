@@ -713,13 +713,6 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
     get_context = get_compiler_context
 
-    def to_dict(self, compiler=None):
-        """Compiles the query and returns python dictionary that can be
-        serialized to json.
-        """
-        compiler = compiler or self.get_compiler()
-        return compiler.compiled_query(self).body
-
     def slice(self, offset, limit):
         """Applies offset and limit to the query."""
         sliced_query, _ = self._prepare_slice(slice(offset, limit))
@@ -792,6 +785,13 @@ class SearchQuery(BaseSearchQuery):
 
     def get_query_compiler(self):
         return self.get_compiler().compiled_query
+
+    def to_dict(self, compiler=None):
+        """Compiles the query and returns python dictionary that can be
+        serialized to json.
+        """
+        compiler = compiler or self.get_compiler()
+        return compiler.compiled_query(self).body
 
     def get_result(self):
         """Executes current query and returns processed :class:`SearchResult`
