@@ -485,7 +485,7 @@ class ClusterTest(BaseTestCase):
         )
         self.client.bulk.assert_called_with(
             body=[
-                {'index': {'_index': 'test', '_type': 'car', '_id': '1', '_ttl': '1d', 'consistency': 'one'}},
+                {'index': {'_index': 'test', '_type': 'car', '_id': '1', 'ttl': '1d', 'consistency': 'one'}},
                 {'field1': 'value1'},
                 {'delete': {'_index': 'test', '_type': 'car', '_id': '2', 'refresh': True}},
                 {'create': {'_index': 'test', '_type': 'car', '_id': '3'}},

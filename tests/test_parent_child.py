@@ -303,7 +303,7 @@ def test_document_meta_and_source_no_mapping_types(
         {
             '_id': 'answer~1',
             '_type': '_doc',
-            '_routing': 1
+            'routing': 1
         }
     assert \
         amazingly_accurate_answer.to_source(compiler_no_mapping_types) == \
@@ -350,8 +350,8 @@ def test_document_meta_and_source_with_mapping_types(
         {
             '_id': 1,
             '_type': 'answer',
-            '_routing': 1,
-            '_parent': 1
+            'routing': 1,
+            'parent': 1
         }
     assert \
         amazingly_accurate_answer.to_source(compiler_with_mapping_types) == \

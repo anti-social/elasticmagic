@@ -221,7 +221,7 @@ class IndexTest(BaseTestCase):
         self.client.bulk.assert_called_with(
             index='test',
             body=[
-                {'index': {'_type': 'car', '_id': 'test_id', '_routing': 'Subaru'}},
+                {'index': {'_type': 'car', '_id': 'test_id', 'routing': 'Subaru'}},
                 {'vendor': 'Subaru', 'model': 'VRX'}
             ],
         )
@@ -247,9 +247,9 @@ class IndexTest(BaseTestCase):
         self.client.bulk.assert_called_with(
             index='test',
             body=[
-                {'index': {'_type': 'car', '_id': '1', '_routing': 'Subaru'}},
+                {'index': {'_type': 'car', '_id': '1', 'routing': 'Subaru'}},
                 {'vendor': 'Subaru', 'model': 'VRX'},
-                {'index': {'_type': 'car', '_id': '2', '_routing': 'Nissan'}},
+                {'index': {'_type': 'car', '_id': '2', 'routing': 'Nissan'}},
                 {'vendor': 'Nissan', 'model': 'X-Trail'}
             ],
         )
