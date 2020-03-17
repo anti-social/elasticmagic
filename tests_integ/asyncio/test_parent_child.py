@@ -153,167 +153,261 @@ def check_standard_answer_doc(a, es_version):
 
 
 @pytest.mark.asyncio
-async def test_update_mapping(
+async def test_update_mapping_5x(
         es_client, es_version, index_name, es_index_empty
 ):
-    if es_version.major < 6:
-        assert await es_client.indices.get_mapping(index_name) == {
-            index_name: {
-                'mappings': {
-                    'answer': {
-                        '_parent': {
-                            'type': 'question'
-                        },
-                        '_routing': {
-                            'required': True
-                        }
+    if es_version.major > 5:
+        pytest.skip(f'skipped for Elasticsearch {es_version}')
+
+    assert await es_client.indices.get_mapping(index_name) == {
+        index_name: {
+            'mappings': {
+                'answer': {
+                    '_parent': {
+                        'type': 'question'
                     },
-                    'question': {}
-                }
+                    '_routing': {
+                        'required': True
+                    }
+                },
+                'question': {}
             }
         }
+    }
 
-        await es_index_empty.put_mapping(Answer)
+    await es_index_empty.put_mapping(Answer)
 
-        assert await es_client.indices.get_mapping(index_name) == {
-            index_name: {
-                'mappings': {
-                    'answer': {
-                        '_parent': {
-                            'type': 'question'
-                        },
-                        '_routing': {
-                            'required': True
-                        },
-                        'properties': {
-                            'text': {
-                                'type': 'text'
-                            }
-                        }
+    assert await es_client.indices.get_mapping(index_name) == {
+        index_name: {
+            'mappings': {
+                'answer': {
+                    '_parent': {
+                        'type': 'question'
                     },
-                    'question': {}
-                }
+                    '_routing': {
+                        'required': True
+                    },
+                    'properties': {
+                        'text': {
+                            'type': 'text'
+                        }
+                    }
+                },
+                'question': {}
             }
         }
+    }
 
-        await es_index_empty.put_mapping(Question)
-        assert await es_client.indices.get_mapping(index_name) == {
-            index_name: {
-                'mappings': {
-                    'answer': {
-                        '_parent': {
-                            'type': 'question'
-                        },
-                        '_routing': {
-                            'required': True
-                        },
-                        'properties': {
-                            'text': {
-                                'type': 'text'
-                            }
-                        }
+    await es_index_empty.put_mapping(Question)
+    assert await es_client.indices.get_mapping(index_name) == {
+        index_name: {
+            'mappings': {
+                'answer': {
+                    '_parent': {
+                        'type': 'question'
                     },
-                    'question': {
-                        'properties': {
-                            'title': {
-                                'type': 'text'
-                            },
-                            'text': {
-                                'type': 'text'
-                            },
-                            'rank': {
-                                'type': 'float',
-                                'store': True
-                            }
+                    '_routing': {
+                        'required': True
+                    },
+                    'properties': {
+                        'text': {
+                            'type': 'text'
+                        }
+                    }
+                },
+                'question': {
+                    'properties': {
+                        'title': {
+                            'type': 'text'
+                        },
+                        'text': {
+                            'type': 'text'
+                        },
+                        'rank': {
+                            'type': 'float',
+                            'store': True
                         }
                     }
                 }
             }
         }
+    }
 
-        # TODO: Implement put_mapping([Answer, Question])
-        with pytest.raises(CompilationError):
-            await es_index_empty.put_mapping([Question, Answer])
-    else:
-        assert await es_client.indices.get_mapping(index_name) == {
-            index_name: {
-                'mappings': {
-                    '_doc': {
-                        'properties': {
-                            '_doc_type': {
-                                'properties': {
-                                    'name': {
-                                        'type': 'keyword',
-                                        'index': False,
-                                        'doc_values': False,
-                                        'store': True
-                                    },
-                                    'parent': {
-                                        'type': 'keyword',
-                                        'index': False,
-                                        'doc_values': False,
-                                        'store': True
-                                    },
-                                }
-                            },
-                            '_doc_type_join': {
-                                'type': 'join',
-                                'relations': {
-                                    'question': 'answer'
-                                },
-                                'eager_global_ordinals': True
-                            },
-                        }
-                    }
-                }
-            }
-        }
-
+    # TODO: Implement put_mapping([Answer, Question])
+    with pytest.raises(CompilationError):
         await es_index_empty.put_mapping([Question, Answer])
 
-        assert await es_client.indices.get_mapping(index_name) == {
-            index_name: {
-                'mappings': {
-                    '_doc': {
-                        'properties': {
-                            '_doc_type': {
-                                'properties': {
-                                    'name': {
-                                        'type': 'keyword',
-                                        'index': False,
-                                        'doc_values': False,
-                                        'store': True
-                                    },
-                                    'parent': {
-                                        'type': 'keyword',
-                                        'index': False,
-                                        'doc_values': False,
-                                        'store': True
-                                    },
-                                }
-                            },
-                            '_doc_type_join': {
-                                'type': 'join',
-                                'relations': {
-                                    'question': 'answer'
+
+@pytest.mark.asyncio
+async def test_update_mapping_6x(
+        es_client, es_version, index_name, es_index_empty
+):
+    if es_version.major != 6:
+        pytest.skip(f'skipped for Elasticsearch {es_version}')
+
+    assert await es_client.indices.get_mapping(index_name) == {
+        index_name: {
+            'mappings': {
+                '_doc': {
+                    'properties': {
+                        '_doc_type': {
+                            'properties': {
+                                'name': {
+                                    'type': 'keyword',
+                                    'index': False,
+                                    'doc_values': False,
+                                    'store': True
                                 },
-                                'eager_global_ordinals': True
-                            },
-                            'title': {
-                                'type': 'text'
-                            },
-                            'text': {
-                                'type': 'text'
-                            },
-                            'rank': {
-                                'type': 'float',
-                                'store': True
+                                'parent': {
+                                    'type': 'keyword',
+                                    'index': False,
+                                    'doc_values': False,
+                                    'store': True
+                                },
                             }
+                        },
+                        '_doc_type_join': {
+                            'type': 'join',
+                            'relations': {
+                                'question': 'answer'
+                            },
+                            'eager_global_ordinals': True
+                        },
+                    }
+                }
+            }
+        }
+    }
+
+    await es_index_empty.put_mapping([Question, Answer])
+
+    assert await es_client.indices.get_mapping(index_name) == {
+        index_name: {
+            'mappings': {
+                '_doc': {
+                    'properties': {
+                        '_doc_type': {
+                            'properties': {
+                                'name': {
+                                    'type': 'keyword',
+                                    'index': False,
+                                    'doc_values': False,
+                                    'store': True
+                                },
+                                'parent': {
+                                    'type': 'keyword',
+                                    'index': False,
+                                    'doc_values': False,
+                                    'store': True
+                                },
+                            }
+                        },
+                        '_doc_type_join': {
+                            'type': 'join',
+                            'relations': {
+                                'question': 'answer'
+                            },
+                            'eager_global_ordinals': True
+                        },
+                        'title': {
+                            'type': 'text'
+                        },
+                        'text': {
+                            'type': 'text'
+                        },
+                        'rank': {
+                            'type': 'float',
+                            'store': True
                         }
                     }
                 }
             }
         }
+    }
+
+
+@pytest.mark.asyncio
+async def test_update_mapping_7x(
+        es_client, es_version, index_name, es_index_empty
+):
+    if es_version.major < 7:
+        pytest.skip(f'skipped for Elasticsearch {es_version}')
+
+    assert await es_client.indices.get_mapping(index_name) == {
+        index_name: {
+            'mappings': {
+                'properties': {
+                    '_doc_type': {
+                        'properties': {
+                            'name': {
+                                'type': 'keyword',
+                                'index': False,
+                                'doc_values': False,
+                                'store': True
+                            },
+                            'parent': {
+                                'type': 'keyword',
+                                'index': False,
+                                'doc_values': False,
+                                'store': True
+                            },
+                        }
+                    },
+                    '_doc_type_join': {
+                        'type': 'join',
+                        'relations': {
+                            'question': 'answer'
+                        },
+                        'eager_global_ordinals': True
+                    },
+                }
+            }
+        }
+    }
+
+    await es_index_empty.put_mapping([Question, Answer])
+
+    assert await es_client.indices.get_mapping(index_name) == {
+        index_name: {
+            'mappings': {
+                'properties': {
+                    '_doc_type': {
+                        'properties': {
+                            'name': {
+                                'type': 'keyword',
+                                'index': False,
+                                'doc_values': False,
+                                'store': True
+                            },
+                            'parent': {
+                                'type': 'keyword',
+                                'index': False,
+                                'doc_values': False,
+                                'store': True
+                            },
+                        }
+                    },
+                    '_doc_type_join': {
+                        'type': 'join',
+                        'relations': {
+                            'question': 'answer'
+                        },
+                        'eager_global_ordinals': True
+                    },
+                    'title': {
+                        'type': 'text'
+                    },
+                    'text': {
+                        'type': 'text'
+                    },
+                    'rank': {
+                        'type': 'float',
+                        'store': True
+                    }
+                }
+            }
+        }
+    }
 
 
 @pytest.mark.asyncio

@@ -4,18 +4,6 @@ from .document import DynamicDocument
 from .document import get_doc_type_for_hit
 
 
-def _doc_cls_map(doc_cls):
-    if doc_cls is None:
-        doc_classes = ()
-    elif not isinstance(doc_cls, Iterable):
-        doc_classes = (doc_cls,)
-    else:
-        doc_classes = doc_cls
-    return {
-        doc_cls.__doc_type__: doc_cls for doc_cls in doc_classes
-    }
-
-
 class Result(object):
     def __init__(self, raw_result):
         self.raw = raw_result
@@ -23,14 +11,14 @@ class Result(object):
 
 class SearchResult(Result):
     def __init__(
-            self, raw_result, aggregations=None, doc_cls=None,
+            self, raw_result, aggregations=None, doc_cls_map=None,
             instance_mapper=None,
     ):
         super(SearchResult, self).__init__(raw_result)
 
         self._query_aggs = aggregations or {}
 
-        self._doc_cls_map = _doc_cls_map(doc_cls)
+        self._doc_cls_map = doc_cls_map or {}
         doc_classes = list(self._doc_cls_map.values())
 
         self._mapper_registry = {}
@@ -46,10 +34,15 @@ class SearchResult(Result):
         self.timed_out = raw_result.get('timed_out')
 
         hits = raw_result.get('hits') or {}
-        self.total = hits.get('total')
+        total = hits.get('total')
+        if isinstance(total, dict):
+            self.total = total['value']
+        else:
+            self.total = total
         self.max_score = hits.get('max_score')
         self.hits = []
         for hit in hits.get('hits', []):
+            print(hit)
             doc_type = get_doc_type_for_hit(hit)
             doc_cls = self._doc_cls_map.get(doc_type, DynamicDocument)
             self.hits.append(doc_cls(_hit=hit, _result=self))
@@ -96,8 +89,10 @@ class ExistsResult(Result):
 
 
 class ExplainResult(Result):
-    def __init__(self, raw_result, doc_cls=None, _store_hit=False):
+    def __init__(self, raw_result, doc_cls_map=None, _store_hit=False):
         super(ExplainResult, self).__init__(raw_result)
+
+        doc_cls_map = doc_cls_map or {}
 
         self.matched = raw_result['matched']
         self.explanation = raw_result['explanation']
@@ -112,7 +107,7 @@ class ExplainResult(Result):
             raw_hit['_type'] = raw_result['_type']
             raw_hit['_index'] = raw_result['_index']
             doc_type = get_doc_type_for_hit(raw_hit)
-            doc_cls = _doc_cls_map(doc_cls).get(doc_type, DynamicDocument)
+            doc_cls = doc_cls_map.get(doc_type, DynamicDocument)
             hit = doc_cls(raw_hit)
             self._id = hit._id
             self._type = hit._type
