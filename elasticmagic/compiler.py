@@ -159,6 +159,7 @@ def _mk_doc_cls_map(doc_classes, supports_doc_type):
 
     return doc_cls_map
 
+
 class Compiled(object):
     compiler = None
     features = None
@@ -834,9 +835,11 @@ class CompiledExplain(CompiledSearchQuery):
             if self._source.fields:
                 params['_source'] = self._source.fields
             if self._source.include:
-                params[self.features.source_include_param] = self._source.include
+                params[self.features.source_include_param] = \
+                    self._source.include
             if self._source.exclude:
-                params[self.features.source_exclude_param] = self._source.exclude
+                params[self.features.source_exclude_param] = \
+                    self._source.exclude
         if self._stored_fields:
             params['stored_fields'] = self._stored_fields
         if _is_emulate_doc_types_mode(self.features, self.doc_cls):
@@ -1598,8 +1601,8 @@ class CompiledSource(CompiledExpression):
 
             field = attr_field.get_field()
             if (
-                    field.get_mapping_options().get('required')
-                    and field.get_name() not in source
+                    field.get_mapping_options().get('required') and
+                    field.get_name() not in source
             ):
                 raise ValidationError(
                     "'{}' is required".format(attr_field.get_attr_name())
