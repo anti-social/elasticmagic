@@ -1,4 +1,5 @@
 import datetime
+import warnings
 from mock import Mock
 
 from elasticmagic import (
@@ -1123,8 +1124,12 @@ class SearchQueryTest(BaseTestCase):
         self.assertEqual(collect_doc_classes(sq), {CarDocument})
         get_result = sq.get_result()
         self.assertEqual(len(get_result), 2)
-        self.assertEqual(len(sq.results), 2)
-        self.assertEqual(len(sq.result), 2)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            self.assertEqual(len(sq.results), 2)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            self.assertEqual(len(sq.result), 2)
         self.assertEqual(type(sq.get_query_compiler()), type(Compiler_5_0))
         self.client.search.assert_called_with(
             index='test',
