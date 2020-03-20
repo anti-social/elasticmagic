@@ -1692,6 +1692,7 @@ def _featured_compiler(elasticsearch_features):
             features = elasticsearch_features
             compiled_put_mapping = _CompiledPutMapping
 
+        cls.features = elasticsearch_features
         cls.compiled_expression = _CompiledExpression
         cls.compiled_search_query = _CompiledSearchQuery
         cls.compiled_query = cls.compiled_search_query

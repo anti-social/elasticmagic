@@ -15,6 +15,7 @@ from elasticmagic.compiler import (
     Compiler_5_0,
     Compiler_5_6,
     Compiler_6_0,
+    Compiler_7_0,
 )
 from elasticmagic.expression import (
     Ids,
@@ -45,25 +46,19 @@ class FrenchAnswer(Document):
     answer = Field(Text, analyzer='french')
 
 
-@pytest.fixture(
-    params=[Compiler_1_0, Compiler_2_0, Compiler_5_0, Compiler_5_6]
-)
-def compiler_with_mapping_types(request):
-    return request.param
+compilers_with_mapping_types = [
+    Compiler_1_0, Compiler_2_0, Compiler_5_0, Compiler_5_6
+]
+
+compilers_no_mapping_types = [Compiler_6_0, Compiler_7_0]
+
+compilers_no_doc_type = [Compiler_7_0]
 
 
-@pytest.fixture(
-    params=[Compiler_6_0]
-)
-def compiler_no_mapping_types(request):
-    return request.param
-
-
-def test_document_mapping_with_mapping_types(
-        compiler_with_mapping_types
-):
+@pytest.mark.parametrize('compiler', compilers_with_mapping_types)
+def test_document_mapping_with_mapping_types(compiler):
     assert \
-        Question.to_mapping(compiler=compiler_with_mapping_types) == \
+        Question.to_mapping(compiler=compiler) == \
         {
             'question': {
                 'properties': {
@@ -75,11 +70,10 @@ def test_document_mapping_with_mapping_types(
         }
 
 
-def test_document_mapping_no_mapping_types(
-        compiler_no_mapping_types
-):
+@pytest.mark.parametrize('compiler', compilers_no_mapping_types)
+def test_document_mapping_no_mapping_types(compiler):
     assert \
-        Question.to_mapping(compiler=compiler_no_mapping_types) == \
+        Question.to_mapping(compiler=compiler) == \
         {
             'properties': {
                 '_doc_type': {
@@ -109,21 +103,15 @@ def test_document_mapping_no_mapping_types(
         }
 
 
-def test_multiple_document_mappings_with_mapping_types(
-        compiler_with_mapping_types
-):
+@pytest.mark.parametrize('compiler', compilers_with_mapping_types)
+def test_multiple_document_mappings_with_mapping_types(compiler):
     with pytest.raises(CompilationError):
-        compiler_with_mapping_types.compiled_put_mapping(
-            [Question, Answer]
-        )
+        compiler.compiled_put_mapping([Question, Answer])
 
 
-def test_multiple_document_mappings_no_mapping_types(
-        compiler_no_mapping_types
-):
-    compiled_mapping = compiler_no_mapping_types.compiled_put_mapping(
-        [Question, Answer]
-    )
+@pytest.mark.parametrize('compiler', [Compiler_6_0])
+def test_multiple_document_mappings_6x(compiler):
+    compiled_mapping = compiler.compiled_put_mapping([Question, Answer])
     assert compiled_mapping.params == {
         'doc_type': '_doc',
     }
@@ -164,19 +152,56 @@ def test_multiple_document_mappings_no_mapping_types(
         }
 
 
-def test_put_multiple_mappings_with_conflicting_fields(
-        compiler_no_mapping_types
-):
+@pytest.mark.parametrize('compiler', [Compiler_7_0])
+def test_multiple_document_mappings_7x(compiler):
+    compiled_mapping = compiler.compiled_put_mapping([Question, Answer])
+    assert compiled_mapping.params == {}
+    assert \
+        compiled_mapping.body == \
+        {
+            'properties': {
+                '_doc_type': {
+                    'type': 'object',
+                    'properties': {
+                        'name': {
+                            'type': 'keyword',
+                            'index': False,
+                            'doc_values': False,
+                            'store': True
+                        },
+                        'parent': {
+                            'type': 'keyword',
+                            'index': False,
+                            'doc_values': False,
+                            'store': True
+                        },
+                    }
+                },
+                '_doc_type_join': {
+                    'type': 'join',
+                    'relations': {
+                        'question': ['answer']
+                    }
+                },
+                'question': {
+                    'type': 'text'
+                },
+                'answer': {
+                    'type': 'text'
+                }
+            }
+        }
+
+
+@pytest.mark.parametrize('compiler', compilers_no_mapping_types)
+def test_put_multiple_mappings_with_conflicting_fields(compiler):
     with pytest.raises(ValueError):
-        compiler_no_mapping_types.compiled_put_mapping(
-            [Question, Answer, FrenchAnswer]
-        )
+        compiler.compiled_put_mapping([Question, Answer, FrenchAnswer])
 
 
-def test_create_index_with_multiple_mappings_no_mapping_types(
-        compiler_no_mapping_types
-):
-    compiled_create_index = compiler_no_mapping_types.compiled_create_index(
+@pytest.mark.parametrize('compiler', [Compiler_6_0])
+def test_create_index_with_multiple_mappings_6x(compiler):
+    compiled_create_index = compiler.compiled_create_index(
         settings={
             'index': {
                 'number_of_replicas': 0,
@@ -228,10 +253,61 @@ def test_create_index_with_multiple_mappings_no_mapping_types(
     }
 
 
-def test_create_index_with_multiple_mappings_with_mapping_types(
-        compiler_with_mapping_types
-):
-    compiled_create_index = compiler_with_mapping_types.compiled_create_index(
+@pytest.mark.parametrize('compiler', [Compiler_7_0])
+def test_create_index_with_multiple_mappings_7x(compiler):
+    compiled_create_index = compiler.compiled_create_index(
+        settings={
+            'index': {
+                'number_of_replicas': 0,
+            }
+        },
+        mappings=[Question, Answer]
+    )
+    assert compiled_create_index.body == {
+        'settings': {
+            'index': {
+                'number_of_replicas': 0,
+            }
+        },
+        'mappings': {
+            'properties': {
+                '_doc_type': {
+                    'type': 'object',
+                    'properties': {
+                        'name': {
+                            'type': 'keyword',
+                            'index': False,
+                            'doc_values': False,
+                            'store': True
+                        },
+                        'parent': {
+                            'type': 'keyword',
+                            'index': False,
+                            'doc_values': False,
+                            'store': True
+                        },
+                    }
+                },
+                '_doc_type_join': {
+                    'type': 'join',
+                    'relations': {
+                        'question': ['answer']
+                    }
+                },
+                'question': {
+                    'type': 'text'
+                },
+                'answer': {
+                    'type': 'text'
+                }
+            }
+        }
+    }
+
+
+@pytest.mark.parametrize('compiler', compilers_with_mapping_types)
+def test_create_index_with_multiple_mappings_with_mapping_types(compiler):
+    compiled_create_index = compiler.compiled_create_index(
         settings={
             'index': {
                 'number_of_replicas': 0,
@@ -267,21 +343,27 @@ def test_create_index_with_multiple_mappings_with_mapping_types(
     }
 
 
-def test_document_meta_and_source_no_mapping_types(
-        compiler_no_mapping_types
-):
+@pytest.mark.parametrize('compiler', compilers_no_mapping_types)
+def test_document_meta_and_source_no_mapping_types(compiler):
     ultimate_question = Question(
         _id=1,
         question='The Ultimate Question'
     )
+    if compiler.features.supports_doc_type:
+        assert \
+            ultimate_question.to_meta(compiler=compiler) == \
+            {
+                '_id': 'question~1',
+                '_type': '_doc'
+            }
+    else:
+        assert \
+            ultimate_question.to_meta(compiler=compiler) == \
+            {
+                '_id': 'question~1',
+            }
     assert \
-        ultimate_question.to_meta(compiler_no_mapping_types) == \
-        {
-            '_id': 'question~1',
-            '_type': '_doc'
-        }
-    assert \
-        ultimate_question.to_source(compiler_no_mapping_types) == \
+        ultimate_question.to_source(compiler=compiler) == \
         {
             '_doc_type': {
                 'name': 'question'
@@ -298,15 +380,23 @@ def test_document_meta_and_source_no_mapping_types(
         _routing=1,
         answer='42'
     )
+    if compiler.features.supports_doc_type:
+        assert \
+            amazingly_accurate_answer.to_meta(compiler=compiler) == \
+            {
+                '_id': 'answer~1',
+                '_type': '_doc',
+                'routing': 1
+            }
+    else:
+        assert \
+            amazingly_accurate_answer.to_meta(compiler=compiler) == \
+            {
+                '_id': 'answer~1',
+                'routing': 1
+            }
     assert \
-        amazingly_accurate_answer.to_meta(compiler=compiler_no_mapping_types) == \
-        {
-            '_id': 'answer~1',
-            '_type': '_doc',
-            'routing': 1
-        }
-    assert \
-        amazingly_accurate_answer.to_source(compiler_no_mapping_types) == \
+        amazingly_accurate_answer.to_source(compiler) == \
         {
             '_doc_type': {
                 'name': 'answer',
@@ -320,21 +410,20 @@ def test_document_meta_and_source_no_mapping_types(
         }
 
 
-def test_document_meta_and_source_with_mapping_types(
-        compiler_with_mapping_types
-):
+@pytest.mark.parametrize('compiler', compilers_with_mapping_types)
+def test_document_meta_and_source_with_mapping_types(compiler):
     ultimate_question = Question(
         _id=1,
         question='The Ultimate Question'
     )
     assert \
-        ultimate_question.to_meta(compiler_with_mapping_types) == \
+        ultimate_question.to_meta(compiler=compiler) == \
         {
             '_id': 1,
             '_type': 'question'
         }
     assert \
-        ultimate_question.to_source(compiler_with_mapping_types) == \
+        ultimate_question.to_source(compiler=compiler) == \
         {
             'question': 'The Ultimate Question'
         }
@@ -346,7 +435,7 @@ def test_document_meta_and_source_with_mapping_types(
         answer='42'
     )
     assert \
-        amazingly_accurate_answer.to_meta(compiler=compiler_with_mapping_types) == \
+        amazingly_accurate_answer.to_meta(compiler=compiler) == \
         {
             '_id': 1,
             '_type': 'answer',
@@ -354,7 +443,7 @@ def test_document_meta_and_source_with_mapping_types(
             'parent': 1
         }
     assert \
-        amazingly_accurate_answer.to_source(compiler_with_mapping_types) == \
+        amazingly_accurate_answer.to_source(compiler=compiler) == \
         {
             "answer": "42"
         }
@@ -427,18 +516,20 @@ def test_ids_query_no_type(compiler):
     }
 
 
-def test_ids_query_no_mapping_types(compiler_no_mapping_types):
+@pytest.mark.parametrize('compiler', compilers_no_mapping_types)
+def test_ids_query_no_mapping_types(compiler):
     q = Ids([1, 2, 3], type=Question)
-    assert q.to_elastic(compiler_no_mapping_types) == {
+    assert q.to_elastic(compiler=compiler) == {
         'ids': {
             'values': ['question~1', 'question~2', 'question~3']
         }
     }
 
 
-def test_ids_query_with_mapping_types(compiler_with_mapping_types):
+@pytest.mark.parametrize('compiler', compilers_with_mapping_types)
+def test_ids_query_with_mapping_types(compiler):
     q = Ids([1, 2, 3], type=Question)
-    assert q.to_elastic(compiler_with_mapping_types) == {
+    assert q.to_elastic(compiler=compiler) == {
         'ids': {
             'type': 'question',
             'values': [1, 2, 3]
@@ -446,9 +537,10 @@ def test_ids_query_with_mapping_types(compiler_with_mapping_types):
     }
 
 
-def test_parent_id_query_no_mapping_types(compiler_no_mapping_types):
+@pytest.mark.parametrize('compiler', compilers_no_mapping_types)
+def test_parent_id_query_no_mapping_types(compiler):
     q = ParentId(Answer, 1)
-    res = q.to_elastic(compiler_no_mapping_types)
+    res = q.to_elastic(compiler=compiler)
 
     assert res == {
         'parent_id': {
@@ -470,11 +562,10 @@ def test_parent_id_query_with_mapping_types():
     }
 
 
-def test_top_hits_agg(
-        compiler_no_mapping_types
-):
+@pytest.mark.parametrize('compiler', compilers_no_mapping_types)
+def test_top_hits_agg(compiler):
     agg = TopHits()
-    compiled_agg = compiler_no_mapping_types.compiled_expression(
+    compiled_agg = compiler.compiled_expression(
         agg, doc_classes=[Question, Answer]
     )
     assert compiled_agg.body == {
@@ -528,14 +619,13 @@ def test_top_hits_agg_result():
     assert a._parent == '1'
 
 
-def test_search_query_filter_by_ids_no_mapping_types(
-        compiler_no_mapping_types
-):
+@pytest.mark.parametrize('compiler', compilers_no_mapping_types)
+def test_search_query_filter_by_ids_no_mapping_types(compiler):
     sq = (
         SearchQuery(doc_cls=[Question])
         .filter(Ids([1, 2, 3]))
     )
-    compiled_query = compiler_no_mapping_types.compiled_query(sq)
+    compiled_query = compiler.compiled_query(sq)
     assert compiled_query.body == {
         'query': {
             'bool': {
@@ -557,15 +647,18 @@ def test_search_query_filter_by_ids_no_mapping_types(
         },
         'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
     }
-    assert compiled_query.params == {
-        'doc_type': '_doc'
-    }
+    if compiler.features.supports_doc_type:
+        assert compiled_query.params == {
+            'doc_type': '_doc'
+        }
+    else:
+        assert compiled_query.params == {}
 
     sq = (
         SearchQuery(doc_cls=[Question, Answer])
         .filter(Ids([1, 2, 3]))
     )
-    compiled_query = compiler_no_mapping_types.compiled_query(sq)
+    compiled_query = compiler.compiled_query(sq)
     assert compiled_query.body == {
         'query': {
             'bool': {
@@ -590,38 +683,54 @@ def test_search_query_filter_by_ids_no_mapping_types(
             '_source', '_doc_type.name', '_doc_type.parent'
         ]
     }
-    assert compiled_query.params == {
-        'doc_type': '_doc'
-    }
+    if compiler.features.supports_doc_type:
+        assert compiled_query.params == {
+            'doc_type': '_doc'
+        }
+    else:
+        assert compiled_query.params == {}
 
 
-def test_search_query_filter_by_ids_with_mapping_types():
+@pytest.mark.parametrize('compiler', compilers_with_mapping_types)
+def test_search_query_filter_by_ids_with_mapping_types(compiler):
     sq = (
         SearchQuery(doc_cls=[Question, Answer])
         .filter(Ids([1, 2, 3]))
     )
-    compiled_query = Compiler_5_0.compiled_query(sq)
-    assert compiled_query.body == {
-        'query': {
-            'bool': {
-                'filter': {
-                    'ids': {
-                        'values': [1, 2, 3]
+    compiled_query = compiler.compiled_query(sq)
+    if compiler.features.supports_bool_filter:
+        assert compiled_query.body == {
+            'query': {
+                'bool': {
+                    'filter': {
+                        'ids': {
+                            'values': [1, 2, 3]
+                        }
                     }
                 }
             }
         }
-    }
+    else:
+        assert compiled_query.body == {
+            'query': {
+                'filtered': {
+                    'filter': {
+                        'ids': {
+                            'values': [1, 2, 3]
+                        }
+                    }
+                }
+            }
+        }
     assert compiled_query.params == {
         'doc_type': 'question,answer'
     }
 
 
-def test_process_search_result(
-        compiler_no_mapping_types
-):
+@pytest.mark.parametrize('compiler', compilers_no_mapping_types)
+def test_process_search_result(compiler):
     sq = SearchQuery(doc_cls=[Question, Answer])
-    compiled_query = compiler_no_mapping_types.compiled_query(sq)
+    compiled_query = compiler.compiled_query(sq)
     search_result = compiled_query.process_result(
         {
             'hits': {
@@ -658,78 +767,144 @@ def test_process_search_result(
     assert a1._parent == '1'
 
 
-def test_get_no_mapping_types(compiler_no_mapping_types):
-    compiled_get = compiler_no_mapping_types.compiled_get(1, doc_cls=Question)
-    assert compiled_get.params == {
-        'doc_type': '_doc',
-        'id': 'question~1',
-        'stored_fields': '_source,_doc_type.name,_doc_type.parent'
-    }
-    compiled_get = compiler_no_mapping_types.compiled_get(
+@pytest.mark.parametrize('compiler', compilers_no_mapping_types)
+def test_get_no_mapping_types(compiler):
+    compiled_get = compiler.compiled_get(1, doc_cls=Question)
+    if compiler.features.supports_doc_type:
+        assert compiled_get.params == {
+            'doc_type': '_doc',
+            'id': 'question~1',
+            'stored_fields': '_source,_doc_type.name,_doc_type.parent'
+        }
+    else:
+        assert compiled_get.params == {
+            'id': 'question~1',
+            'stored_fields': '_source,_doc_type.name,_doc_type.parent'
+        }
+
+    compiled_get = compiler.compiled_get(
         {'id': 1}, doc_cls=Question
     )
-    assert compiled_get.params == {
-        'doc_type': '_doc',
-        'id': 'question~1',
-        'stored_fields': '_source,_doc_type.name,_doc_type.parent'
-    }
-    compiled_get = compiler_no_mapping_types.compiled_get(Question(_id=1))
-    assert compiled_get.params == {
-        'doc_type': '_doc',
-        'id': 'question~1',
-        'stored_fields': '_source,_doc_type.name,_doc_type.parent'
-    }
+    if compiler.features.supports_doc_type:
+        assert compiled_get.params == {
+            'doc_type': '_doc',
+            'id': 'question~1',
+            'stored_fields': '_source,_doc_type.name,_doc_type.parent'
+        }
+    else:
+        assert compiled_get.params == {
+            'id': 'question~1',
+            'stored_fields': '_source,_doc_type.name,_doc_type.parent'
+        }
+
+    compiled_get = compiler.compiled_get(Question(_id=1))
+    if compiler.features.supports_doc_type:
+        assert compiled_get.params == {
+            'doc_type': '_doc',
+            'id': 'question~1',
+            'stored_fields': '_source,_doc_type.name,_doc_type.parent'
+        }
+    else:
+        assert compiled_get.params == {
+            'id': 'question~1',
+            'stored_fields': '_source,_doc_type.name,_doc_type.parent'
+        }
 
 
-def test_multi_get_no_mapping_types(compiler_no_mapping_types):
-    compiled_multi_get = compiler_no_mapping_types.compiled_multi_get(
+@pytest.mark.parametrize('compiler', compilers_no_mapping_types)
+def test_multi_get_no_mapping_types(compiler):
+    compiled_multi_get = compiler.compiled_multi_get(
         [Question(_id=1), Answer(_id=1)]
     )
-    assert compiled_multi_get.body == {
-        'docs': [
-            {
-                '_type': '_doc',
-                '_id': 'question~1',
-                'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
-            },
-            {
-                '_type': '_doc',
-                '_id': 'answer~1',
-                'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
-            }
-        ]
-    }
-    compiled_multi_get = compiler_no_mapping_types.compiled_multi_get(
+    if compiler.features.supports_doc_type:
+        assert compiled_multi_get.body == {
+            'docs': [
+                {
+                    '_type': '_doc',
+                    '_id': 'question~1',
+                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                },
+                {
+                    '_type': '_doc',
+                    '_id': 'answer~1',
+                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                }
+            ]
+        }
+    else:
+        assert compiled_multi_get.body == {
+            'docs': [
+                {
+                    '_id': 'question~1',
+                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                },
+                {
+                    '_id': 'answer~1',
+                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                }
+            ]
+        }
+
+    compiled_multi_get = compiler.compiled_multi_get(
         [{'_id': 1, 'doc_cls': Question}, {'_id': 1, 'doc_cls': Answer}]
     )
-    assert compiled_multi_get.body == {
-        'docs': [
-            {
-                '_type': '_doc',
-                '_id': 'question~1',
-                'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
-            },
-            {
-                '_type': '_doc',
-                '_id': 'answer~1',
-                'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
-            }
-        ]
-    }
-    compiled_multi_get = compiler_no_mapping_types.compiled_multi_get(
+    if compiler.features.supports_doc_type:
+        assert compiled_multi_get.body == {
+            'docs': [
+                {
+                    '_type': '_doc',
+                    '_id': 'question~1',
+                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                },
+                {
+                    '_type': '_doc',
+                    '_id': 'answer~1',
+                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                }
+            ]
+        }
+    else:
+        assert compiled_multi_get.body == {
+            'docs': [
+                {
+                    '_id': 'question~1',
+                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                },
+                {
+                    '_id': 'answer~1',
+                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                }
+            ]
+        }
+
+    compiled_multi_get = compiler.compiled_multi_get(
         [1, 2], doc_cls=Answer
     )
-    assert compiled_multi_get.body == {
-        'docs': [
-            {
-                '_type': '_doc',
-                '_id': 'answer~1',
-                'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
-            },
-            {
-                '_type': '_doc',
-                '_id': 'answer~2',
-                'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
-            }
-        ]
-    }
+    if compiler.features.supports_doc_type:
+        assert compiled_multi_get.body == {
+            'docs': [
+                {
+                    '_type': '_doc',
+                    '_id': 'answer~1',
+                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                },
+                {
+                    '_type': '_doc',
+                    '_id': 'answer~2',
+                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                }
+            ]
+        }
+    else:
+        assert compiled_multi_get.body == {
+            'docs': [
+                {
+                    '_id': 'answer~1',
+                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                },
+                {
+                    '_id': 'answer~2',
+                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                }
+            ]
+        }
