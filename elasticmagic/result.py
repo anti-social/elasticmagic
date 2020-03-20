@@ -1,5 +1,4 @@
 from .compat import string_types
-from .compat import Iterable
 from .document import DynamicDocument
 from .document import get_doc_type_for_hit
 
@@ -42,7 +41,6 @@ class SearchResult(Result):
         self.max_score = hits.get('max_score')
         self.hits = []
         for hit in hits.get('hits', []):
-            print(hit)
             doc_type = get_doc_type_for_hit(hit)
             doc_cls = self._doc_cls_map.get(doc_type, DynamicDocument)
             self.hits.append(doc_cls(_hit=hit, _result=self))
