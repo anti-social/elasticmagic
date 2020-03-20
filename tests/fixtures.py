@@ -7,6 +7,7 @@ from elasticmagic.compiler import Compiler_1_0
 from elasticmagic.compiler import Compiler_2_0
 from elasticmagic.compiler import Compiler_5_0
 from elasticmagic.compiler import Compiler_6_0
+from elasticmagic.compiler import Compiler_7_0
 
 
 @pytest.fixture
@@ -27,7 +28,9 @@ def index(cluster):
 
 
 @pytest.fixture(
-    params=[Compiler_1_0, Compiler_2_0, Compiler_5_0, Compiler_6_0]
+    params=[
+        Compiler_1_0, Compiler_2_0, Compiler_5_0, Compiler_6_0, Compiler_7_0,
+    ]
 )
 def compiler(request):
     return request.param
