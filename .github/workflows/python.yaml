@@ -1,0 +1,68 @@
+# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: Test and build
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ dev/github-actions ]
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.5, 3.6, 3.7]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v1
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: |
+        python -m pip install tox tox-gh-actions
+    - name: Lint with flake8
+      run: |
+        tox -e flake8
+    - name: Run unit tests
+      run: |
+        tox -- tests -v --cov --cov-append
+    - name: Run doc tests
+      run: |
+        tox -e doctest
+
+  integ-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        es-version: [5.6.16, 6.8.7]
+        python-version: [3.6, 3.7]
+    services:
+      elasticsearch:
+        image: elasticsearch:${{ matrix.es-version }}
+        ports:
+        - 9200:9200
+        options: >-
+          -e="discovery.type=single-node"
+          --health-cmd="curl http://localhost:9200/_cluster/health"
+          --health-interval=5s
+          --health-timeout=2s
+          --health-retries=10
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v1
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: |
+        python -m pip install tox
+    - name: Run integration tests
+      run: |
+        tox -e integ -- tests_integ/general -v --cov --cov-append
+    - name: Run async integration tests
+      run: |
+        tox -e integ-async -- tests_integ/asyncio -v --cov --cov-append
