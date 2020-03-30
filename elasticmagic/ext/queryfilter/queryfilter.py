@@ -136,7 +136,8 @@ class QueryFilter(with_metaclass(QueryFilterMeta)):
         filter_results = {}
         for f in self._filters:
             filter_results[f.name] = f._process_result(
-               result, self._params)
+                result, self._params
+            )
         return QueryFilterResult(filter_results)
 
     process_results = process_result
@@ -637,7 +638,7 @@ class RangeFilter(FieldFilter):
         aggs = {}
         if self._compute_enabled:
             aggs.update({
-                self._enabled_agg_name: agg.Filter(self.field != None),  # noqa:E711
+                self._enabled_agg_name: agg.Filter(self.field != None),
             })
 
         if self._compute_min_max:

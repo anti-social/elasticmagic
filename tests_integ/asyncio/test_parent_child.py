@@ -586,7 +586,7 @@ async def test_id_term_query(es_index, es_version, docs):
 async def test_id_term_query_with_doc_cls(es_index, es_version, docs):
     sq = (
         es_index.search_query(doc_cls=[Question, Answer])
-        .filter(Term('_id',  1))
+        .filter(Term('_id', 1))
     )
     res = await sq.get_result()
 
@@ -600,7 +600,7 @@ async def test_id_term_query_no_doc_cls(es_index, es_version, docs):
     # We cannot rewrite the query in this case
     sq = (
         es_index.search_query()
-        .filter(Term('_id',  1))
+        .filter(Term('_id', 1))
     )
     res = await sq.get_result()
 

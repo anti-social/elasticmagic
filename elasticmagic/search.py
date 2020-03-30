@@ -138,7 +138,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
            elasticsearch. Can be one of the following types:
 
            - field expression, for example: ``PostDocument.title``
-           - ``str`` means field name or glob pattern. For example: 
+           - ``str`` means field name or glob pattern. For example:
              ``"title"``, ``"user.*"``
            - ``False`` disables retrieving source
            - ``True`` enables retrieving all source document
@@ -342,7 +342,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
     @_with_clone
     def order_by(self, *orders):
-        """Apply sorting criterion to the search query. 
+        """Apply sorting criterion to the search query.
         Corresponds elasticsearch's
         `sort <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-sort.html>`_.
 
