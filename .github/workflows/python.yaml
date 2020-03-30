@@ -7,7 +7,7 @@ on:
   push:
     branches: [ "**" ]
   pull_request:
-    branches: [ dev/github-actions ]
+    branches: [ master, dev/evo ]
 
 jobs:
   unit-tests:
@@ -66,3 +66,34 @@ jobs:
     - name: Run async integration tests
       run: |
         tox -e integ-async -- tests_integ/asyncio -v --cov --cov-append
+
+  deploy:
+    runs-on: ubuntu-latest
+    if: startsWith(${{ github.ref }}, 'v')
+    needs:
+    - unit-tests
+    - integ-tests
+    strategy:
+      matrix:
+        python-version: [3.7]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v1
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: |
+        python -m pip install bumpversion wheel twine
+    - name: Set package version
+      run: |
+        bumpversion --new-version $(git describe --tag --match 'v*' | cut -c 2-) .
+    - name: Build package
+      run: |
+        python setup.py sdist bdist_wheel
+    - name: Upload package to pypi.org
+      env:
+        TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+      run: |
+        twine upload dist/*
