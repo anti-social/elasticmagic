@@ -69,7 +69,7 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    if: startsWith(${{ github.ref }}, 'v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs:
     - unit-tests
     - integ-tests
