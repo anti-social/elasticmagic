@@ -29,6 +29,7 @@ before_cache:
 install:
 - pip install tox-travis
 - pip install codecov
+- pip install bumpversion
 
 before_script:
 - docker pull docker.elastic.co/elasticsearch/elasticsearch:$ES_VERSION
@@ -42,6 +43,10 @@ before_script:
 - docker ps -a
 
 script:
+- |
+  if [[ $TRAVIS_TAG == v* ]]; then
+    bumpversion --no-commit --no-tag --new-version $(git describe --tag --match 'v*' | cut -c 2-) .
+  fi
 - tox -- tests -v --cov=elasticmagic --cov-append
 - |
   tox -e integ -- tests_integ/general -v --cov=elasticmagic --cov-append

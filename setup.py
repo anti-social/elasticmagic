@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="elasticmagic",
-    version="0.1.0a12",
+    version="0.0.0a0",
     author="Alexander Koval",
     author_email="kovalidis@gmail.com",
     description=("Python orm for elasticsearch."),
