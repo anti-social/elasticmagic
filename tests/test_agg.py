@@ -545,10 +545,10 @@ class AggregationTest(BaseTestCase):
             }
         )
         self.assertEqual(len(a.buckets), 2)
-        self.assertIs(a.buckets[0].key, 'errors')
+        self.assertEqual(a.buckets[0].key, 'errors')
         self.assertEqual(a.buckets[0].doc_count, 34)
         self.assertIs(a.buckets[0], a.get_bucket('errors'))
-        self.assertIs(a.buckets[1].key, 'warnings')
+        self.assertEqual(a.buckets[1].key, 'warnings')
         self.assertEqual(a.buckets[1].doc_count, 439)
         self.assertIs(a.buckets[1], a.get_bucket('warnings'))
 
