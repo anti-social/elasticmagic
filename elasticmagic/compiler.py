@@ -1884,3 +1884,13 @@ def get_compiler_by_es_version(es_version):
     elif es_version.major == 7:
         return Compiler_7_0
     return Compiler_6_0
+
+
+all_compilers = [
+    Compiler_1_0,
+    Compiler_2_0,
+    Compiler_5_0,
+    Compiler_5_6,
+    Compiler_6_0,
+    Compiler_7_0,
+]
