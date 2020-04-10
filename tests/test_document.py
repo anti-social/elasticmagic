@@ -477,6 +477,9 @@ def test_document_instance__to_source(compiler):
             {'id': 1, 'name': 'Test tag'},
             {'id': 2, 'name': 'Just tag'},
         ],
+        'i_attr_1': None,
+        'i_attr_2': '',
+        'i_attr_3': [],
         'i_attr_4': 45
     }
 
@@ -582,6 +585,38 @@ def test_dynamic_document_class__user_fields(field, field_name):
     assert collect_doc_classes(field) == {DynamicDocument}
     for compiler in all_compilers:
         assert_expression(field, field_name, compiler)
+
+
+def test_dynamic_document_instance__to_source(compiler):
+    doc = DynamicDocument()
+    assert doc.to_source(compiler) == {}
+
+    doc = DynamicDocument()
+    doc.name = 'Doc with unknown status'
+    doc.status = None
+    doc.status_name = ''
+    doc.tags = []
+    assert doc.to_source(compiler) == {
+        'name': 'Doc with unknown status',
+        'status': None,
+        'status_name': '',
+        'tags': [],
+    }
+
+    doc = DynamicDocument(name='Test', status=1, _internal_status=2)
+    assert doc.to_source(compiler) == {
+        'name': 'Test',
+        'status': 1,
+        '_internal_status': 2,
+    }
+
+    doc = DynamicDocument(
+        _hit={'_source': {'name': 'Doc from source', 'status': None}}
+    )
+    assert doc.to_source(compiler) == {
+        'name': 'Doc from source',
+        'status': None,
+    }
 
 
 def test_document_class__to_mapping(compiler):

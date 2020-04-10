@@ -149,11 +149,11 @@ class Document(with_metaclass(DocumentMeta)):
     __mapping_options__ = {}
 
     def __init__(self, _hit=None, _result=None, **kwargs):
+        self.__hit_fields = None
+        self.__highlight = None
+        self.__matched_queries = None
+        self.__explanation = None
         self._index = self._type = self._id = self._score = None
-        self._hit_fields = None
-        self._highlight = None
-        self._matched_queries = None
-        self._explanation = None
         if _hit:
             self._score = _hit.get('_score')
             source = _hit.get('_source')
@@ -162,8 +162,11 @@ class Document(with_metaclass(DocumentMeta)):
                 if fields else None
 
             for attr_field in self._mapping_fields:
-                setattr(self, attr_field._attr_name,
-                        _hit.get(attr_field._field._name))
+                setattr(
+                    self,
+                    attr_field._attr_name,
+                    _hit.get(attr_field._field._name)
+                )
 
             if custom_doc_type:
                 doc_type = custom_doc_type[0]
@@ -189,21 +192,21 @@ class Document(with_metaclass(DocumentMeta)):
                 # in next example we cannot decide
                 # which tag has name and which has not:
                 # {"tags.id": [1, 2], "tags.name": ["Test"]}
-                self._hit_fields = self._process_fields(fields)
+                self.__hit_fields = self._process_fields(fields)
 
             if _hit.get('highlight'):
-                self._highlight = _hit['highlight']
+                self.__highlight = _hit['highlight']
 
             if _hit.get('matched_queries'):
-                self._matched_queries = _hit['matched_queries']
+                self.__matched_queries = _hit['matched_queries']
 
             if _hit.get('_explanation'):
-                self._explanation = _hit['_explanation']
+                self.__explanation = _hit['_explanation']
 
         for fkey, fvalue in kwargs.items():
             setattr(self, fkey, fvalue)
 
-        self._result = _result
+        self.__result = _result
 
     def _process_source_key_value(self, key, value):
         if key in self._field_name_map:
@@ -256,19 +259,19 @@ class Document(with_metaclass(DocumentMeta)):
         return source_compiler(self, validate=validate).body
 
     def get_highlight(self):
-        return self._highlight or {}
+        return self.__highlight or {}
 
     def get_matched_queries(self):
-        return self._matched_queries or []
+        return self.__matched_queries or []
 
     def get_fields(self):
-        return self._hit_fields or {}
+        return self.__hit_fields or {}
 
     def get_hit_fields(self):
         return self.get_fields()
 
     def get_explanation(self):
-        return self._explanation or {}
+        return self.__explanation or {}
 
     @classmethod
     def to_mapping(cls, compiler, ordered=False):
@@ -276,8 +279,8 @@ class Document(with_metaclass(DocumentMeta)):
 
     @cached_property
     def instance(self):
-        if self._result:
-            self._result._populate_instances(self.__class__)
+        if self.__result:
+            self.__result._populate_instances(self.__class__)
             return self.__dict__['instance']
 
 
@@ -295,6 +298,8 @@ class DynamicDocumentMeta(DocumentMeta):
             raise AttributeError(
                 "'{}' class has no attribute '{}'".format(cls, name)
             )
+        if name.startswith('_'):
+            return super(DynamicDocumentMeta, cls).__getattr__(name)
         return cls.fields[name]
 
 

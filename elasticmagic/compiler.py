@@ -1571,11 +1571,17 @@ class CompiledSource(CompiledExpression):
 
     def visit_document(self, doc):
         source = {}
+        doc_cls = doc.__class__
         for key, value in doc.__dict__.items():
-            if key in doc.__class__.mapping_fields:
+            # skip mapping fields
+            if key in doc_cls.mapping_fields:
                 continue
 
-            attr_field = doc.__class__.fields.get(key)
+            # ignore private attributes
+            if key.startswith('_Document__'):
+                continue
+
+            attr_field = doc_cls.fields.get(key)
             if not attr_field:
                 continue
 
@@ -1589,7 +1595,6 @@ class CompiledSource(CompiledExpression):
                     raise ValidationError("'{}' is required".format(
                         attr_field.get_attr_name()
                     ))
-                continue
 
             value = attr_field.get_type() \
                 .from_python(value, self.compiler, validate=self._validate)
