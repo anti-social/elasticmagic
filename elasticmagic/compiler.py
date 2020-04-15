@@ -44,11 +44,13 @@ from .util import collect_doc_classes
 BOOL_OPERATOR_NAMES = {
     operator.and_: 'and',
     operator.or_: 'or',
+    # operator.not_: 'not',
 }
 
 BOOL_OPERATORS_MAP = {
     operator.and_: Bool.must,
     operator.or_: Bool.should,
+    # operator.not_: Bool.must_not,
 }
 
 DEFAULT_DOC_TYPE = '_doc'
@@ -385,7 +387,7 @@ class CompiledExpression(Compiled):
 
     def visit_not(self, expr):
         if not self.features.supports_old_boolean_queries:
-            return self.visit(Bool.must_not(expr))
+            return self.visit(Bool.must_not(expr.expr))
         if expr.params:
             params = {
                 'filter': self.visit(expr.expr)
@@ -1049,6 +1051,7 @@ class CompiledPutMapping(CompiledEndpoint):
         else:
             if (
                     isinstance(self.expression, self._MultipleMappings) or
+                    isinstance(self.expression, type) and
                     issubclass(self.expression, Document) and
                     self.expression.has_parent_doc_cls()
             ):
@@ -1737,10 +1740,10 @@ def _featured_compiler(elasticsearch_features):
         patch_source_exclude_param='_source_excludes',
         supports_script_file=True,
         supports_nested_script=False,
-    )
+    ),
 )
 class Compiler_1_0(object):
-    pass
+    min_es_version = ESVersion(1, 0, 0)
 
 
 @_featured_compiler(
@@ -1765,7 +1768,7 @@ class Compiler_1_0(object):
     )
 )
 class Compiler_2_0(object):
-    pass
+    min_es_version = ESVersion(2, 0, 0)
 
 
 @_featured_compiler(
@@ -1790,7 +1793,7 @@ class Compiler_2_0(object):
     )
 )
 class Compiler_5_0(object):
-    pass
+    min_es_version = ESVersion(5, 0, 0)
 
 
 @_featured_compiler(
@@ -1815,7 +1818,7 @@ class Compiler_5_0(object):
     )
 )
 class Compiler_5_6(object):
-    pass
+    min_es_version = ESVersion(5, 6, 0)
 
 
 @_featured_compiler(
@@ -1840,7 +1843,7 @@ class Compiler_5_6(object):
     )
 )
 class Compiler_6_0(object):
-    pass
+    min_es_version = ESVersion(6, 0, 0)
 
 
 @_featured_compiler(
@@ -1865,7 +1868,7 @@ class Compiler_6_0(object):
     )
 )
 class Compiler_7_0(object):
-    pass
+    min_es_version = ESVersion(7, 0, 0)
 
 
 Compiler10 = Compiler_1_0
@@ -1880,10 +1883,11 @@ def get_compiler_by_es_version(es_version):
         return Compiler_1_0
     elif es_version.major == 2:
         return Compiler_2_0
-    elif es_version.major == 5 and es_version.minor <= 5:
-        return Compiler_5_0
-    elif es_version.major == 5 and es_version.minor > 5:
-        return Compiler_5_6
+    elif es_version.major == 5:
+        if es_version.minor <= 5:
+            return Compiler_5_0
+        else:
+            return Compiler_5_6
     elif es_version.major == 6:
         return Compiler_6_0
     elif es_version.major == 7:
