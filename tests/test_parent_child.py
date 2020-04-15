@@ -822,12 +822,16 @@ def test_multi_get_no_mapping_types(compiler):
                 {
                     '_type': '_doc',
                     '_id': 'question~1',
-                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                    'stored_fields': [
+                        '_source', '_doc_type.name', '_doc_type.parent'
+                    ]
                 },
                 {
                     '_type': '_doc',
                     '_id': 'answer~1',
-                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                    'stored_fields': [
+                        '_source', '_doc_type.name', '_doc_type.parent'
+                    ]
                 }
             ]
         }
@@ -836,11 +840,15 @@ def test_multi_get_no_mapping_types(compiler):
             'docs': [
                 {
                     '_id': 'question~1',
-                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                    'stored_fields': [
+                        '_source', '_doc_type.name', '_doc_type.parent'
+                    ]
                 },
                 {
                     '_id': 'answer~1',
-                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                    'stored_fields': [
+                        '_source', '_doc_type.name', '_doc_type.parent'
+                    ]
                 }
             ]
         }
@@ -854,12 +862,16 @@ def test_multi_get_no_mapping_types(compiler):
                 {
                     '_type': '_doc',
                     '_id': 'question~1',
-                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                    'stored_fields': [
+                        '_source', '_doc_type.name', '_doc_type.parent'
+                    ]
                 },
                 {
                     '_type': '_doc',
                     '_id': 'answer~1',
-                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                    'stored_fields': [
+                        '_source', '_doc_type.name', '_doc_type.parent'
+                    ]
                 }
             ]
         }
@@ -868,11 +880,15 @@ def test_multi_get_no_mapping_types(compiler):
             'docs': [
                 {
                     '_id': 'question~1',
-                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                    'stored_fields': [
+                        '_source', '_doc_type.name', '_doc_type.parent'
+                    ]
                 },
                 {
                     '_id': 'answer~1',
-                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                    'stored_fields': [
+                        '_source', '_doc_type.name', '_doc_type.parent'
+                    ]
                 }
             ]
         }
@@ -886,12 +902,16 @@ def test_multi_get_no_mapping_types(compiler):
                 {
                     '_type': '_doc',
                     '_id': 'answer~1',
-                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                    'stored_fields': [
+                        '_source', '_doc_type.name', '_doc_type.parent'
+                    ]
                 },
                 {
                     '_type': '_doc',
                     '_id': 'answer~2',
-                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                    'stored_fields': [
+                        '_source', '_doc_type.name', '_doc_type.parent'
+                    ]
                 }
             ]
         }
@@ -900,11 +920,15 @@ def test_multi_get_no_mapping_types(compiler):
             'docs': [
                 {
                     '_id': 'answer~1',
-                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                    'stored_fields': [
+                        '_source', '_doc_type.name', '_doc_type.parent'
+                    ]
                 },
                 {
                     '_id': 'answer~2',
-                    'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+                    'stored_fields': [
+                        '_source', '_doc_type.name', '_doc_type.parent'
+                    ]
                 }
             ]
         }
