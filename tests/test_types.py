@@ -1,6 +1,5 @@
 import binascii
 import datetime
-import unittest
 
 import pytest
 
@@ -74,6 +73,20 @@ def test_integer():
         t.from_python('test', Compiler_5_0, validate=True)
     with pytest.raises(ValidationError):
         t.from_python(1 << 31, Compiler_5_0, validate=True)
+
+
+def test_long():
+    t = Long()
+    assert t.to_python(None) is None
+    with pytest.raises(ValueError):
+        t.to_python('test')
+    assert t.to_python('123') == 123
+    assert t.to_python(1 << 31) == 2147483648
+    assert t.from_python('test', Compiler_5_0) == 'test'
+    with pytest.raises(ValidationError):
+        t.from_python('test', Compiler_5_0, validate=True)
+    with pytest.raises(ValidationError):
+        t.from_python(1 << 63, Compiler_5_0, validate=True)
 
 
 def test_float():
