@@ -27,12 +27,11 @@ class CarType(object):
 
 
 TYPES = {
-    t.id: t
-    for t in [
-            CarType(0, 'Sedan'),
-            CarType(1, 'Station Wagon'),
-            CarType(2, 'Hatchback'),
-            CarType(3, 'Coupe'),
+    t.id: t for t in [
+        CarType(0, 'Sedan'),
+        CarType(1, 'Station Wagon'),
+        CarType(2, 'Hatchback'),
+        CarType(3, 'Coupe'),
     ]
 }
 
@@ -55,12 +54,11 @@ def test_simple_filter(index):
 
     sq = index.search_query()
     sq = qf.apply(sq, {'m': ['vrx']})
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "query": {
-                'bool': {'filter': {'term': {'model': u'vrx'}}}
-            }
+    assert sq.to_dict(Compiler_5_0) == {
+        "query": {
+            'bool': {'filter': {'term': {'model': u'vrx'}}}
         }
+    }
 
     sq = (
         index.search_query(Match(index['car'].name, 'test'))
@@ -68,21 +66,20 @@ def test_simple_filter(index):
     )
     sq = qf.apply(sq, {'type': ['0', '1', '3', 'null'],
                        'vendor': ['Subaru']})
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "query": {
-                "bool": {
-                    "must": {
-                        "match": {"name": "test"}
-                    },
-                    "filter": [
-                        {"term": {"status": 0}},
-                        {"terms": {"type": [0, 1, 3]}},
-                        {"term": {"vendor": "Subaru"}}
-                    ]
-                }
+    assert sq.to_dict(Compiler_5_0) == {
+        "query": {
+            "bool": {
+                "must": {
+                    "match": {"name": "test"}
+                },
+                "filter": [
+                    {"term": {"status": 0}},
+                    {"terms": {"type": [0, 1, 3]}},
+                    {"term": {"vendor": "Subaru"}}
+                ]
             }
         }
+    }
 
 
 def test_simple_filter_with_and_conjunction(index):
@@ -98,43 +95,41 @@ def test_simple_filter_with_and_conjunction(index):
 
     sq = index.search_query()
     sq = qf.apply(sq, {'label': ['greedy']})
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "query": {
-                "bool": {
-                    "filter": {
-                        "term": {
-                            "label": "greedy"
-                        }
+    assert sq.to_dict(Compiler_5_0) == {
+        "query": {
+            "bool": {
+                "filter": {
+                    "term": {
+                        "label": "greedy"
                     }
                 }
             }
         }
+    }
 
     sq = index.search_query()
     sq = qf.apply(sq, {'label': ['greedy', 'young', 'nasty']})
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "query": {
-                "bool": {
-                    "filter": {
-                        "bool": {
-                            "must": [
-                                {
-                                    "term": {"label": "greedy"}
-                                },
-                                {
-                                    "term": {"label": "young"}
-                                },
-                                {
-                                    "term": {"label": "nasty"}
-                                }
-                            ]
-                        }
+    assert sq.to_dict(Compiler_5_0) == {
+        "query": {
+            "bool": {
+                "filter": {
+                    "bool": {
+                        "must": [
+                            {
+                                "term": {"label": "greedy"}
+                            },
+                            {
+                                "term": {"label": "young"}
+                            },
+                            {
+                                "term": {"label": "nasty"}
+                            }
+                        ]
                     }
                 }
             }
         }
+    }
 
 
 def test_facet_filter(index, client):
@@ -158,66 +153,64 @@ def test_facet_filter(index, client):
 
     sq = index.search_query()
     sq = qf.apply(sq, {})
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "aggregations": {
-                "qf.type": {
-                    "terms": {"field": "type"}
-                },
-                "qf.vendor": {
-                    "terms": {"field": "vendor"},
-                    "aggregations": {
-                        "min_price": {
-                            "min": {"field": "price"}
-                        }
+    assert sq.to_dict(Compiler_5_0) == {
+        "aggregations": {
+            "qf.type": {
+                "terms": {"field": "type"}
+            },
+            "qf.vendor": {
+                "terms": {"field": "vendor"},
+                "aggregations": {
+                    "min_price": {
+                        "min": {"field": "price"}
                     }
-                },
-                "qf.model": {
-                    "terms": {"field": "model"}
                 }
+            },
+            "qf.model": {
+                "terms": {"field": "model"}
             }
         }
+    }
 
     sq = index.search_query()
     sq = qf.apply(sq, {'m': ['vrx']})
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "aggregations": {
-                "qf.type.filter": {
-                    "filter": {
-                        "term": {"model": "vrx"}
-                    },
-                    "aggregations": {
-                        "qf.type": {
-                            "terms": {"field": "type"}
-                        }
-                    }
+    assert sq.to_dict(Compiler_5_0) == {
+        "aggregations": {
+            "qf.type.filter": {
+                "filter": {
+                    "term": {"model": "vrx"}
                 },
-                "qf.vendor.filter": {
-                    "filter": {
-                        "term": {"model": "vrx"}
-                    },
-                    "aggregations": {
-                        "qf.vendor": {
-                            "terms": {"field": "vendor"},
-                            "aggregations": {
-                                "min_price": {
-                                    "min": {"field": "price"}
-                                }
+                "aggregations": {
+                    "qf.type": {
+                        "terms": {"field": "type"}
+                    }
+                }
+            },
+            "qf.vendor.filter": {
+                "filter": {
+                    "term": {"model": "vrx"}
+                },
+                "aggregations": {
+                    "qf.vendor": {
+                        "terms": {"field": "vendor"},
+                        "aggregations": {
+                            "min_price": {
+                                "min": {"field": "price"}
                             }
                         }
                     }
-                },
-                "qf.model": {
-                    "terms": {"field": "model"}
                 }
             },
-            "post_filter": {
-                "term": {
-                    "model": "vrx"
-                }
+            "qf.model": {
+                "terms": {"field": "model"}
+            }
+        },
+        "post_filter": {
+            "term": {
+                "model": "vrx"
             }
         }
+    }
 
     sq = (
         index.search_query(Match(index['car'].name, 'test'))
@@ -227,70 +220,69 @@ def test_facet_filter(index, client):
     )
     sq = qf.apply(sq, {'type': ['0', '1', '3', 'null'],
                        'vendor': ['Subaru']})
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "query": {
-                "bool": {
-                    "must": {
-                        "match": {"name": "test"}
-                    },
-                    "filter": {
-                        "term": {"status": 0}
+    assert sq.to_dict(Compiler_5_0) == {
+        "query": {
+            "bool": {
+                "must": {
+                    "match": {"name": "test"}
+                },
+                "filter": {
+                    "term": {"status": 0}
+                }
+            }
+        },
+        "aggregations": {
+            "qf.type.filter": {
+                "filter": {
+                    "term": {"vendor": "Subaru"}
+                },
+                "aggregations": {
+                    "qf.type": {
+                        "terms": {"field": "type"}
                     }
                 }
             },
-            "aggregations": {
-                "qf.type.filter": {
-                    "filter": {
-                        "term": {"vendor": "Subaru"}
-                    },
-                    "aggregations": {
-                        "qf.type": {
-                            "terms": {"field": "type"}
-                        }
-                    }
+            "qf.vendor.filter": {
+                "filter": {
+                    "terms": {"type": [0, 1, 3]}
                 },
-                "qf.vendor.filter": {
-                    "filter": {
-                        "terms": {"type": [0, 1, 3]}
-                    },
-                    "aggregations": {
-                        "qf.vendor": {
-                            "terms": {"field": "vendor"},
-                            "aggregations": {
-                                "min_price": {
-                                    "min": {"field": "price"}
-                                }
+                "aggregations": {
+                    "qf.vendor": {
+                        "terms": {"field": "vendor"},
+                        "aggregations": {
+                            "min_price": {
+                                "min": {"field": "price"}
                             }
                         }
                     }
-                },
-                "qf.model.filter": {
-                    "filter": {
-                        "bool": {
-                            "must": [
-                                {"terms": {"type": [0, 1, 3]}},
-                                {"term": {"vendor": "Subaru"}}
-                            ]
-                        }
-                    },
-                    "aggregations": {
-                        "qf.model": {
-                            "terms": {"field": "model"}
-                        }
-                    }
                 }
             },
-            "post_filter": {
-                "bool": {
-                    "must": [
-                        {"range": {"date_created": {"gt": "now-1y"}}},
-                        {"terms": {"type": [0, 1, 3]}},
-                        {"term": {"vendor": "Subaru"}}
-                    ]
+            "qf.model.filter": {
+                "filter": {
+                    "bool": {
+                        "must": [
+                            {"terms": {"type": [0, 1, 3]}},
+                            {"term": {"vendor": "Subaru"}}
+                        ]
+                    }
+                },
+                "aggregations": {
+                    "qf.model": {
+                        "terms": {"field": "model"}
+                    }
                 }
             }
+        },
+        "post_filter": {
+            "bool": {
+                "must": [
+                    {"range": {"date_created": {"gt": "now-1y"}}},
+                    {"terms": {"type": [0, 1, 3]}},
+                    {"term": {"vendor": "Subaru"}}
+                ]
+            }
         }
+    }
 
     client.search = Mock(
         return_value={
@@ -359,7 +351,7 @@ def test_facet_filter(index, client):
     assert fv.value == 0
     assert fv.count == 744
     assert fv.count_text == '744'
-    assert fv.selected == True
+    assert fv.selected is True
     assert fv.title == 'Sedan'
     assert fv.instance.title == 'Sedan'
     assert fv is type_filter.get_value(0)
@@ -368,7 +360,7 @@ def test_facet_filter(index, client):
     assert fv.value == 2
     assert fv.count == 392
     assert fv.count_text == '+392'
-    assert fv.selected == False
+    assert fv.selected is False
     assert fv.title == 'Hatchback'
     assert fv.instance.title == 'Hatchback'
     assert fv is type_filter.get_value(2)
@@ -377,7 +369,7 @@ def test_facet_filter(index, client):
     assert fv.value == 1
     assert fv.count == 162
     assert fv.count_text == '162'
-    assert fv.selected == True
+    assert fv.selected is True
     assert fv.title == 'Station Wagon'
     assert fv.instance.title == 'Station Wagon'
     assert fv is type_filter.get_value(1)
@@ -386,7 +378,7 @@ def test_facet_filter(index, client):
     assert fv.value == 3
     assert fv.count is None
     assert fv.count_text == ''
-    assert fv.selected == True
+    assert fv.selected is True
     assert fv.title == 'Coupe'
     assert fv.instance.title == 'Coupe'
     assert fv is type_filter.get_value(3)
@@ -399,7 +391,7 @@ def test_facet_filter(index, client):
     assert fv.value == 'Subaru'
     assert fv.count == 2153
     assert fv.count_text == '2153'
-    assert fv.selected == True
+    assert fv.selected is True
     assert fv.bucket.get_aggregation('min_price').value == 4000
     assert fv is vendor_filter.selected_values[0]
     assert fv is vendor_filter.get_value('Subaru')
@@ -411,14 +403,14 @@ def test_facet_filter(index, client):
     assert fv.value == 'Imprezza'
     assert fv.count == 1586
     assert fv.count_text == '1586'
-    assert fv.selected == False
+    assert fv.selected is False
     assert fv is model_filter.values[0]
     assert fv is model_filter.get_value('Imprezza')
     fv = model_filter.all_values[1]
     assert fv.value == 'Forester'
     assert fv.count == 456
     assert fv.count_text == '456'
-    assert fv.selected == False
+    assert fv.selected is False
     assert fv is model_filter.values[1]
     assert fv is model_filter.get_value('Forester')
 
@@ -433,71 +425,131 @@ def test_facet_filter_with_and_conjunction(index):
 
     sq = index.search_query()
     sq = qf.apply(sq, {})
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "aggregations": {
-                "qf.region": {
-                    "terms": {
-                        "field": "region_id"
-                    }
-                },
-                "qf.label": {
-                    "terms": {
-                        "field": "label"
-                    }
+    assert sq.to_dict(Compiler_5_0) == {
+        "aggregations": {
+            "qf.region": {
+                "terms": {
+                    "field": "region_id"
+                }
+            },
+            "qf.label": {
+                "terms": {
+                    "field": "label"
                 }
             }
         }
+    }
 
     sq = index.search_query()
     sq = qf.apply(sq, {'label': ['greedy']})
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "aggregations": {
-                "qf.region.filter": {
-                    "filter": {
-                        "term": {
-                            "label": "greedy"
-                        }
-                    },
-                    "aggregations": {
-                        "qf.region": {
-                            "terms": {
-                                "field": "region_id"
-                            }
-                        }
+    assert sq.to_dict(Compiler_5_0) == {
+        "aggregations": {
+            "qf.region.filter": {
+                "filter": {
+                    "term": {
+                        "label": "greedy"
                     }
                 },
-                "qf.label.filter": {
-                    "filter": {
-                        "term": {
-                            "label": "greedy"
-                        }
-                    },
-                    "aggregations": {
-                        "qf.label": {
-                            "terms": {
-                                "field": "label"
-                            }
+                "aggregations": {
+                    "qf.region": {
+                        "terms": {
+                            "field": "region_id"
                         }
                     }
                 }
             },
-            "post_filter": {
-                "term": {
-                    "label": "greedy"
+            "qf.label.filter": {
+                "filter": {
+                    "term": {
+                        "label": "greedy"
+                    }
+                },
+                "aggregations": {
+                    "qf.label": {
+                        "terms": {
+                            "field": "label"
+                        }
+                    }
                 }
             }
+        },
+        "post_filter": {
+            "term": {
+                "label": "greedy"
+            }
         }
+    }
 
     sq = index.search_query()
     sq = qf.apply(sq, {'region': [123, 456],
                        'label': ['greedy', 'young', 'nasty']})
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "aggregations": {
-                "qf.region.filter": {
-                    "filter": {
+    assert sq.to_dict(Compiler_5_0) == {
+        "aggregations": {
+            "qf.region.filter": {
+                "filter": {
+                    "bool": {
+                        "must": [
+                            {
+                                "term": {"label": "greedy"}
+                            },
+                            {
+                                "term": {"label": "young"}
+                            },
+                            {
+                                "term": {"label": "nasty"}
+                            }
+                        ]
+                    }
+                },
+                "aggregations": {
+                    "qf.region": {
+                        "terms": {
+                            "field": "region_id"
+                        }
+                    }
+                }
+            },
+            "qf.label.filter": {
+                "filter": {
+                    "bool": {
+                        "must": [
+                            {
+                                "terms": {"region_id": [123, 456]}
+                            },
+                            {
+                                "bool": {
+                                    "must": [
+                                        {
+                                            "term": {"label": "greedy"}
+                                        },
+                                        {
+                                            "term": {"label": "young"}
+                                        },
+                                        {
+                                            "term": {"label": "nasty"}
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                },
+                "aggregations": {
+                    "qf.label": {
+                        "terms": {
+                            "field": "label"
+                        }
+                    }
+                }
+            }
+        },
+        "post_filter": {
+            "bool": {
+                "must": [
+                    {
+                        "terms": {"region_id": [123, 456]}
+                    },
+                    {
                         "bool": {
                             "must": [
                                 {
@@ -511,74 +563,11 @@ def test_facet_filter_with_and_conjunction(index):
                                 }
                             ]
                         }
-                    },
-                    "aggregations": {
-                        "qf.region": {
-                            "terms": {
-                                "field": "region_id"
-                            }
-                        }
                     }
-                },
-                "qf.label.filter": {
-                    "filter": {
-                        "bool": {
-                            "must": [
-                                {
-                                    "terms": {"region_id": [123, 456]}
-                                },
-                                {
-                                    "bool": {
-                                        "must": [
-                                            {
-                                                "term": {"label": "greedy"}
-                                            },
-                                            {
-                                                "term": {"label": "young"}
-                                            },
-                                            {
-                                                "term": {"label": "nasty"}
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "aggregations": {
-                        "qf.label": {
-                            "terms": {
-                                "field": "label"
-                            }
-                        }
-                    }
-                }
-            },
-            "post_filter": {
-                "bool": {
-                    "must": [
-                        {
-                            "terms": {"region_id": [123, 456]}
-                        },
-                        {
-                            "bool": {
-                                "must": [
-                                    {
-                                        "term": {"label": "greedy"}
-                                    },
-                                    {
-                                        "term": {"label": "young"}
-                                    },
-                                    {
-                                        "term": {"label": "nasty"}
-                                    }
-                                ]
-                            }
-                        }
-                    ]
-                }
+                ]
             }
         }
+    }
 
 
 def test_range_filter(index, client):
@@ -598,42 +587,40 @@ def test_range_filter(index, client):
 
     sq = index.search_query()
     sq = qf.apply(sq, {'ed__gte': ['1.9']})
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "aggregations": {
-                "qf.price.enabled": {"filter": {"exists": {"field": "price"}}},
-                "qf.disp.min": {"min": {"field": "engine_displacement"}},
-                "qf.disp.max": {"max": {"field": "engine_displacement"}}
-            },
-            "post_filter": {
-                "range": {"engine_displacement": {"gte": 1.9}}
-            }
+    assert sq.to_dict(Compiler_5_0) == {
+        "aggregations": {
+            "qf.price.enabled": {"filter": {"exists": {"field": "price"}}},
+            "qf.disp.min": {"min": {"field": "engine_displacement"}},
+            "qf.disp.max": {"max": {"field": "engine_displacement"}}
+        },
+        "post_filter": {
+            "range": {"engine_displacement": {"gte": 1.9}}
         }
+    }
 
     sq = index.search_query()
     sq = qf.apply(sq, {'price__lte': ['10000']})
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "aggregations": {
-                "qf.price.enabled": {"filter": {"exists": {"field": "price"}}},
-                "qf.disp.filter": {
-                    "filter": {
-                        "range": {"price": {"lte": 10000}}
+    assert sq.to_dict(Compiler_5_0) == {
+        "aggregations": {
+            "qf.price.enabled": {"filter": {"exists": {"field": "price"}}},
+            "qf.disp.filter": {
+                "filter": {
+                    "range": {"price": {"lte": 10000}}
+                },
+                "aggregations": {
+                    "qf.disp.min": {
+                        "min": {"field": "engine_displacement"}
                     },
-                    "aggregations": {
-                        "qf.disp.min": {
-                            "min": {"field": "engine_displacement"}
-                        },
-                        "qf.disp.max": {
-                            "max": {"field": "engine_displacement"}
-                        }
+                    "qf.disp.max": {
+                        "max": {"field": "engine_displacement"}
                     }
                 }
-            },
-            "post_filter": {
-                "range": {"price": {"lte": 10000}}
             }
+        },
+        "post_filter": {
+            "range": {"price": {"lte": 10000}}
         }
+    }
 
     client.search = Mock(
         return_value={
@@ -677,33 +664,32 @@ def test_range_filter_dynamic_document(index, client):
 
     sq = index.search_query()
     sq = qf.apply(sq, {'price__lte': ['10000']})
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "aggregations": {
-                "qf.price.enabled": {"filter": {"exists": {"field": "price"}}},
-                "qf.price.min": {"min": {"field": "price"}},
-                "qf.price.max": {"max": {"field": "price"}},
-                "qf.disp.enabled": {
-                    "filter": {"exists": {"field": "engine_displacement"}}
+    assert sq.to_dict(Compiler_5_0) == {
+        "aggregations": {
+            "qf.price.enabled": {"filter": {"exists": {"field": "price"}}},
+            "qf.price.min": {"min": {"field": "price"}},
+            "qf.price.max": {"max": {"field": "price"}},
+            "qf.disp.enabled": {
+                "filter": {"exists": {"field": "engine_displacement"}}
+            },
+            "qf.disp.filter": {
+                "filter": {
+                    "range": {"price": {"lte": 10000}}
                 },
-                "qf.disp.filter": {
-                    "filter": {
-                        "range": {"price": {"lte": 10000}}
+                "aggregations": {
+                    "qf.disp.min": {
+                        "min": {"field": "engine_displacement"}
                     },
-                    "aggregations": {
-                        "qf.disp.min": {
-                            "min": {"field": "engine_displacement"}
-                        },
-                        "qf.disp.max": {
-                            "max": {"field": "engine_displacement"}
-                        }
+                    "qf.disp.max": {
+                        "max": {"field": "engine_displacement"}
                     }
                 }
-            },
-            "post_filter": {
-                "range": {"price": {"lte": 10000}}
             }
+        },
+        "post_filter": {
+            "range": {"price": {"lte": 10000}}
         }
+    }
 
     client.search = Mock(
         return_value={
@@ -728,13 +714,13 @@ def test_range_filter_dynamic_document(index, client):
     qf_result = qf.process_results(sq.get_result())
 
     price_filter = qf_result.price
-    assert price_filter.enabled == True
+    assert price_filter.enabled is True
     assert price_filter.min_value == 7500
     assert price_filter.max_value == 25800
     assert price_filter.from_value is None
     assert price_filter.to_value == 10000
     disp_filter = qf_result.disp
-    assert disp_filter.enabled == True
+    assert disp_filter.enabled is True
     assert disp_filter.min_value == 1.6
     assert disp_filter.max_value == 3.0
     assert disp_filter.from_value is None
@@ -755,59 +741,62 @@ def test_range_datetime_filter(index):
     # Full datetime with zero time data
     sq = index.search_query()
     sq = qf.apply(sq, {'dt__gte': ['2017-08-08 00:00:00']})
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "aggregations": {
-                "qf.dt.enabled": {"filter": {"exists": {"field": "presentation_date"}}},
-                "qf.dt.min": {"min": {"field": "presentation_date"}},
-                "qf.dt.max": {"max": {"field": "presentation_date"}}
+    assert sq.to_dict(Compiler_5_0) == {
+        "aggregations": {
+            "qf.dt.enabled": {
+                "filter": {"exists": {"field": "presentation_date"}}
             },
-            "post_filter": {
-                "range": {
-                    "presentation_date": {
-                        "gte": datetime.datetime(2017, 8, 8),
-                    }
+            "qf.dt.min": {"min": {"field": "presentation_date"}},
+            "qf.dt.max": {"max": {"field": "presentation_date"}}
+        },
+        "post_filter": {
+            "range": {
+                "presentation_date": {
+                    "gte": datetime.datetime(2017, 8, 8),
                 }
             }
         }
+    }
 
     # Only date
     sq = index.search_query()
     sq = qf.apply(sq, {'dt__gte': ['2017-08-08']})
-    assert sq.to_dict(Compiler_5_0) == \
-           {
-               "aggregations": {
-                   "qf.dt.enabled": {"filter": {"exists": {"field": "presentation_date"}}},
-                   "qf.dt.min": {"min": {"field": "presentation_date"}},
-                   "qf.dt.max": {"max": {"field": "presentation_date"}}
-               },
-               "post_filter": {
-                   "range": {
-                       "presentation_date": {
-                           "gte": datetime.datetime(2017, 8, 8),
-                       }
-                   }
-               }
-           }
+    assert sq.to_dict(Compiler_5_0) == {
+        "aggregations": {
+            "qf.dt.enabled": {
+                "filter": {"exists": {"field": "presentation_date"}}
+            },
+            "qf.dt.min": {"min": {"field": "presentation_date"}},
+            "qf.dt.max": {"max": {"field": "presentation_date"}}
+        },
+        "post_filter": {
+            "range": {
+                "presentation_date": {
+                    "gte": datetime.datetime(2017, 8, 8),
+                }
+            }
+        }
+    }
 
     # Full datetime
     sq = index.search_query()
     sq = qf.apply(sq, {'dt__gte': ['2017-08-08 00:00:01']})
-    assert sq.to_dict(Compiler_5_0) == \
-           {
-               "aggregations": {
-                   "qf.dt.enabled": {"filter": {"exists": {"field": "presentation_date"}}},
-                   "qf.dt.min": {"min": {"field": "presentation_date"}},
-                   "qf.dt.max": {"max": {"field": "presentation_date"}}
-               },
-               "post_filter": {
-                   "range": {
-                       "presentation_date": {
-                           "gte": datetime.datetime(2017, 8, 8, 0, 0, 1),
-                       }
-                   }
-               }
-           }
+    assert sq.to_dict(Compiler_5_0) == {
+        "aggregations": {
+            "qf.dt.enabled": {
+                "filter": {"exists": {"field": "presentation_date"}}
+            },
+            "qf.dt.min": {"min": {"field": "presentation_date"}},
+            "qf.dt.max": {"max": {"field": "presentation_date"}}
+        },
+        "post_filter": {
+            "range": {
+                "presentation_date": {
+                    "gte": datetime.datetime(2017, 8, 8, 0, 0, 1),
+                }
+            }
+        }
+    }
 
     # Python date & datetime objects
     sq = index.search_query()
@@ -815,22 +804,23 @@ def test_range_datetime_filter(index):
         'dt__gte': [datetime.date(2017, 8, 9)],
         'dt__lte': [datetime.datetime(2017, 8, 9)]
     })
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "aggregations": {
-                "qf.dt.enabled": {"filter": {"exists": {"field": "presentation_date"}}},
-                "qf.dt.min": {"min": {"field": "presentation_date"}},
-                "qf.dt.max": {"max": {"field": "presentation_date"}}
+    assert sq.to_dict(Compiler_5_0) == {
+        "aggregations": {
+            "qf.dt.enabled": {
+                "filter": {"exists": {"field": "presentation_date"}}
             },
-            "post_filter": {
-                "range": {
-                    "presentation_date": {
-                        "gte": datetime.date(2017, 8, 9),
-                        "lte": datetime.datetime(2017, 8, 9),
-                    }
+            "qf.dt.min": {"min": {"field": "presentation_date"}},
+            "qf.dt.max": {"max": {"field": "presentation_date"}}
+        },
+        "post_filter": {
+            "range": {
+                "presentation_date": {
+                    "gte": datetime.date(2017, 8, 9),
+                    "lte": datetime.datetime(2017, 8, 9),
                 }
             }
         }
+    }
 
     # FIXME Should convert to datetime.date
     # sq = index.search_query()
@@ -838,7 +828,9 @@ def test_range_datetime_filter(index):
     # assert sq.to_dict(Compiler_5_0) == \
     #     {
     #         "aggregations": {
-    #             "qf.dt.enabled": {"filter": {"exists": {"field": "presentation_date"}}},
+    #             "qf.dt.enabled": {
+    #                 "filter": {"exists": {"field": "presentation_date"}}
+    #             },
     #             "qf.dt.min": {"min": {"field": "presentation_date"}},
     #             "qf.dt.max": {"max": {"field": "presentation_date"}}
     #         },
@@ -857,7 +849,9 @@ def test_range_datetime_filter(index):
     # assert sq.to_dict(Compiler_5_0) == \
     #     {
     #         "aggregations": {
-    #             "qf.dt.enabled": {"filter": {"exists": {"field": "presentation_date"}}},
+    #             "qf.dt.enabled": {
+    #                 "filter": {"exists": {"field": "presentation_date"}}
+    #             },
     #             "qf.dt.min": {"min": {"field": "presentation_date"}},
     #             "qf.dt.max": {"max": {"field": "presentation_date"}}
     #         },
@@ -876,7 +870,9 @@ def test_range_datetime_filter(index):
     # assert sq.to_dict(Compiler_5_0) == \
     #     {
     #         "aggregations": {
-    #             "qf.dt.enabled": {"filter": {"exists": {"field": "presentation_date"}}},
+    #             "qf.dt.enabled": {
+    #                 "filter": {"exists": {"field": "presentation_date"}}
+    #             },
     #             "qf.dt.min": {"min": {"field": "presentation_date"}},
     #             "qf.dt.max": {"max": {"field": "presentation_date"}}
     #         },
@@ -919,16 +915,15 @@ def test_simple_query_filter(index):
 
     sq = index.search_query()
     sq = qf.apply(sq, {'new': ['true', 'false']})
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "query": {
-                "bool": {
-                    "filter": {
-                        "term": {"state": "new"}
-                    }
+    assert sq.to_dict(Compiler_5_0) == {
+        "query": {
+            "bool": {
+                "filter": {
+                    "term": {"state": "new"}
                 }
             }
         }
+    }
 
     qf = CarQueryFilter()
     sq = (
@@ -936,37 +931,36 @@ def test_simple_query_filter(index):
         .filter(index['car'].year == 2014)
     )
     sq = qf.apply(sq, {'price': ['*-10000', '10000-20000', 'null']})
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "query": {
-                "bool": {
-                    "filter": [
-                        {
-                            "term": {"year": 2014}
-                        },
-                        {
-                            "bool": {
-                                "should": [
-                                    {
-                                        "range": {
-                                            "price": {"lte": 10000}
-                                        }
-                                    },
-                                    {
-                                        "range": {
-                                            "price": {
-                                                "gt": 10000,
-                                                "lte": 20000
-                                            }
+    assert sq.to_dict(Compiler_5_0) == {
+        "query": {
+            "bool": {
+                "filter": [
+                    {
+                        "term": {"year": 2014}
+                    },
+                    {
+                        "bool": {
+                            "should": [
+                                {
+                                    "range": {
+                                        "price": {"lte": 10000}
+                                    }
+                                },
+                                {
+                                    "range": {
+                                        "price": {
+                                            "gt": 10000,
+                                            "lte": 20000
                                         }
                                     }
-                                ]
-                            }
+                                }
+                            ]
                         }
-                    ]
-                }
+                    }
+                ]
             }
         }
+    }
 
 
 def test_simple_query_filter_with_and_conjunction(index):
@@ -987,25 +981,24 @@ def test_simple_query_filter_with_and_conjunction(index):
 
     sq = index.search_query()
     sq = qf.apply(sq, {'selling_type': ['retail', 'wholesale']})
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "query": {
-                "bool": {
-                    "filter": {
-                        "bool": {
-                            "must": [
-                                {
-                                    "terms": {"selling_type": [1, 2, 3]}
-                                },
-                                {
-                                    "terms": {"selling_type": [3, 4, 5]}
-                                }
-                            ]
-                        }
+    assert sq.to_dict(Compiler_5_0) == {
+        "query": {
+            "bool": {
+                "filter": {
+                    "bool": {
+                        "must": [
+                            {
+                                "terms": {"selling_type": [1, 2, 3]}
+                            },
+                            {
+                                "terms": {"selling_type": [3, 4, 5]}
+                            }
+                        ]
                     }
                 }
             }
         }
+    }
 
 
 def test_facet_query_filter(index, client):
@@ -1033,66 +1026,65 @@ def test_facet_query_filter(index, client):
 
     sq = index.search_query()
     sq = qf.apply(sq, {'new': ['true', 'false']})
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "aggregations": {
-                "qf.is_new:true": {
-                    "filter": {
-                        "term": {"state": "new"}
-                    }
+    assert sq.to_dict(Compiler_5_0) == {
+        "aggregations": {
+            "qf.is_new:true": {
+                "filter": {
+                    "term": {"state": "new"}
+                }
+            },
+            "qf.price.filter": {
+                "filter": {
+                    "term": {"state": "new"}
                 },
-                "qf.price.filter": {
-                    "filter": {
-                        "term": {"state": "new"}
+                "aggregations": {
+                    "qf.price:*-10000": {
+                        "filter": {
+                            "range": {"price": {"lte": 10000}}
+                        },
+                        "aggregations": {
+                            "disp_avg": {
+                                "avg": {"field": "engine_displacement"}
+                            }
+                        }
                     },
-                    "aggregations": {
-                        "qf.price:*-10000": {
-                            "filter": {
-                                "range": {"price": {"lte": 10000}}
-                            },
-                            "aggregations": {
-                                "disp_avg": {
-                                    "avg": {"field": "engine_displacement"}
-                                }
-                            }
+                    "qf.price:10000-20000": {
+                        "filter": {
+                            "range": {"price": {"gt": 10000, "lte": 20000}}
                         },
-                        "qf.price:10000-20000": {
-                            "filter": {
-                                "range": {"price": {"gt": 10000, "lte": 20000}}
-                            },
-                            "aggregations": {
-                                "disp_avg": {
-                                    "avg": {"field": "engine_displacement"}
-                                }
+                        "aggregations": {
+                            "disp_avg": {
+                                "avg": {"field": "engine_displacement"}
                             }
+                        }
+                    },
+                    "qf.price:20000-30000": {
+                        "filter": {
+                            "range": {"price": {"gt": 20000, "lte": 30000}}
                         },
-                        "qf.price:20000-30000": {
-                            "filter": {
-                                "range": {"price": {"gt": 20000, "lte": 30000}}
-                            },
-                            "aggregations": {
-                                "disp_avg": {
-                                    "avg": {"field": "engine_displacement"}
-                                }
+                        "aggregations": {
+                            "disp_avg": {
+                                "avg": {"field": "engine_displacement"}
                             }
+                        }
+                    },
+                    "qf.price:30000-*": {
+                        "filter": {
+                            "range": {"price": {"gt": 30000}}
                         },
-                        "qf.price:30000-*": {
-                            "filter": {
-                                "range": {"price": {"gt": 30000}}
-                            },
-                            "aggregations": {
-                                "disp_avg": {
-                                    "avg": {"field": "engine_displacement"}
-                                }
+                        "aggregations": {
+                            "disp_avg": {
+                                "avg": {"field": "engine_displacement"}
                             }
                         }
                     }
                 }
-            },
-            "post_filter": {
-                "term": {"state": "new"}
             }
+        },
+        "post_filter": {
+            "term": {"state": "new"}
         }
+    }
 
     client.search = Mock(
         return_value={
@@ -1135,7 +1127,7 @@ def test_facet_query_filter(index, client):
     assert fv.value == 'true'
     assert fv.count == 82
     assert fv.count_text == '82'
-    assert fv.selected == True
+    assert fv.selected is True
     assert len(qf_res.price.all_values) == 4
     assert len(qf_res.price.selected_values) == 0
     assert len(qf_res.price.values) == 4
@@ -1143,119 +1135,118 @@ def test_facet_query_filter(index, client):
     assert fv.value == '*-10000'
     assert fv.count == 11
     assert fv.count_text == '11'
-    assert fv.selected == False
+    assert fv.selected is False
     assert fv.agg.get_aggregation('disp_avg').value == 1.56
     fv = qf_res.price.get_value('10000-20000')
     assert fv.value == '10000-20000'
     assert fv.count == 16
     assert fv.count_text == '16'
-    assert fv.selected == False
+    assert fv.selected is False
     assert fv.agg.get_aggregation('disp_avg').value == 2.4
     fv = qf_res.price.get_value('20000-30000')
     assert fv.value == '20000-30000'
     assert fv.count == 23
     assert fv.count_text == '23'
-    assert fv.selected == False
+    assert fv.selected is False
     assert fv.agg.get_aggregation('disp_avg').value == 2.85
     fv = qf_res.price.get_value('30000-*')
     assert fv.value == '30000-*'
     assert fv.count == 32
     assert fv.count_text == '32'
-    assert fv.selected == False
+    assert fv.selected is False
     assert fv.agg.get_aggregation('disp_avg').value == 2.92
 
     qf = CarQueryFilter()
     sq = index.search_query(index['car'].year == 2014)
     sq = qf.apply(sq, {'price': ['*-10000', '10000-20000', 'null']})
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "query": {
-                "term": {"year": 2014}
-            },
-            "aggregations": {
-                "qf.is_new.filter": {
-                    "filter": {
-                        "bool": {
-                            "should": [
-                                {
-                                    "range": {
-                                        "price": {"lte": 10000}
-                                    }
-                                },
-                                {
-                                    "range": {
-                                        "price": {"gt": 10000, "lte": 20000}
-                                    }
+    assert sq.to_dict(Compiler_5_0) == {
+        "query": {
+            "term": {"year": 2014}
+        },
+        "aggregations": {
+            "qf.is_new.filter": {
+                "filter": {
+                    "bool": {
+                        "should": [
+                            {
+                                "range": {
+                                    "price": {"lte": 10000}
                                 }
-                            ]
-                        }
-                    },
-                    "aggregations": {
-                        "qf.is_new:true": {
-                            "filter": {
-                                "term": {"state": "new"}
+                            },
+                            {
+                                "range": {
+                                    "price": {"gt": 10000, "lte": 20000}
+                                }
                             }
-                        }
+                        ]
                     }
                 },
-                "qf.price:*-10000": {
-                    "filter": {
-                        "range": {"price": {"lte": 10000}}
-                    },
-                    "aggregations": {
-                        "disp_avg": {
-                            "avg": {"field": "engine_displacement"}
-                        }
-                    }
-                },
-                "qf.price:10000-20000": {
-                    "filter": {
-                        "range": {"price": {"gt": 10000, "lte": 20000}}
-                    },
-                    "aggregations": {
-                        "disp_avg": {
-                            "avg": {"field": "engine_displacement"}
-                        }
-                    }
-                },
-                "qf.price:20000-30000": {
-                    "filter": {
-                        "range": {"price": {"gt": 20000, "lte": 30000}}
-                    },
-                    "aggregations": {
-                        "disp_avg": {
-                            "avg": {"field": "engine_displacement"}
-                        }
-                    }
-                },
-                "qf.price:30000-*": {
-                    "filter": {
-                        "range": {"price": {"gt": 30000}}
-                    },
-                    "aggregations": {
-                        "disp_avg": {
-                            "avg": {"field": "engine_displacement"}
+                "aggregations": {
+                    "qf.is_new:true": {
+                        "filter": {
+                            "term": {"state": "new"}
                         }
                     }
                 }
             },
-            "post_filter": {
-                "bool": {
-                    "should": [
-                        {
-                            "range": {
-                                "price": {"lte": 10000}
-                            }
-                        },
-                        {
-                            "range": {
-                                "price": {"gt": 10000, "lte": 20000}
-                            }
-                        }
-                    ]
+            "qf.price:*-10000": {
+                "filter": {
+                    "range": {"price": {"lte": 10000}}
+                },
+                "aggregations": {
+                    "disp_avg": {
+                        "avg": {"field": "engine_displacement"}
+                    }
+                }
+            },
+            "qf.price:10000-20000": {
+                "filter": {
+                    "range": {"price": {"gt": 10000, "lte": 20000}}
+                },
+                "aggregations": {
+                    "disp_avg": {
+                        "avg": {"field": "engine_displacement"}
+                    }
+                }
+            },
+            "qf.price:20000-30000": {
+                "filter": {
+                    "range": {"price": {"gt": 20000, "lte": 30000}}
+                },
+                "aggregations": {
+                    "disp_avg": {
+                        "avg": {"field": "engine_displacement"}
+                    }
+                }
+            },
+            "qf.price:30000-*": {
+                "filter": {
+                    "range": {"price": {"gt": 30000}}
+                },
+                "aggregations": {
+                    "disp_avg": {
+                        "avg": {"field": "engine_displacement"}
+                    }
                 }
             }
+        },
+        "post_filter": {
+            "bool": {
+                "should": [
+                    {
+                        "range": {
+                            "price": {"lte": 10000}
+                        }
+                    },
+                    {
+                        "range": {
+                            "price": {"gt": 10000, "lte": 20000}
+                        }
+                    }
+                ]
+            }
         }
+    }
 
     client.search = Mock(
         return_value={
@@ -1331,7 +1322,10 @@ def test_facet_query_filter(index, client):
 def test_facet_query_filter_with_and_conjunction(index):
     class ItemQueryFilter(QueryFilter):
         available = FacetQueryFilter(
-            SimpleQueryValue('true', index['item'].is_available == True),
+            SimpleQueryValue(
+                'true',
+                index['item'].is_available == True  # noqa: E712
+            ),
         )
         selling_type = FacetQueryFilter(
             SimpleQueryValue('retail',
@@ -1345,66 +1339,64 @@ def test_facet_query_filter_with_and_conjunction(index):
 
     sq = index.search_query()
     sq = qf.apply(sq, {})
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "aggregations": {
-                "qf.available:true": {
-                    "filter": {
-                        "term": {"is_available": True}
-                    }
-                },
-                "qf.selling_type:retail": {
-                    "filter": {
-                        "terms": {"selling_type": [1, 2, 3]}
-                    }
-                },
-                "qf.selling_type:wholesale": {
-                    "filter": {
-                        "terms": {"selling_type": [3, 4, 5]}
-                    }
+    assert sq.to_dict(Compiler_5_0) == {
+        "aggregations": {
+            "qf.available:true": {
+                "filter": {
+                    "term": {"is_available": True}
+                }
+            },
+            "qf.selling_type:retail": {
+                "filter": {
+                    "terms": {"selling_type": [1, 2, 3]}
+                }
+            },
+            "qf.selling_type:wholesale": {
+                "filter": {
+                    "terms": {"selling_type": [3, 4, 5]}
                 }
             }
         }
+    }
 
     sq = index.search_query()
     sq = qf.apply(sq, {'selling_type': ['retail']})
-    assert sq.to_dict(Compiler_5_0) == \
-        {
-            "aggregations": {
-                "qf.available.filter": {
-                    "filter": {
-                        "terms": {"selling_type": [1, 2, 3]},
-                    },
-                    "aggregations": {
-                        "qf.available:true": {
-                            "filter": {
-                                "term": {"is_available": True}
-                            }
-                        }
-                    }
+    assert sq.to_dict(Compiler_5_0) == {
+        "aggregations": {
+            "qf.available.filter": {
+                "filter": {
+                    "terms": {"selling_type": [1, 2, 3]},
                 },
-                "qf.selling_type.filter": {
-                    "filter": {
-                        "terms": {"selling_type": [1, 2, 3]},
-                    },
-                    "aggregations": {
-                        "qf.selling_type:retail": {
-                            "filter": {
-                                "terms": {"selling_type": [1, 2, 3]}
-                            }
-                        },
-                        "qf.selling_type:wholesale": {
-                            "filter": {
-                                "terms": {"selling_type": [3, 4, 5]}
-                            }
+                "aggregations": {
+                    "qf.available:true": {
+                        "filter": {
+                            "term": {"is_available": True}
                         }
                     }
                 }
             },
-            "post_filter": {
-                "terms": {"selling_type": [1, 2, 3]}
+            "qf.selling_type.filter": {
+                "filter": {
+                    "terms": {"selling_type": [1, 2, 3]},
+                },
+                "aggregations": {
+                    "qf.selling_type:retail": {
+                        "filter": {
+                            "terms": {"selling_type": [1, 2, 3]}
+                        }
+                    },
+                    "qf.selling_type:wholesale": {
+                        "filter": {
+                            "terms": {"selling_type": [3, 4, 5]}
+                        }
+                    }
+                }
             }
+        },
+        "post_filter": {
+            "terms": {"selling_type": [1, 2, 3]}
         }
+    }
 
 
 def test_ordering(index):
@@ -1425,17 +1417,16 @@ def test_ordering(index):
 
     qf = CarQueryFilter()
 
-    assert qf.apply(sq, {}).to_dict(Compiler_5_0) == \
-        {
-            "sort": [
-                {
-                    "popularity": "desc"
-                },
-                {
-                    "opinion_count": {"order": "desc", "missing": "_last"}
-                }
-            ]
-        }
+    assert qf.apply(sq, {}).to_dict(Compiler_5_0) == {
+        "sort": [
+            {
+                "popularity": "desc"
+            },
+            {
+                "opinion_count": {"order": "desc", "missing": "_last"}
+            }
+        ]
+    }
 
     qf_res = qf.process_result(Mock())
     assert qf_res.sort.default_value.value == 'popularity'
@@ -1446,12 +1437,11 @@ def test_ordering(index):
     assert qf_res.sort.get_value('-price').selected is False
 
     qf = CarQueryFilter()
-    assert qf.apply(sq, {'o': ['price']}).to_dict(Compiler_5_0) == \
-        {
-            "sort": [
-                "price"
-            ]
-        }
+    assert qf.apply(sq, {'o': ['price']}).to_dict(Compiler_5_0) == {
+        "sort": [
+            "price"
+        ]
+    }
 
     qf_res = qf.process_result(Mock())
     assert qf_res.sort.default_value.value == 'popularity'
@@ -1469,37 +1459,31 @@ def test_page(index, client):
     sq = index.search_query()
 
     qf = CarQueryFilter()
-    assert qf.apply(sq, {}).to_dict(Compiler_5_0) == \
-        {
-            "size": 10
-        }
+    assert qf.apply(sq, {}).to_dict(Compiler_5_0) == {
+        "size": 10
+    }
 
-    assert qf.apply(sq, {'p': [None]}).to_dict(Compiler_5_0) == \
-           {
-               "size": 10
-           }
+    assert qf.apply(sq, {'p': [None]}).to_dict(Compiler_5_0) == {
+        "size": 10
+    }
 
-    assert qf.apply(sq, {'p': 3}).to_dict(Compiler_5_0) == \
-        {
-            "size": 10,
-            "from": 20
-        }
+    assert qf.apply(sq, {'p': 3}).to_dict(Compiler_5_0) == {
+        "size": 10,
+        "from": 20
+    }
 
-    assert qf.apply(sq, {'per_page': 25}).to_dict(Compiler_5_0) == \
-        {
-            "size": 25
-        }
+    assert qf.apply(sq, {'per_page': 25}).to_dict(Compiler_5_0) == {
+        "size": 25
+    }
 
-    assert qf.apply(sq, {'p': 201, 'per_page': 50}).to_dict(Compiler_5_0) == \
-        {
-            "size": 0
-        }
+    assert qf.apply(sq, {'p': 201, 'per_page': 50}).to_dict(Compiler_5_0) == {
+        "size": 0
+    }
 
-    assert qf.apply(sq, {'p': 3, 'per_page': 100}).to_dict(Compiler_5_0) == \
-        {
-            "size": 10,
-            "from": 20
-        }
+    assert qf.apply(sq, {'p': 3, 'per_page': 100}).to_dict(Compiler_5_0) == {
+        "size": 10,
+        "from": 20
+    }
 
     client.search = Mock(
         return_value={
@@ -1526,8 +1510,8 @@ def test_page(index, client):
     assert qf_res.page.limit == 10
     assert qf_res.page.total == 105
     assert qf_res.page.pages == 11
-    assert qf_res.page.has_next == True
-    assert qf_res.page.has_prev == True
+    assert qf_res.page.has_next is True
+    assert qf_res.page.has_prev is True
     assert len(qf_res.page.items) == 10
 
 
@@ -1540,16 +1524,14 @@ def test_page_with_max_items(index):
     sq = index.search_query()
     qf = CarQueryFilter()
 
-    assert qf.apply(sq, {'p': 11, 'per_page': 96}).to_dict(Compiler_5_0) == \
-        {
-            "size": 40,
-            "from": 960
-        }
+    assert qf.apply(sq, {'p': 11, 'per_page': 96}).to_dict(Compiler_5_0) == {
+        "size": 40,
+        "from": 960
+    }
 
-    assert qf.apply(sq, {'p': 500}).to_dict(Compiler_5_0) == \
-        {
-            "size": 0
-        }
+    assert qf.apply(sq, {'p': 500}).to_dict(Compiler_5_0) == {
+        "size": 0
+    }
 
 
 def test_nested_facet_filter(index, client):
@@ -1568,7 +1550,8 @@ def test_nested_facet_filter(index, client):
         ProductDoc.attrs.value,
     )
     f.qf = Mock(_name='qf')
-    assert f._apply_filter(index.search_query(), {}).to_dict(Compiler_5_0) == {}
+    assert f._apply_filter(index.search_query(), {}).to_dict(Compiler_5_0) == \
+        {}
     assert \
         f._apply_agg(index.search_query()).to_dict(Compiler_5_0) == \
         {
