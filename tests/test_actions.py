@@ -1,4 +1,5 @@
 import datetime
+
 import pytest
 
 from elasticmagic import Document, Field, Script
@@ -32,6 +33,7 @@ class ProductWithoudTypeDocument(Document):
 )
 def compiler(request):
     yield request.param
+
 
 @pytest.fixture
 def order_doc():
