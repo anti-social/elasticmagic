@@ -11,7 +11,7 @@ from .compat import zip, with_metaclass, string_types
 from .compat import Iterable
 from .util import _with_clone
 from .util import merge_params, collect_doc_classes
-from .expression import Params, Source, Highlight, Rescore, Script
+from .expression import Expression, Params, Source, Highlight, Rescore
 
 __all__ = [
     'BaseSearchQuery', 'SearchQuery', 'SearchQueryContext',
@@ -43,6 +43,13 @@ GENERAL_FUNCTION_SCORE = FunctionScoreSettings(
 BOOST_FUNCTION_SCORE = FunctionScoreSettings(
     'BOOST', score_mode='sum', boost_mode='sum'
 )
+
+
+class ScriptWrapper(Expression):
+    __visit_name__ = 'script_wrapper'
+
+    def __init__(self, script):
+        self.script = script
 
 
 class BaseSearchQuery(with_metaclass(ABCMeta)):
@@ -254,14 +261,18 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         if len(args) == 1 and args[0] is None:
             if '_script_fields' in self.__dict__:
                 del self._script_fields
-        for key in kwargs:
-            if isinstance(kwargs[key], Script):
-                kwargs[key] = dict(script=kwargs[key])
-        script_fields = dict()
-        for key in self._script_fields:
-            script_fields[key] = self._script_fields[key]
-        script_fields.update(kwargs)
-        self._script_fields = Params(script_fields)
+        fields = {
+            name: ScriptWrapper(script) for name, script in kwargs.items()
+        }
+        self._script_fields = Params(self._script_fields, **fields)
+        # for key in kwargs:
+        #     if isinstance(kwargs[key], Script):
+        #         kwargs[key] = {'script': kwargs[key]}
+        # script_fields = {}
+        # for key in self._script_fields:
+        #     script_fields[key] = self._script_fields[key]
+        # script_fields.update(kwargs)
+        # self._script_fields = Params(script_fields)
 
     @_with_clone
     def query(self, q):
@@ -680,6 +691,9 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
                 del self._search_params
             else:
                 self._search_params = search_params
+
+    def to_elastic(self, compiler):
+        return self.to_dict(compiler)
 
     def _collect_doc_classes(self):
         return set().union(

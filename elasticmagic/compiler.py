@@ -44,13 +44,11 @@ from .util import collect_doc_classes
 BOOL_OPERATOR_NAMES = {
     operator.and_: 'and',
     operator.or_: 'or',
-    # operator.not_: 'not',
 }
 
 BOOL_OPERATORS_MAP = {
     operator.and_: Bool.must,
     operator.or_: Bool.should,
-    # operator.not_: Bool.must_not,
 }
 
 DEFAULT_DOC_TYPE = '_doc'
@@ -71,6 +69,7 @@ ElasticsearchFeatures = namedtuple(
         'stored_fields_param',
         'script_source_field_name',
         'script_id_field_name',
+        'script_file_field_name',
         'source_include_param',
         'source_exclude_param',
         'patch_source_include_param',
@@ -203,11 +202,16 @@ class Compiled(object):
     def visit_list(self, lst):
         return [self.visit(v) for v in lst]
 
-    def visit_script(self, script):
+    def visit_script_wrapper(self, script):
         if not self.features.supports_nested_script:
-            raise CompilationError(
-                'Elasticsearch v0.x and v1.x does not support Script')
-        res = dict()
+            return self.visit(script.script)
+        return self.visit({'script': script.script})
+
+    def visit_script(self, script):
+        # if not self.features.supports_nested_script:
+        #     raise CompilationError(
+        #         'Elasticsearch v0.x and v1.x does not support Script')
+        res = {}
         if script.lang:
             res['lang'] = script.lang
         if script.script_params:
@@ -217,7 +221,7 @@ class Compiled(object):
         elif script.id:
             res[self.features.script_id_field_name] = script.id
         elif self.features.supports_script_file and script.file:
-            res['file'] = script.file
+            res[self.features.script_file_field_name] = script.file
         else:
             raise CompilationError('Invalid arguments for Script')
         return self.visit_dict(res)
@@ -1734,6 +1738,7 @@ def _featured_compiler(elasticsearch_features):
         stored_fields_param='fields',
         script_source_field_name='script',
         script_id_field_name='script_id',
+        script_file_field_name='script_file',
         source_include_param='_source_include',
         source_exclude_param='_source_exclude',
         patch_source_include_param='_source_includes',
@@ -1759,6 +1764,7 @@ class Compiler_1_0(object):
         stored_fields_param='fields',
         script_source_field_name='inline',
         script_id_field_name='id',
+        script_file_field_name='file',
         source_include_param='_source_include',
         source_exclude_param='_source_exclude',
         patch_source_include_param='_source_includes',
@@ -1784,6 +1790,7 @@ class Compiler_2_0(object):
         stored_fields_param='stored_fields',
         script_source_field_name='inline',
         script_id_field_name='stored',
+        script_file_field_name='file',
         source_include_param='_source_include',
         source_exclude_param='_source_exclude',
         patch_source_include_param='_source_includes',
@@ -1809,6 +1816,7 @@ class Compiler_5_0(object):
         stored_fields_param='stored_fields',
         script_source_field_name='source',
         script_id_field_name='id',
+        script_file_field_name='file',
         source_include_param='_source_include',
         source_exclude_param='_source_exclude',
         patch_source_include_param='_source_includes',
@@ -1834,6 +1842,7 @@ class Compiler_5_6(object):
         stored_fields_param='stored_fields',
         script_source_field_name='source',
         script_id_field_name='id',
+        script_file_field_name=None,
         source_include_param='_source_includes',
         source_exclude_param='_source_excludes',
         patch_source_include_param='_source_include',
@@ -1859,6 +1868,7 @@ class Compiler_6_0(object):
         stored_fields_param='stored_fields',
         script_source_field_name='source',
         script_id_field_name='id',
+        script_file_field_name=None,
         source_include_param='_source_includes',
         source_exclude_param='_source_excludes',
         patch_source_include_param='_source_include',

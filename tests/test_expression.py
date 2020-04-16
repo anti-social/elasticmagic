@@ -244,21 +244,28 @@ def test_bool(compiler):
 
 
 def test_script(compiler):
-    script_inline = (
+    script_source = (
         "(doc[params.field_name].size() > 0 && "
         "doc[params.field_name].value > 0) ? "
         "params.adv_boost : 0"
     )
     script_params = dict(adv_boost=70, field_name='advert_weight')
-    expr = Script(inline=script_inline, lang='painless', params=script_params)
+    expr = Script(inline=script_source, lang='painless', params=script_params)
     if compiler.min_es_version < (2,):
-        with pytest.raises(CompilationError):
-            expr.to_dict(compiler)
+        assert_expression(
+            expr,
+            {
+                'script': script_source,
+                'lang': 'painless',
+                'params': script_params
+            },
+            compiler
+        )
     elif compiler.min_es_version < (5, 6):
         assert_expression(
             expr,
             {
-                'inline': script_inline,
+                'inline': script_source,
                 'lang': 'painless',
                 'params': script_params
             },
@@ -268,7 +275,7 @@ def test_script(compiler):
         assert_expression(
             expr,
             {
-                'source': script_inline,
+                'source': script_source,
                 'lang': 'painless',
                 'params': script_params
             },
@@ -277,8 +284,11 @@ def test_script(compiler):
 
     expr = Script(id="adv_boost")
     if compiler.min_es_version < (2,):
-        with pytest.raises(CompilationError):
-            expr.to_dict(compiler)
+        assert_expression(
+            expr,
+            {'script_id': 'adv_boost'},
+            compiler
+        )
     elif compiler.min_es_version < (5, 0):
         assert_expression(
             expr,
@@ -300,8 +310,11 @@ def test_script(compiler):
 
     expr = Script(file="home/es/test.py")
     if compiler.min_es_version < (2,):
-        with pytest.raises(CompilationError):
-            expr.to_dict(compiler)
+        assert_expression(
+            expr,
+            {'script_file': 'home/es/test.py'},
+            compiler
+        )
     elif compiler.min_es_version < (6,):
         assert_expression(
             expr,

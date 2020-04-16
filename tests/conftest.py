@@ -1,8 +1,33 @@
-from .fixtures import client, cluster, compiler, index  # noqa: F401
+from mock import MagicMock
+
+import pytest
+
+from elasticmagic import Cluster, Index
+from elasticmagic.compiler import all_compilers
+
+
+@pytest.fixture(params=all_compilers)
+def compiler(request):
+    return request.param
+
+
+@pytest.fixture
+def client():
+    yield MagicMock()
+
+
+@pytest.fixture
+def cluster(client, compiler):
+    yield Cluster(client, compiler=compiler)
+
+
+@pytest.fixture
+def index(cluster):
+    yield Index(cluster, 'test')
 
 
 def assert_expression(expr, expected, compiler):  # noqa: F811
-    assert expr.to_dict(compiler=compiler) == expected
+    assert expr.to_elastic(compiler=compiler) == expected
 
 
 def assert_same_elements(seq1, seq2):
