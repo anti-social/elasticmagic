@@ -1595,9 +1595,9 @@ class CompiledSource(CompiledExpression):
                     raise ValidationError("'{}' is required".format(
                         attr_field.get_attr_name()
                     ))
-
-            value = attr_field.get_type() \
-                .from_python(value, self.compiler, validate=self._validate)
+            else:
+                value = attr_field.get_type() \
+                    .from_python(value, self.compiler, validate=self._validate)
             source[attr_field.get_field().get_name()] = value
 
         for attr_field in doc._fields.values():

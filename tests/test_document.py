@@ -455,11 +455,11 @@ def test_document_instance__to_source(compiler):
         _id=123,
         name='Test name',
         status=0,
-        group=GroupDocument(name='Test group'),
+        group=None,
         price=101.5,
         tags=[
             TagDocument(id=1, name='Test tag'),
-            TagDocument(id=2, name='Just tag')
+            TagDocument(id=2, name=None)
         ],
         i_attr_1=None,
         i_attr_2='',
@@ -469,13 +469,11 @@ def test_document_instance__to_source(compiler):
     assert doc.to_source(compiler) == {
         'test_name': 'Test name',
         'status': 0,
-        'group': {
-            'test_name': 'Test group'
-        },
+        'group': None,
         'price': 101.5,
         'tags': [
             {'id': 1, 'name': 'Test tag'},
-            {'id': 2, 'name': 'Just tag'},
+            {'id': 2, 'name': None},
         ],
         'i_attr_1': None,
         'i_attr_2': '',
