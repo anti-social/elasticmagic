@@ -100,7 +100,9 @@ class AsyncCluster(BaseCluster):
     ):
         return await self._do_request(
             (await self.get_compiler()).compiled_scroll,
-            self._preprocess_params(locals())
+            self._scroll_params(locals()),
+            doc_cls=doc_cls,
+            instance_mapper=instance_mapper,
         )
 
     async def clear_scroll(self, scroll_id, **kwargs):
