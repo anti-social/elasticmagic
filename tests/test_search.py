@@ -1368,6 +1368,18 @@ class SearchQueryTest(BaseTestCase):
             sq._search_params,
             {}
         )
+        sq = SearchQuery(stats='tag')
+        self.assertEqual(
+            sq._search_params,
+            {
+                'stats': 'tag'
+            }
+        )
+        sq = sq.with_stats(None)
+        self.assertEqual(
+            sq._search_params,
+            {}
+        )
         sq = sq.with_search_params({'search_type': 'count', 'query_cache': True}, unknown_param='none')
         self.assertEqual(
             sq._search_params,

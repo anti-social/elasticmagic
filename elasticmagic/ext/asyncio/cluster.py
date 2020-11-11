@@ -61,7 +61,7 @@ class AsyncCluster(BaseCluster):
     async def search(
             self, q, index=None, doc_type=None, routing=None, preference=None,
             timeout=None, search_type=None, query_cache=None,
-            terminate_after=None, scroll=None, **kwargs
+            terminate_after=None, scroll=None, stats=None, **kwargs
     ):
         return await self._do_request(
             (await self.get_compiler()).compiled_search_query,
