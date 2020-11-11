@@ -82,13 +82,13 @@ class Index(BaseIndex):
     def search(
             self, q, doc_type=None, routing=None, preference=None,
             timeout=None, search_type=None, query_cache=None,
-            terminate_after=None, scroll=None, **kwargs
+            terminate_after=None, scroll=None, stats=None, **kwargs
     ):
         return self._cluster.search(
             q, index=self._name, doc_type=doc_type,
             routing=routing, preference=preference, timeout=timeout,
             search_type=search_type, query_cache=query_cache,
-            terminate_after=terminate_after, scroll=scroll,
+            terminate_after=terminate_after, scroll=scroll, stats=stats,
             **kwargs
         )
 

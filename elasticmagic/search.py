@@ -89,7 +89,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
             self, q=None,
             cluster=None, index=None, doc_cls=None, doc_type=None,
             routing=None, preference=None, timeout=None, search_type=None,
-            query_cache=None, terminate_after=None, scroll=None,
+            query_cache=None, terminate_after=None, scroll=None, stats=None,
             **kwargs
     ):
         if q is not None:
@@ -111,6 +111,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
             query_cache=query_cache,
             terminate_after=terminate_after,
             scroll=scroll,
+            stats=stats,
             **kwargs
         )
         if search_params:
@@ -668,6 +669,9 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
     def with_scroll(self, scroll):
         return self.with_search_params(scroll=scroll)
+
+    def with_stats(self, stats):
+        return self.with_search_params(stats=stats)
 
     @_with_clone
     def with_search_params(self, *args, **kwargs):
