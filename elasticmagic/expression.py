@@ -479,6 +479,15 @@ class Sort(QueryExpression):
         )
 
 
+class SortScript(Expression):
+    __visit_name__ = 'sort_script'
+
+    def __init__(self, script, type_sort=None, order=None):
+        self.script = script
+        self.order = order
+        self.type_sort = type_sort
+
+
 class FieldOperators(object):
     def __eq__(self, other):
         if other is None:

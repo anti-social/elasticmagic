@@ -55,6 +55,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
     _post_filters_meta = ()
     _order_by = ()
     _aggregations = Params()
+    _ext = Params()
     _function_scores = OrderedDict([
         (
             BOOST_FUNCTION_SCORE.name,
@@ -413,6 +414,14 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         return self.aggregations(*args, **kwargs)
 
     @_with_clone
+    def ext(self, *args, **kwargs):
+        if len(args) == 1 and args[0] is None:
+            if '_ext' in self.__dict__:
+                del self._ext
+        else:
+            self._ext = merge_params(self._ext, args, kwargs)
+
+    @_with_clone
     def function_score_settings(self, *function_score_settings):
         """Adds or updates function score level.
         Levels will be inserted before existing.
@@ -702,6 +711,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
                     self._order_by,
                     self._rescores,
                     self._highlight,
+                    self._ext,
                 ]
             )
         )
@@ -899,6 +909,7 @@ class SearchQueryContext(object):
         self.post_filters_meta = search_query._post_filters_meta
         self.order_by = search_query._order_by
         self.aggregations = search_query._aggregations
+        self.ext = search_query._ext
         self.function_scores = search_query._function_scores
         self.limit = search_query._limit
         self.offset = search_query._offset

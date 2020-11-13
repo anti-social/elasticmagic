@@ -411,6 +411,18 @@ class CompiledExpression(Compiled):
         else:
             return self.visit(expr.expr)
 
+    def visit_sort_script(self, sort_script):
+        res = dict(script=dict())
+        if sort_script.type_sort:
+            res['type'] = sort_script.type_sort
+        if sort_script.order:
+            res['order'] = sort_script.order
+        if sort_script.script:
+            res['script'] = self.visit(sort_script.script)
+        else:
+            raise CompilationError('Invalid arguments for ScriptSort')
+        return self.visit_dict({'_script': res})
+
     def visit_agg(self, agg):
         return {
             agg.__agg_name__: self.visit(agg.params)
@@ -750,7 +762,8 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
         post_filter = self.get_post_filter(query_ctx)
         if post_filter:
             params['post_filter'] = self.visit(post_filter)
-
+        if query_ctx.ext:
+            params['ext'] = self.visit(query_ctx.ext)
         if query_ctx.order_by:
             params['sort'] = self.visit(query_ctx.order_by)
         if query_ctx.source:
