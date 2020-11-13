@@ -12,7 +12,7 @@ from elasticmagic.search import FunctionScoreSettings
 from elasticmagic.function import FieldValueFactor, Weight
 from elasticmagic.util import collect_doc_classes
 from elasticmagic.types import String, Integer, Float, Object
-from elasticmagic.expression import Field, Script
+from elasticmagic.expression import Field, Script, SortScript
 
 from .base import BaseTestCase, OrderTolerantString
 
@@ -701,6 +701,56 @@ class SearchQueryTest(BaseTestCase):
             }
         )
         self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
+
+        sq = (
+            SearchQuery().ext(
+                dict(
+                    collapse=dict(
+                        field='model_id',
+                        size=10000,
+                        shard_size=1000,
+                        sort=SortScript(
+                            script=Script(
+                                lang='painless',
+                                params={
+                                    'a': 1,
+                                },
+                                inline='score * params.a'
+                            ),
+                            order='asc',
+                            type_sort='number',
+                        )
+
+                    )
+                )
+            )
+        )
+        self.assert_expression(
+            sq,
+            {
+                'ext': {
+                    "collapse": {
+                        'field': 'model_id',
+                        'size': 10000,
+                        'shard_size': 1000,
+                        'sort': {
+                            '_script': {
+                                'script': {
+                                    'inline': 'score * params.a',
+                                    'lang': 'painless',
+                                    'params': {
+                                        'a': 1,
+                                    },
+                                },
+                                'order': 'asc',
+                                'type': 'number',
+                            }
+                        }
+
+                    }
+                },
+            }
+        )
 
         sq = (
             SearchQuery()

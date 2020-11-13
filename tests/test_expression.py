@@ -5,7 +5,7 @@ from elasticmagic import (
     Bool, Query, And, Or, Not, Sort, Field, Limit,
     Boosting, Common, ConstantScore, FunctionScore, DisMax, Filtered, Ids, Prefix,
     SpanFirst, SpanMulti, SpanNear, SpanNot, SpanOr, SpanTerm, 
-    Nested, HasParent, HasChild
+    Nested, HasParent, HasChild, SortScript,
 )
 from elasticmagic.compiler import Compiler_1_0, CompilationError
 from elasticmagic.compiler import Compiler_5_0
@@ -509,6 +509,55 @@ class ExpressionTestCase(BaseTestCase):
             compiler=Compiler_1_0
         )
 
+        self.assert_expression(
+            SortScript(script=Script(inline='score')),
+            {
+                '_script': {
+                    'script': {
+                        'inline': 'score',
+                    },
+                },
+            },
+        )
+        self.assert_expression(
+            SortScript(
+                script=Script(inline='score * 2', params={'a': 1}),
+                type_sort='number'
+            ),
+            {
+                '_script': {
+                    'script': {
+                        'inline': 'score * 2',
+                        'params': {
+                            'a': 1,
+                        },
+                    },
+                    'type': 'number',
+                }
+            },
+        )
+        self.assert_expression(
+            SortScript(
+                script=Script(
+                    inline='score * 2', params={'a': 1}, lang='painless'
+                ),
+                type_sort='number',
+                order='asc',
+            ),
+            {
+                '_script': {
+                    'script': {
+                        'inline': 'score * 2',
+                        'params': {
+                            'a': 1,
+                        },
+                        'lang': 'painless',
+                    },
+                    'type': 'number',
+                    'order': 'asc',
+                }
+            },
+        )
         self.assert_expression(
             Sort(f.post_date),
             "post_date"
