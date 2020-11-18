@@ -413,8 +413,8 @@ class CompiledExpression(Compiled):
 
     def visit_sort_script(self, sort_script):
         res = dict(script=dict())
-        if sort_script.type_sort:
-            res['type'] = sort_script.type_sort
+        if sort_script.script_type:
+            res['type'] = sort_script.script_type
         if sort_script.order:
             res['order'] = sort_script.order
         if sort_script.script:

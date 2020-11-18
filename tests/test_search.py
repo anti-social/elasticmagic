@@ -718,7 +718,7 @@ class SearchQueryTest(BaseTestCase):
                                 inline='score * params.a'
                             ),
                             order='asc',
-                            type_sort='number',
+                            script_type='number',
                         )
 
                     )
