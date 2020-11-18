@@ -522,7 +522,7 @@ class ExpressionTestCase(BaseTestCase):
         self.assert_expression(
             SortScript(
                 script=Script(inline='score * 2', params={'a': 1}),
-                type_sort='number'
+                script_type='number'
             ),
             {
                 '_script': {
@@ -541,7 +541,7 @@ class ExpressionTestCase(BaseTestCase):
                 script=Script(
                     inline='score * 2', params={'a': 1}, lang='painless'
                 ),
-                type_sort='number',
+                script_type='number',
                 order='asc',
             ),
             {
