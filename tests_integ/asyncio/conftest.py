@@ -3,7 +3,7 @@ import gc
 import os
 import warnings
 
-from elasticsearch_async import AsyncElasticsearch
+from elasticsearch import AsyncElasticsearch
 
 import pytest
 
