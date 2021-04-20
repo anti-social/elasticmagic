@@ -684,7 +684,6 @@ class AggregationTest(BaseTestCase):
                                 "histogram": {
                                     "field": "price",
                                     "interval": 50,
-                                    'min_doc_count': 1
                                 }
                             },
                         }
