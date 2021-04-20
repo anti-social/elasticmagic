@@ -2,8 +2,14 @@ import math
 from mock import Mock, patch
 
 from elasticmagic import agg, Params, Term, Document, DynamicDocument
+from elasticmagic.compiler import Compiler_2_0
+from elasticmagic.compiler import Compiler_5_0
+from elasticmagic.compiler import Compiler_6_0
+from elasticmagic.compiler import Compiler_7_0
+from elasticmagic.expression import Field, Script
 from elasticmagic.types import Integer, Boolean, List
-from elasticmagic.expression import Field
+
+import pytest
 
 from .base import BaseTestCase
 
@@ -1121,3 +1127,128 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(gender_agg.buckets[1].doc_count, 225)
         self.assertEqual(gender_agg.buckets[1].instance.title, 'Male')
         self.assertEqual(gender_mapper.call_count, 1)
+
+
+@pytest.mark.parametrize('compiler', [Compiler_2_0, Compiler_5_0, Compiler_6_0, Compiler_7_0])
+def test_bucket_script(compiler):
+    f = DynamicDocument.fields
+    a = agg.DateHistogram(
+        f.date,
+        interval='month',
+        aggs={
+            'total_sales': agg.Sum(f.price),
+            't_shirts': agg.Filter(
+                f.type == 't-shirt',
+                aggs={
+                    'sales': agg.Sum(f.price),
+                }
+            ),
+            't_shirt_percentage': agg.BucketScript(
+                buckets_path={
+                    't_shirt_sales': 't_shirts>sales',
+                    'total_sales': 'total_sales',
+                },
+                script=Script('params.t_shirt_sales / params.total_sales * 100')
+            )
+        }
+    )
+    assert a.compile(compiler).body == {
+        'date_histogram': {
+            'field': 'date',
+            'interval': 'month',
+        },
+        'aggregations': {
+            'total_sales': {
+                'sum': {
+                    'field': 'price'
+                }
+            },
+            't_shirts': {
+                'filter': {
+                    'term': {
+                        'type': 't-shirt'
+                    }
+                },
+                'aggregations': {
+                    'sales': {
+                        'sum': {
+                            'field': 'price'
+                        }
+                    }
+                }
+            },
+            't_shirt_percentage': {
+                'bucket_script': {
+                    'buckets_path': {
+                        't_shirt_sales': 't_shirts>sales',
+                        'total_sales': 'total_sales',
+                    },
+                    'script': {
+                        compiler.features.script_source_field_name:
+                            'params.t_shirt_sales / params.total_sales * 100'
+                    }
+                }
+            }
+        }
+    }
+
+    r = a.build_agg_result({
+        "buckets": [
+            {
+                "key_as_string": "2015/01/01 00:00:00",
+                "key": 1420070400000,
+                "doc_count": 3,
+                "total_sales": {
+                    "value": 50
+                },
+                "t_shirts": {
+                    "doc_count": 2,
+                    "sales": {
+                        "value": 10
+                    }
+                },
+                "t_shirt_percentage": {
+                    "value": 20
+                }
+            },
+            {
+                "key_as_string": "2015/02/01 00:00:00",
+                "key": 1422748800000,
+                "doc_count": 2,
+                "total_sales": {
+                    "value": 60
+                },
+                "t_shirts": {
+                    "doc_count": 1,
+                    "sales": {
+                        "value": 15
+                    }
+                },
+                "t_shirt_percentage": {
+                    "value": 25
+                }
+            },
+            {
+                "key_as_string": "2015/03/01 00:00:00",
+                "key": 1425168000000,
+                "doc_count": 2,
+                "total_sales": {
+                    "value": 40
+                },
+                "t_shirts": {
+                    "doc_count": 1,
+                    "sales": {
+                        "value": 20
+                    }
+                },
+                "t_shirt_percentage": {
+                    "value": 50
+                }
+            }
+        ]
+    })
+
+    assert len(r.buckets) == 3
+    assert r.buckets[0].get_aggregation('t_shirt_percentage').value == 20
+    assert r.buckets[1].get_aggregation('t_shirt_percentage').value == 25
+    assert r.buckets[2].get_aggregation('t_shirt_percentage').value == 50
