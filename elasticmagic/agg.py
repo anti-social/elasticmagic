@@ -814,7 +814,7 @@ class Histogram(MultiBucketAgg):
     __agg_name__ = 'histogram'
 
     def __init__(
-            self, field, interval=None, aggs=None, min_doc_count=1, **kwargs
+            self, field, interval=None, aggs=None, min_doc_count=None, **kwargs
     ):
         super(Histogram, self).__init__(
             field=field, interval=interval, min_doc_count=min_doc_count,
