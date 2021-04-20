@@ -12,7 +12,7 @@ from elasticmagic.ext.asyncio.cluster import AsyncCluster
 from ..conftest import Car
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def event_loop(request):
     """Create an instance of the default event loop for each test case.
     Also catches all warnings and raises exception if there was
