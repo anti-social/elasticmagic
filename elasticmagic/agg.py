@@ -640,6 +640,9 @@ class Bucket(object):
         self.parent = parent
         self.aggregations = {}
         for agg_name, agg_expr in agg_expr._aggregations.items():
+            # There is no result for some pipeline aggregations
+            if agg_expr.result_cls is None:
+                continue
             result_agg = agg_expr.build_agg_result(
                 raw_data[agg_name],
                 doc_cls_map=doc_cls_map,
@@ -952,6 +955,26 @@ class BucketScript(SingleValueMetricsAgg):
         **kwargs
     ):
         super(BucketScript, self).__init__(
+            script=script,
+            buckets_path=buckets_path,
+            gap_policy=gap_policy,
+            format=format,
+            **kwargs
+        )
+
+
+class BucketSelector(AggExpression):
+    __agg_name__ = 'bucket_selector'
+
+    def __init__(
+        self,
+        buckets_path,
+        script,
+        gap_policy=None,
+        format=None,
+        **kwargs
+    ):
+        super(BucketSelector, self).__init__(
             script=script,
             buckets_path=buckets_path,
             gap_policy=gap_policy,

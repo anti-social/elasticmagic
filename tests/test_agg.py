@@ -1252,3 +1252,70 @@ def test_bucket_script(compiler):
     assert r.buckets[0].get_aggregation('t_shirt_percentage').value == 20
     assert r.buckets[1].get_aggregation('t_shirt_percentage').value == 25
     assert r.buckets[2].get_aggregation('t_shirt_percentage').value == 50
+
+
+@pytest.mark.parametrize('compiler', [Compiler_2_0, Compiler_5_0, Compiler_6_0, Compiler_7_0])
+def test_bucket_selector(compiler):
+    f = DynamicDocument.fields
+    a = agg.DateHistogram(
+        f.date,
+        interval='month',
+        aggs={
+            'total_sales': agg.Sum(f.price),
+            'sales_bucket_filter': agg.BucketSelector(
+                buckets_path={
+                    'total_sales': 'total_sales',
+                },
+                script=Script('params.total_sales > 200')
+            )
+        }
+    )
+    assert a.compile(compiler).body == {
+        'date_histogram': {
+            'field': 'date',
+            'interval': 'month',
+        },
+        'aggregations': {
+            'total_sales': {
+                'sum': {
+                    'field': 'price'
+                }
+            },
+            'sales_bucket_filter': {
+                'bucket_selector': {
+                    'buckets_path': {
+                        'total_sales': 'total_sales',
+                    },
+                    'script': {
+                        compiler.features.script_source_field_name:
+                            'params.total_sales > 200'
+                    }
+                }
+            }
+        }
+    }
+
+    r = a.build_agg_result({
+        "buckets": [
+            {
+                "key_as_string": "2015/01/01 00:00:00",
+                "key": 1420070400000,
+                "doc_count": 3,
+                "total_sales": {
+                    "value": 550.0
+                }
+            },
+            {
+                "key_as_string": "2015/03/01 00:00:00",
+                "key": 1425168000000,
+                "doc_count": 2,
+                "total_sales": {
+                    "value": 375.0
+                },
+            }
+        ]
+    })
+
+    assert len(r.buckets) == 2
+    assert r.buckets[0].get_aggregation('sales_bucket_filter') is None
+    assert r.buckets[1].get_aggregation('sales_bucket_filter') is None
