@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/anti-social/elasticmagic.svg)](https://travis-ci.org/anti-social/elasticmagic)
+[![Test and build](https://github.com/anti-social/elasticmagic/actions/workflows/python.yaml/badge.svg)](https://github.com/anti-social/elasticmagic/actions/workflows/python.yaml)
 [![codecov](https://codecov.io/gh/anti-social/elasticmagic/branch/master/graph/badge.svg)](https://codecov.io/gh/anti-social/elasticmagic)
 [![docs](https://readthedocs.org/projects/elasticmagic/badge/?version=latest )](https://elasticmagic.readthedocs.io/en/latest/)
 
