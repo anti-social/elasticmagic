@@ -113,7 +113,7 @@ To create or update document mapping just run:
 .. testcode:: python
    :hide:
 
-   put_mapping_patch.__exit__()
+   put_mapping_patch.__exit__(None, None, None)
 
 Try to reindex some documents:
 
@@ -141,7 +141,7 @@ Try to reindex some documents:
 .. testcode:: python
    :hide:
 
-   index_patch.__exit__()
+   index_patch.__exit__(None, None, None)
 
 Now we can build query:
 
@@ -174,7 +174,7 @@ And finally make request and process result:
 .. testcode:: python
    :hide:
 
-   search_hits_patch.__exit__()
+   search_hits_patch.__exit__(None, None, None)
 
 Let's build a histogram by price:
 
@@ -209,4 +209,4 @@ Let's build a histogram by price:
 .. testcode:: python
    :hide:
 
-   search_aggs_patch.__exit__()
+   search_aggs_patch.__exit__(None, None, None)
