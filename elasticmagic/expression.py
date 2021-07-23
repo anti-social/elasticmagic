@@ -1,7 +1,6 @@
 from __future__ import absolute_import
 import inspect
 import operator
-import collections
 from itertools import count
 
 from .util import clean_params, collect_doc_classes
