@@ -6,7 +6,7 @@ from itertools import count
 
 from .util import clean_params, collect_doc_classes
 from .types import instantiate, Type
-from .compat import string_types
+from .compat import string_types, Mapping
 
 
 class Expression(object):
@@ -29,7 +29,7 @@ class Literal(Expression):
         self.obj = obj
 
 
-class Params(Expression, collections.Mapping):
+class Params(Expression, Mapping):
     __visit_name__ = 'params'
 
     def __init__(self, *args, **kwargs):
