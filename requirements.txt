@@ -1,2 +1,2 @@
-elasticsearch>=7.0.0
+elasticsearch>=7.0.0,<7.14
 python-dateutil>=2.5.0
