@@ -95,8 +95,7 @@ class BucketAgg(AggExpression):
 class SingleValueMetricsAggResult(AggResult):
     def __init__(self, agg_expr, raw_data):
         super(SingleValueMetricsAggResult, self).__init__(agg_expr)
-        # TODO: Do we really need to coerce to float?
-        self.value = maybe_float(raw_data['value'])
+        self.value = raw_data['value']
         self.value_as_string = raw_data.get(
             'value_as_string', force_unicode(raw_data['value'])
         )
@@ -233,7 +232,7 @@ class ValueCount(SingleValueMetricsAgg):
 
     .. testoutput:: value-count
 
-       7.0
+       7
     """  # noqa:E501
     __agg_name__ = 'value_count'
 
