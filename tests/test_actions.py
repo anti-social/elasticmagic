@@ -6,6 +6,8 @@ from elasticmagic import actions
 from elasticmagic.compiler import Compiler_1_0
 from elasticmagic.compiler import Compiler_2_0
 from elasticmagic.compiler import Compiler_5_0
+from elasticmagic.compiler import Compiler_6_0
+from elasticmagic.compiler import Compiler_7_0
 from elasticmagic.types import Date
 from elasticmagic.types import Integer
 from elasticmagic.types import List
@@ -28,6 +30,8 @@ class ProductWithoudTypeDocument(Document):
         Compiler_1_0,
         Compiler_2_0,
         Compiler_5_0,
+        Compiler_6_0,
+        Compiler_7_0,
     ]
 )
 def compiler(request):
@@ -46,13 +50,22 @@ def test_index_action_dict(compiler):
         {'_id': 1, '_type': 'test', 'name': 'Test'},
         refresh=True
     )
-    assert action.to_meta(compiler=compiler) == {
-        'index': {
-            '_id': 1,
-            '_type': 'test',
-            'refresh': True,
+    if compiler.features.supports_doc_type:
+        expected_meta = {
+            'index': {
+                '_id': 1,
+                '_type': 'test',
+                'refresh': True,
+            }
         }
-    }
+    else:
+        expected_meta = {
+            'index': {
+                '_id': 1,
+                'refresh': True,
+            }
+        }
+    assert action.to_meta(compiler=compiler) == expected_meta
     assert action.to_source(compiler=compiler) == {
         'name': 'Test',
     }
@@ -60,12 +73,20 @@ def test_index_action_dict(compiler):
 
 def test_index_action_document(compiler, order_doc):
     action = actions.Index(order_doc, index='orders-2019')
-    assert action.to_meta(compiler=compiler) == {
-        'index': {
-            '_type': 'order',
-            '_index': 'orders-2019',
+    if compiler.features.supports_doc_type:
+        expected_meta = {
+            'index': {
+                '_type': 'order',
+                '_index': 'orders-2019',
+            }
         }
-    }
+    else:
+        expected_meta = {
+            'index': {
+                '_index': 'orders-2019',
+            }
+        }
+    assert action.to_meta(compiler=compiler) == expected_meta
     assert action.to_source(compiler=compiler) == {
         'product_ids': [1, 2, 3],
         'date_created': datetime.datetime(2019, 1, 1),
@@ -91,24 +112,41 @@ def test_delete_action_dict(compiler):
         {'_id': 1, '_type': 'test', 'name': 'Test'},
         routing=2
     )
-    assert action.to_meta(compiler=compiler) == {
-        'delete': {
-            '_id': 1,
-            '_type': 'test',
-            'routing': 2,
+    if compiler.features.supports_doc_type:
+        expected_meta = {
+            'delete': {
+                '_id': 1,
+                '_type': 'test',
+                'routing': 2,
+            }
         }
-    }
+    else:
+        expected_meta = {
+            'delete': {
+                '_id': 1,
+                'routing': 2,
+            }
+        }
+    assert action.to_meta(compiler=compiler) == expected_meta
     assert action.to_source(compiler=compiler) is None
 
 
 def test_delete_action_document(compiler, order_doc):
     action = actions.Delete(order_doc, index='orders-2019')
-    assert action.to_meta(compiler=compiler) == {
-        'delete': {
-            '_type': 'order',
-            '_index': 'orders-2019',
+    if compiler.features.supports_doc_type:
+        expected_meta = {
+            'delete': {
+                '_type': 'order',
+                '_index': 'orders-2019',
+            }
         }
-    }
+    else:
+        expected_meta = {
+            'delete': {
+                '_index': 'orders-2019',
+            }
+        }
+    assert action.to_meta(compiler=compiler) == expected_meta
     assert action.to_source(compiler=compiler) is None
 
 
@@ -117,13 +155,22 @@ def test_create_action_dict(compiler):
         {'_id': 1, '_type': 'test', 'name': 'Test'},
         refresh=True
     )
-    assert action.to_meta(compiler=compiler) == {
-        'create': {
-            '_id': 1,
-            '_type': 'test',
-            'refresh': True,
+    if compiler.features.supports_doc_type:
+        expected_meta = {
+            'create': {
+                '_id': 1,
+                '_type': 'test',
+                'refresh': True,
+            }
         }
-    }
+    else:
+        expected_meta = {
+            'create': {
+                '_id': 1,
+                'refresh': True,
+            }
+        }
+    assert action.to_meta(compiler=compiler) == expected_meta
     assert action.to_source(compiler=compiler) == {
         'name': 'Test',
     }
@@ -131,12 +178,20 @@ def test_create_action_dict(compiler):
 
 def test_create_action_document(compiler, order_doc):
     action = actions.Create(order_doc, index='orders-2019')
-    assert action.to_meta(compiler=compiler) == {
-        'create': {
-            '_type': 'order',
-            '_index': 'orders-2019',
+    if compiler.features.supports_doc_type:
+        expected_meta = {
+            'create': {
+                '_type': 'order',
+                '_index': 'orders-2019',
+            }
         }
-    }
+    else:
+        expected_meta = {
+            'create': {
+                '_index': 'orders-2019',
+            }
+        }
+    assert action.to_meta(compiler=compiler) == expected_meta
     assert action.to_source(compiler=compiler) == {
         'product_ids': [1, 2, 3],
         'date_created': datetime.datetime(2019, 1, 1),
@@ -148,13 +203,22 @@ def test_update_action_dict(compiler):
         {'_id': 1, '_type': 'test', 'name': 'Test'},
         refresh=True
     )
-    assert action.to_meta(compiler=compiler) == {
-        'update': {
-            '_id': 1,
-            '_type': 'test',
-            'refresh': True,
+    if compiler.features.supports_doc_type:
+        expected_meta = {
+            'update': {
+                '_id': 1,
+                '_type': 'test',
+                'refresh': True,
+            }
         }
-    }
+    else:
+        expected_meta = {
+            'update': {
+                '_id': 1,
+                'refresh': True,
+            }
+        }
+    assert action.to_meta(compiler=compiler) == expected_meta
     assert action.to_source(compiler=compiler) == {
         'doc': {
             'name': 'Test',
@@ -196,13 +260,13 @@ def test_update_action_script_compiler_1_0():
             params={'product_id': 911}
         ),
         upsert={'name': 'Test via upsert'},
-        refresh=True
+        consistency='one',
     )
     assert action.to_meta(compiler=compiler) == {
         'update': {
             '_id': 1,
             '_type': 'test',
-            'refresh': True,
+            'consistency': 'one',
         }
     }
     # TODO: For Elasticsearch 1.x we should put script in-place

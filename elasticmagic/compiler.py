@@ -91,7 +91,7 @@ class MultiSearchError(ElasticsearchException):
 def _is_emulate_doc_types_mode(features, doc_cls):
     return (
         not features.supports_mapping_types and
-        doc_cls and
+        hasattr(doc_cls, 'get_doc_type') and
         doc_cls.get_doc_type() and
         doc_cls.has_parent_doc_cls()
     )
