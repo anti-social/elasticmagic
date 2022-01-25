@@ -95,7 +95,7 @@ def test_delete_action_dict(compiler):
         'delete': {
             '_id': 1,
             '_type': 'test',
-            '_routing': 2,
+            'routing': 2,
         }
     }
     assert action.to_source(compiler=compiler) is None

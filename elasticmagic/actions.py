@@ -6,7 +6,6 @@ class Action(object):
     __action_name__ = None
 
     def __init__(self, doc, index=None, doc_type=None,
-                 consistency=None, refresh=None,
                  routing=None, parent=None, timestamp=None, ttl=None,
                  version=None, version_type=None, **kwargs):
         from .index import Index as ESIndex
@@ -16,14 +15,12 @@ class Action(object):
         self.meta_params = clean_params({
             '_index': index,
             '_type': doc_type,
-            '_routing': routing,
-            '_parent': parent,
-            '_timestamp': timestamp,
-            '_ttl': ttl,
-            '_version': version,
-            '_version_type': version_type,
-            'refresh': refresh,
-            'consistency': consistency,
+            'routing': routing,
+            'parent': parent,
+            'timestamp': timestamp,
+            'ttl': ttl,
+            'version': version,
+            'version_type': version_type,
         }, **kwargs)
         self.source_params = {}
 
@@ -66,12 +63,17 @@ class Update(Action):
                  **kwargs):
         super(Update, self).__init__(
             doc or {},
-            index=index, doc_type=doc_type,
-            consistency=consistency, refresh=refresh,
-            routing=routing, parent=parent,
-            timestamp=timestamp, ttl=ttl,
-            version=version, version_type=version_type,
-            _retry_on_conflict=retry_on_conflict,
+            index=index,
+            doc_type=doc_type,
+            consistency=consistency,
+            refresh=refresh,
+            routing=routing,
+            parent=parent,
+            timestamp=timestamp,
+            ttl=ttl,
+            version=version,
+            version_type=version_type,
+            retry_on_conflict=retry_on_conflict,
             **kwargs
         )
         self.source_params = clean_params({

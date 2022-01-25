@@ -75,6 +75,7 @@ ElasticsearchFeatures = namedtuple(
         'patch_source_exclude_param',
         'supports_script_file',
         'supports_nested_script',
+        'bulk_update_underscore_retry_on_conflict',
     ]
 )
 
@@ -1490,6 +1491,7 @@ class CompiledBulk(CompiledEndpoint):
 
 
 class CompiledMeta(Compiled):
+    META_SPECIAL_PARAMS = {'_id', '_index', '_type'}
     META_FIELD_NAMES = (
         '_id',
         '_index',
@@ -1505,10 +1507,14 @@ class CompiledMeta(Compiled):
         super(CompiledMeta, self).__init__(doc_or_action)
 
     def visit_action(self, action):
-        meta = self.visit_document(action.doc)
-        meta.update(action.meta_params)
+        action_meta = self.visit_document(action.doc)
+        action_meta.update(action.meta_params)
+        if self.features.bulk_update_underscore_retry_on_conflict:
+            retry_on_conflict = action_meta.pop('retry_on_conflict', None)
+            if retry_on_conflict is not None:
+                action_meta['_retry_on_conflict'] = retry_on_conflict
         return {
-            action.__action_name__: meta
+            action.__action_name__: action_meta
         }
 
     def visit_document(self, doc):
@@ -1750,6 +1756,7 @@ def _featured_compiler(elasticsearch_features):
         patch_source_exclude_param='_source_excludes',
         supports_script_file=True,
         supports_nested_script=False,
+        bulk_update_underscore_retry_on_conflict=True,
     )
 )
 class Compiler_1_0(object):
@@ -1775,6 +1782,7 @@ class Compiler_1_0(object):
         patch_source_exclude_param='_source_excludes',
         supports_script_file=True,
         supports_nested_script=True,
+        bulk_update_underscore_retry_on_conflict=True,
     )
 )
 class Compiler_2_0(object):
@@ -1800,6 +1808,7 @@ class Compiler_2_0(object):
         patch_source_exclude_param='_source_excludes',
         supports_script_file=True,
         supports_nested_script=True,
+        bulk_update_underscore_retry_on_conflict=True,
     )
 )
 class Compiler_5_0(object):
@@ -1825,6 +1834,7 @@ class Compiler_5_0(object):
         patch_source_exclude_param='_source_excludes',
         supports_script_file=True,
         supports_nested_script=True,
+        bulk_update_underscore_retry_on_conflict=True,
     )
 )
 class Compiler_5_6(object):
@@ -1850,6 +1860,7 @@ class Compiler_5_6(object):
         patch_source_exclude_param='_source_exclude',
         supports_script_file=False,
         supports_nested_script=True,
+        bulk_update_underscore_retry_on_conflict=True,
     )
 )
 class Compiler_6_0(object):
@@ -1875,6 +1886,7 @@ class Compiler_6_0(object):
         patch_source_exclude_param='_source_exclude',
         supports_script_file=False,
         supports_nested_script=True,
+        bulk_update_underscore_retry_on_conflict=False,
     )
 )
 class Compiler_7_0(object):
