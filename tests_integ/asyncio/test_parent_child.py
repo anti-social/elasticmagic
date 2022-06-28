@@ -121,7 +121,10 @@ def check_question_meta(q, es_version, doc_cls=Question):
     if es_version.major < 6:
         assert '_doc_type.name' not in fields
     else:
-        assert fields['_doc_type.name'] == ['question']
+        assert (
+            fields.get('_doc_type.name') == ['question'] or
+            fields.get('_doc_type_join') == ['question']
+        )
 
 
 def check_standard_question_doc(q, es_version, doc_cls=Question):
@@ -143,8 +146,14 @@ def check_answer_meta(a, es_version):
         assert '_doc_type.name' not in fields
         assert '_doc_type.parent' not in fields
     else:
-        assert fields['_doc_type.name'] == ['answer']
-        assert fields['_doc_type.parent'] == ['question~1']
+        assert (
+            fields.get('_doc_type.name') == ['answer'] or
+            fields.get('_doc_type_join') == ['answer']
+        )
+        assert (
+            fields.get('_doc_type.parent') == ['question~1'] or
+            fields.get('_doc_type_join#question') == ['question~1']
+        )
 
 
 def check_standard_answer_doc(a, es_version):

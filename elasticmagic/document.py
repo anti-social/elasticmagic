@@ -22,8 +22,12 @@ def mk_uid(doc_type, doc_id):
 def get_doc_type_for_hit(hit):
     fields = hit.get('fields', {})
     custom_doc_type = fields.get(DOC_TYPE_NAME_FIELD)
+    if not custom_doc_type:
+        custom_doc_type = fields.get(DOC_TYPE_JOIN_FIELD)
+
     if custom_doc_type:
         return custom_doc_type[0]
+
     return hit['_type']
 
 
@@ -158,8 +162,12 @@ class Document(with_metaclass(DocumentMeta)):
             self._score = _hit.get('_score')
             source = _hit.get('_source')
             fields = _hit.get('fields')
-            custom_doc_type = fields.get(DOC_TYPE_NAME_FIELD) \
-                if fields else None
+            if fields:
+                custom_doc_type = fields.get(
+                    DOC_TYPE_NAME_FIELD, fields.get(DOC_TYPE_JOIN_FIELD)
+                )
+            else:
+                custom_doc_type = None
 
             for attr_field in self._mapping_fields:
                 setattr(
@@ -174,6 +182,18 @@ class Document(with_metaclass(DocumentMeta)):
                 self._type = doc_type
 
                 custom_parent_id = fields.get(DOC_TYPE_PARENT_FIELD)
+                if not custom_parent_id:
+                    parent_field_prefix = '%s#' % DOC_TYPE_JOIN_FIELD
+                    for field_name, field_value in fields.items():
+                        if not field_name.startswith(parent_field_prefix):
+                            continue
+                        if field_name == '%s%s' % (
+                                parent_field_prefix, doc_type
+                        ):
+                            continue
+                        custom_parent_id = field_value
+                        break
+
                 if custom_parent_id:
                     parent_id = custom_parent_id[0]
                     _, _, self._parent = parent_id.rpartition(
