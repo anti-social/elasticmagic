@@ -445,7 +445,7 @@ class CompiledExpression(Compiled):
     def visit_top_hits_agg(self, agg):
         params = self.visit(agg.params)
         if not self.features.supports_mapping_types:
-            self._patch_stored_fields(params, self.doc_classes)
+            self._patch_docvalue_fields(params, self.doc_classes)
         return {
             agg.__agg_name__: params
         }
@@ -627,7 +627,7 @@ class CompiledExpression(Compiled):
             params['filter'] = self.visit(func.filter)
         return params
 
-    def _patch_stored_fields(self, params, doc_classes):
+    def _patch_docvalue_fields(self, params, doc_classes):
         parent_doc_types = set()
         should_inject_stored_fields = False
         for doc_cls in doc_classes:
@@ -643,11 +643,13 @@ class CompiledExpression(Compiled):
         if not should_inject_stored_fields:
             return params
 
-        stored_fields_param = self.features.stored_fields_param
-        stored_fields = params.get(stored_fields_param)
-        params[stored_fields_param] = _add_doc_type_fields_into_stored_fields(
-            stored_fields, params.get('_source', True)
-        )
+        docvalue_fields = params.get('docvalue_fields', [])
+        if DOC_TYPE_JOIN_FIELD not in docvalue_fields:
+            docvalue_fields.append(DOC_TYPE_JOIN_FIELD)
+        doc_type_join_parents = '%s#*' % DOC_TYPE_JOIN_FIELD
+        if doc_type_join_parents not in docvalue_fields:
+            docvalue_fields.append(doc_type_join_parents)
+        params['docvalue_fields'] = docvalue_fields
 
         return params
 
@@ -800,7 +802,7 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
                 query_ctx.script_fields
             )
         if not self.features.supports_mapping_types:
-            self._patch_stored_fields(params, self.doc_classes)
+            self._patch_docvalue_fields(params, self.doc_classes)
         return params
 
     def _patch_doc_type(self, search_params):

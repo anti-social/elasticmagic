@@ -481,6 +481,39 @@ def test_document_from_hit_no_mapping_types():
     assert a.answer == '42'
 
 
+def test_document_from_hit_no_mapping_types_via_join_field():
+    q = Question(_hit={
+        '_id': 'question~1',
+        '_type': '_doc',
+        'fields': {
+            '_doc_type_join': ['question'],
+            '_doc_type_join#question': ['question~1'],
+        },
+        '_source': {
+            'question': 'The Ultimate Question',
+        }
+    })
+    assert q._id == '1'
+    assert q._type == 'question'
+    assert q.question == 'The Ultimate Question'
+
+    a = Answer(_hit={
+        '_id': 'answer~1',
+        '_type': '_doc',
+        'fields': {
+            '_doc_type_join': ['answer'],
+            '_doc_type_join#question': ['question~1'],
+        },
+        '_source': {
+            'answer': '42',
+        }
+    })
+    assert a._id == '1'
+    assert a._type == 'answer'
+    assert a._parent == '1'
+    assert a.answer == '42'
+
+
 def test_document_from_hit_with_mapping_types():
     q = Question(_hit={
         '_id': '1',
@@ -570,8 +603,8 @@ def test_top_hits_agg(compiler):
     )
     assert compiled_agg.body == {
         'top_hits': {
-            'stored_fields': [
-                '_source', '_doc_type.name', '_doc_type.parent'
+            'docvalue_fields': [
+                '_doc_type_join', '_doc_type_join#*'
             ]
         }
     }
@@ -595,6 +628,49 @@ def test_top_hits_agg_result():
                     'fields': {
                         '_doc_type.name': ['answer'],
                         '_doc_type.parent': ['question~1']
+                    }
+                }
+            ]
+        }
+    }
+    agg_res = TopHitsResult(
+        agg, raw_agg_result,
+        doc_cls_map={'question': Question, 'answer': Answer},
+        mapper_registry={},
+        instance_mapper=None
+    )
+    assert len(agg_res.hits) == 2
+    q = agg_res.hits[0]
+    assert isinstance(q, Question)
+    assert q._id == '1'
+    assert q._type == 'question'
+    assert q._parent is None
+    a = agg_res.hits[1]
+    assert isinstance(a, Answer)
+    assert a._id == '1'
+    assert a._type == 'answer'
+    assert a._parent == '1'
+
+
+def test_top_hits_agg_result_via_join_field():
+    agg = TopHits()
+    raw_agg_result = {
+        'hits': {
+            'hits': [
+                {
+                    '_type': '_doc',
+                    '_id': 'question~1',
+                    'fields': {
+                        '_doc_type_join': ['question'],
+                        '_doc_type_join#question': ['question~1']
+                    }
+                },
+                {
+                    '_type': '_doc',
+                    '_id': 'answer~1',
+                    'fields': {
+                        '_doc_type_join': ['answer'],
+                        '_doc_type_join#question': ['question~1']
                     }
                 }
             ]
@@ -645,7 +721,7 @@ def test_search_query_filter_by_ids_no_mapping_types(compiler):
                 ]
             }
         },
-        'stored_fields': ['_source', '_doc_type.name', '_doc_type.parent']
+        'docvalue_fields': ['_doc_type_join', '_doc_type_join#*']
     }
     if compiler.features.supports_doc_type:
         assert compiled_query.params == {
@@ -679,8 +755,8 @@ def test_search_query_filter_by_ids_no_mapping_types(compiler):
                 ]
             }
         },
-        'stored_fields': [
-            '_source', '_doc_type.name', '_doc_type.parent'
+        'docvalue_fields': [
+            '_doc_type_join', '_doc_type_join#*'
         ]
     }
     if compiler.features.supports_doc_type:
