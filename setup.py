@@ -12,7 +12,7 @@ setup(
     url="https://github.com/anti-social/elasticmagic",
     packages=find_packages(exclude=["tests"]),
     install_requires=[
-        "elasticsearch",
+        "elasticsearch>=6.0.0,<8.0",
         "python-dateutil",
     ],
     extras_require={
