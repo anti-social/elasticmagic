@@ -10,7 +10,7 @@ setup(
     license="Apache License 2.0",
     keywords="elasticsearch dsl",
     url="https://github.com/anti-social/elasticmagic",
-    packages=find_packages(exclude=["tests"]),
+    packages=find_packages(exclude=["tests", "tests_integ"]),
     install_requires=[
         "elasticsearch",
         "python-dateutil",
