@@ -76,7 +76,10 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: |
+      always() &&
+      github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/tags/v')
     needs:
     - unit-tests
     - integ-tests
