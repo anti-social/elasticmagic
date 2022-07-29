@@ -386,7 +386,7 @@ class CompiledExpression(Compiled):
 
     def visit_not(self, expr):
         if not self.features.supports_old_boolean_queries:
-            return self.visit(Bool.must_not(expr))
+            return self.visit(Bool.must_not(expr.expr))
         if expr.params:
             params = {
                 'filter': self.visit(expr.expr)
