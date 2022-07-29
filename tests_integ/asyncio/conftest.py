@@ -6,6 +6,7 @@ import warnings
 from elasticsearch import AsyncElasticsearch
 
 import pytest
+import pytest_asyncio
 
 from elasticmagic.ext.asyncio.cluster import AsyncCluster
 
@@ -37,7 +38,7 @@ def event_loop(request):
     loop.close()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def es_client(event_loop, es_url):
     es_url = os.environ.get('ES_URL', es_url)
     es_client = AsyncElasticsearch([es_url], event_loop=event_loop)
@@ -45,12 +46,12 @@ async def es_client(event_loop, es_url):
     await es_client.transport.close()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 def es_cluster(es_client):
     yield AsyncCluster(es_client)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def es_index(es_cluster, es_client, index_name):
     await es_client.indices.create(index=index_name)
     es_index = es_cluster[index_name]
@@ -59,13 +60,13 @@ async def es_index(es_cluster, es_client, index_name):
     await es_client.indices.delete(index=index_name)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def cars(es_index, car_docs):
     await es_index.add(car_docs, refresh=True)
     yield car_docs
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def all_cars(es_index, all_car_docs):
     await es_index.add(all_car_docs, refresh=True)
     yield all_car_docs

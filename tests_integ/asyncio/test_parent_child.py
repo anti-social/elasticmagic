@@ -23,6 +23,8 @@ from elasticmagic.types import (
 
 from elasticsearch.exceptions import NotFoundError
 
+import pytest_asyncio
+
 
 class Question(Document):
     __doc_type__ = 'question'
@@ -40,7 +42,7 @@ class Answer(Document):
     text = Field(Text)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def es_index(es_cluster, es_client, index_name):
     await es_cluster.create_index(
         index_name,
@@ -55,7 +57,7 @@ async def es_index(es_cluster, es_client, index_name):
     await es_client.indices.delete(index=index_name)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def es_index_empty(es_cluster, es_client, index_name):
     class BaseQuestion(Document):
         __doc_type__ = 'question'
@@ -78,12 +80,12 @@ async def es_index_empty(es_cluster, es_client, index_name):
     await es_client.indices.delete(index=index_name)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def es_version(es_cluster):
     yield await es_cluster.get_es_version()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def docs(es_index):
     docs = [
         Question(
