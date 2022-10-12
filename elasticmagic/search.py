@@ -73,6 +73,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
     _suggest = Params()
     _highlight = Params()
     _script_fields = Params()
+    _track_total_hits = None
 
     _cluster = None
     _index = None
@@ -91,6 +92,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
             cluster=None, index=None, doc_cls=None, doc_type=None,
             routing=None, preference=None, timeout=None, search_type=None,
             query_cache=None, terminate_after=None, scroll=None, stats=None,
+            track_total_hits=None,
             **kwargs
     ):
         if q is not None:
@@ -103,6 +105,8 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
             self._doc_cls = doc_cls
         if doc_type:
             self._doc_type = doc_type
+        if track_total_hits is not None:
+            self._track_total_hits = track_total_hits
 
         search_params = Params(
             routing=routing,
@@ -658,6 +662,10 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
     def with_instance_mapper(self, instance_mapper):
         self._instance_mapper = instance_mapper
 
+    @_with_clone
+    def with_track_total_hits(self, track_total_hits):
+        self._track_total_hits = track_total_hits
+
     def with_routing(self, routing):
         return self.with_search_params(routing=routing)
 
@@ -917,6 +925,7 @@ class SearchQueryContext(object):
         self.rescores = search_query._rescores
         self.suggest = search_query._suggest
         self.highlight = search_query._highlight
+        self.track_total_hits = search_query._track_total_hits
 
         self.cluster = search_query._cluster
         self.index = search_query._index
