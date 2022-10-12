@@ -7,7 +7,7 @@ from elasticmagic import (
     SearchQuery, Params, Term, MultiMatch,
     FunctionScore, Sort, QueryRescorer, agg
 )
-from elasticmagic.compiler import Compiler_5_0
+from elasticmagic.compiler import Compiler_5_0, Compiler_7_0
 from elasticmagic.search import FunctionScoreSettings
 from elasticmagic.function import FieldValueFactor, Weight
 from elasticmagic.util import collect_doc_classes
@@ -672,6 +672,40 @@ class SearchQueryTest(BaseTestCase):
             }
         )
         self.assertEqual(collect_doc_classes(sq), {self.index['shirt']})
+
+        sq = SearchQuery()
+        self.assert_expression(
+            sq,
+            {},
+            compiler=Compiler_7_0,
+        )
+
+        sq = SearchQuery(track_total_hits=True)
+        self.assert_expression(
+            sq,
+            {
+                "track_total_hits": True,
+            },
+            compiler=Compiler_7_0,
+        )
+
+        sq = SearchQuery(track_total_hits=False)
+        self.assert_expression(
+            sq,
+            {
+                "track_total_hits": False,
+            },
+            compiler=Compiler_7_0,
+        )
+
+        sq = SearchQuery(track_total_hits=100)
+        self.assert_expression(
+            sq,
+            {
+                "track_total_hits": 100,
+            },
+            compiler=Compiler_7_0,
+        )
 
     def test_aggregations(self):
         f = DynamicDocument.fields
