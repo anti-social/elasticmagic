@@ -1291,7 +1291,13 @@ class CompiledCreateIndex(CompiledEndpoint):
 
 
 class CompiledGet(CompiledEndpoint):
-    META_FIELDS = ('_id', '_type', '_routing', '_parent', '_version')
+    META_FIELDS = (
+        ('_id', 'id'),
+        ('_type', 'doc_type'),
+        ('_routing', 'routing'),
+        ('_parent', 'parent'),
+        ('_version', 'version'),
+    )
 
     def __init__(self, doc_or_id, params=None, doc_cls=None):
         self.doc_or_id = doc_or_id
@@ -1305,9 +1311,8 @@ class CompiledGet(CompiledEndpoint):
         get_params = {}
         if isinstance(self.doc_or_id, Document):
             doc = self.doc_or_id
-            for meta_field_name in self.META_FIELDS:
+            for meta_field_name, param_name in self.META_FIELDS:
                 field_value = getattr(doc, meta_field_name, None)
-                param_name = meta_field_name.lstrip('_')
                 if field_value is not None:
                     get_params[param_name] = field_value
             self.doc_cls = doc.__class__

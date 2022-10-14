@@ -103,7 +103,7 @@ class IndexTest(BaseTestCase):
         docs = twitter_index.multi_get(
             [
                 twitter_index['tweet'](_id=111),
-                twitter_index['user'](_id=222)
+                twitter_index['user'](_id=222, _type='user')
             ],
             refresh=True
         )
@@ -301,7 +301,7 @@ class IndexTest(BaseTestCase):
         self.assertTrue('TransportReplicationAction' in item.error.reason)
 
     def test_delete(self):
-        self.index.delete(self.index['car'](_id='test_id'), refresh=True)
+        self.index.delete(self.index['car'](_id='test_id', _type='car'), refresh=True)
         self.client.delete.assert_called_with(
             index='test',
             doc_type='car',

@@ -1,7 +1,7 @@
 import datetime
 import pytest
 
-from elasticmagic import Document, Field, Script
+from elasticmagic import Document, DynamicDocument, Field, Script
 from elasticmagic import actions
 from elasticmagic.compiler import Compiler_1_0
 from elasticmagic.compiler import Compiler_2_0
@@ -144,6 +144,30 @@ def test_delete_action_document(compiler, order_doc):
         expected_meta = {
             'delete': {
                 '_index': 'orders-2019',
+            }
+        }
+    assert action.to_meta(compiler=compiler) == expected_meta
+    assert action.to_source(compiler=compiler) is None
+
+
+def test_delete_action_dynamic_document(compiler):
+    action = actions.Delete(
+        DynamicDocument(_id='1', _type='order', _index='orders-2019'),
+        index='orders-2022'
+    )
+    if compiler.features.supports_doc_type:
+        expected_meta = {
+            'delete': {
+                '_id': '1',
+                '_type': 'order',
+                '_index': 'orders-2022',
+            }
+        }
+    else:
+        expected_meta = {
+            'delete': {
+                '_id': '1',
+                '_index': 'orders-2022',
             }
         }
     assert action.to_meta(compiler=compiler) == expected_meta
