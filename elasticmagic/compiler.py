@@ -803,8 +803,8 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
                 query_ctx.script_fields
             )
         if (
-            self.features.supports_track_total_hits
-            and query_ctx.track_total_hits is not None
+            self.features.supports_track_total_hits and
+            query_ctx.track_total_hits is not None
         ):
             params['track_total_hits'] = query_ctx.track_total_hits
         if not self.features.supports_mapping_types:
