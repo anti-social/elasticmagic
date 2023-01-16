@@ -22,6 +22,7 @@ from elasticmagic.expression import (
     ParentId,
 )
 from elasticmagic.search import SearchQuery
+from elasticmagic.types import Integer
 from elasticmagic.types import Text
 
 
@@ -30,6 +31,7 @@ class Question(Document):
     __parent__ = None
 
     question = Field(Text)
+    stars = Field(Integer)
 
 
 class Answer(Document):
@@ -64,7 +66,10 @@ def test_document_mapping_with_mapping_types(compiler):
                 'properties': {
                     'question': {
                         'type': 'text'
-                    }
+                    },
+                    'stars': {
+                        'type': 'integer'
+                    },
                 }
             }
         }
@@ -98,7 +103,10 @@ def test_document_mapping_no_mapping_types(compiler):
                 },
                 'question': {
                     'type': 'text'
-                }
+                },
+                'stars': {
+                    'type': 'integer'
+                },
             }
         }
 
@@ -145,6 +153,9 @@ def test_multiple_document_mappings_6x(compiler):
                 'question': {
                     'type': 'text'
                 },
+                'stars': {
+                    'type': 'integer'
+                },
                 'answer': {
                     'type': 'text'
                 }
@@ -185,6 +196,9 @@ def test_multiple_document_mappings_7x(compiler):
                 },
                 'question': {
                     'type': 'text'
+                },
+                'stars': {
+                    'type': 'integer'
                 },
                 'answer': {
                     'type': 'text'
@@ -244,6 +258,9 @@ def test_create_index_with_multiple_mappings_6x(compiler):
                     'question': {
                         'type': 'text'
                     },
+                    'stars': {
+                        'type': 'integer'
+                    },
                     'answer': {
                         'type': 'text'
                     }
@@ -297,6 +314,9 @@ def test_create_index_with_multiple_mappings_7x(compiler):
                 'question': {
                     'type': 'text'
                 },
+                'stars': {
+                    'type': 'integer'
+                },
                 'answer': {
                     'type': 'text'
                 }
@@ -326,6 +346,9 @@ def test_create_index_with_multiple_mappings_with_mapping_types(compiler):
                 'properties': {
                     'question': {
                         'type': 'text'
+                    },
+                    'stars': {
+                        'type': 'integer'
                     }
                 }
             },
@@ -766,6 +789,26 @@ def test_search_query_filter_by_ids_no_mapping_types(compiler):
     else:
         assert compiled_query.params == {}
 
+
+@pytest.mark.parametrize('compiler', compilers_no_mapping_types)
+def test_search_query_with_doc_value_fields(compiler):
+    sq = (
+        SearchQuery(doc_cls=[Question])
+        .docvalue_fields(Question.stars)
+    )
+    compiled_query = compiler.compiled_query(sq)
+    assert compiled_query.body == {
+        'query': {
+            'bool': {
+                'filter': {
+                    'terms': {
+                        '_doc_type_join': ['question']
+                    }
+                }
+            }
+        },
+        'docvalue_fields': ['stars', '_doc_type_join', '_doc_type_join#*']
+    }
 
 @pytest.mark.parametrize('compiler', compilers_with_mapping_types)
 def test_search_query_filter_by_ids_with_mapping_types(compiler):

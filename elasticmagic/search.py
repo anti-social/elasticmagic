@@ -2,6 +2,7 @@
 .. testsetup:: *
 
    from elasticmagic.compiler import Compiler_5_0
+   from elasticmagic.compiler import Compiler_7_0
 """
 import warnings
 from abc import ABCMeta
@@ -72,6 +73,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
     _rescores = ()
     _suggest = Params()
     _highlight = Params()
+    _docvalue_fields = Params()
     _script_fields = Params()
     _track_total_hits = None
 
@@ -190,7 +192,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
            assert search_query.to_dict(Compiler_5_0) == {'stored_fields': ['rank']}
 
         See `stored fields <https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-store.html>`_ and
-        `stored fields filtering <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-stored-fields.html>`_
+        `stored fields filtering <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-fields.html#stored-fields>`_
         for more information.
         """  # noqa:E501
         if len(fields) == 1 and fields[0] is None:
@@ -203,6 +205,33 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
     def fields(self, *fields):
         return self.stored_fields(*fields)
+
+    @_with_clone
+    def docvalue_fields(self, *fields):
+        """Allows to load doc values fields.
+        Marked in mapping as ``doc_values: true`` (turned on by default).
+
+        Example:
+
+        .. testcode:: docvalue_fields
+
+           search_query = SearchQuery().docvalue_fields(PostDocument.rank)
+
+        .. testcode:: docvalue_fields
+
+           assert search_query.to_dict(Compiler_7_0) == {'docvalue_fields': ['rank']}
+
+        See `stored fields <https://www.elastic.co/guide/en/elasticsearch/reference/current/doc-values.html>`_ and
+        `stored fields filtering <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-fields.html#docvalue-fields>`_
+        for more information.
+        """  # noqa:E501
+        if len(fields) == 1 and fields[0] is None:
+            if '_docvalue_fields' in self.__dict__:
+                del self._docvalue_fields
+        elif len(fields) == 1 and isinstance(fields[0], bool):
+            self._docvalue_fields = fields[0]
+        else:
+            self._docvalue_fields = fields
 
     @_with_clone
     def script_fields(self, *args, **kwargs):
@@ -255,7 +284,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
                }
            }
 
-        See `script fields <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-script-fields.html>`_
+        See `script fields <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-fields.html#script-fields>`_
         """  # noqa:E501
         if len(args) == 1 and args[0] is None:
             if '_script_fields' in self.__dict__:
@@ -950,6 +979,7 @@ class SearchQueryContext(object):
             doc_types, self.doc_classes
         )
 
+        self.docvalue_fields = search_query._docvalue_fields
         self.script_fields = search_query._script_fields
 
         self.search_params = search_query._search_params

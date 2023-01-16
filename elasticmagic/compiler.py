@@ -798,6 +798,10 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
             params['suggest'] = self.visit(query_ctx.suggest)
         if query_ctx.highlight:
             params['highlight'] = self.visit(query_ctx.highlight)
+        if query_ctx.docvalue_fields:
+            params['docvalue_fields'] = self.visit(
+                query_ctx.docvalue_fields
+            )
         if query_ctx.script_fields:
             params['script_fields'] = self.visit(
                 query_ctx.script_fields

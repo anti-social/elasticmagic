@@ -707,6 +707,20 @@ class SearchQueryTest(BaseTestCase):
             compiler=Compiler_7_0,
         )
 
+    def test_docvalue_fields(self):
+        f = DynamicDocument.fields
+
+        sq = SearchQuery().docvalue_fields(
+            f.price,
+            f.discount,
+        )
+        self.assert_expression(
+            sq,
+            dict(
+                docvalue_fields=['price', 'discount']
+            )
+        )
+
     def test_aggregations(self):
         f = DynamicDocument.fields
 
