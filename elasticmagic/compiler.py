@@ -67,7 +67,6 @@ ElasticsearchFeatures = namedtuple(
         'supports_mapping_types',
         'supports_doc_type',
         'supports_track_total_hits',
-        'supports_search_after',
         'stored_fields_param',
         'script_source_field_name',
         'script_id_field_name',
@@ -812,13 +811,6 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
             query_ctx.track_total_hits is not None
         ):
             params['track_total_hits'] = query_ctx.track_total_hits
-
-        if (
-            self.features.supports_search_after and
-            query_ctx.search_after is not None
-        ):
-            params['search_after'] = query_ctx.search_after
-
         if not self.features.supports_mapping_types:
             self._patch_docvalue_fields(params, self.doc_classes)
         return params
@@ -1773,7 +1765,6 @@ def _featured_compiler(elasticsearch_features):
         supports_mapping_types=True,
         supports_doc_type=True,
         supports_track_total_hits=False,
-        supports_search_after=False,
         stored_fields_param='fields',
         script_source_field_name='script',
         script_id_field_name='script_id',
@@ -1801,7 +1792,6 @@ class Compiler_1_0(object):
         supports_mapping_types=True,
         supports_doc_type=True,
         supports_track_total_hits=False,
-        supports_search_after=False,
         stored_fields_param='fields',
         script_source_field_name='inline',
         script_id_field_name='id',
@@ -1829,7 +1819,6 @@ class Compiler_2_0(object):
         supports_mapping_types=True,
         supports_doc_type=True,
         supports_track_total_hits=False,
-        supports_search_after=False,
         stored_fields_param='stored_fields',
         script_source_field_name='inline',
         script_id_field_name='stored',
@@ -1857,7 +1846,6 @@ class Compiler_5_0(object):
         supports_mapping_types=True,
         supports_doc_type=True,
         supports_track_total_hits=False,
-        supports_search_after=False,
         stored_fields_param='stored_fields',
         script_source_field_name='source',
         script_id_field_name='id',
@@ -1885,7 +1873,6 @@ class Compiler_5_6(object):
         supports_mapping_types=False,
         supports_doc_type=True,
         supports_track_total_hits=False,
-        supports_search_after=False,
         stored_fields_param='stored_fields',
         script_source_field_name='source',
         script_id_field_name='id',
@@ -1913,7 +1900,6 @@ class Compiler_6_0(object):
         supports_mapping_types=False,
         supports_doc_type=False,
         supports_track_total_hits=True,
-        supports_search_after=True,
         stored_fields_param='stored_fields',
         script_source_field_name='source',
         script_id_field_name='id',
