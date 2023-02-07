@@ -1604,3 +1604,30 @@ class SearchQueryTest(BaseTestCase):
                 }
             }
         )
+        
+    def test_search_after(self):
+        sq = SearchQuery()
+        self.assert_expression(
+            sq,
+            {},
+            compiler=Compiler_7_0,
+        )
+        
+        
+
+        sq = SearchQuery()
+        sq.search_after(1,2,3)
+        self.assert_expression(
+            sq,
+            {
+                "search_after": (1, 2, 3),
+            },
+            compiler=Compiler_7_0,
+        )
+
+        sq.search_after(None)
+        self.assert_expression(
+            sq,
+            {},
+            compiler=Compiler_7_0,
+        )

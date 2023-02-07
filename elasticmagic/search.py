@@ -76,6 +76,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
     _docvalue_fields = Params()
     _script_fields = Params()
     _track_total_hits = None
+    _search_after = None
 
     _cluster = None
     _index = None
@@ -205,6 +206,13 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
     def fields(self, *fields):
         return self.stored_fields(*fields)
+    
+    def search_after(self, *sort_values):
+        if len(sort_values) == 1 and sort_values[0] is None:
+            if '_search_after' in self.__dict__:
+                del self._search_after
+        else:
+            self._search_after = sort_values
 
     @_with_clone
     def docvalue_fields(self, *fields):
@@ -955,6 +963,7 @@ class SearchQueryContext(object):
         self.suggest = search_query._suggest
         self.highlight = search_query._highlight
         self.track_total_hits = search_query._track_total_hits
+        self.search_after = search_query._search_after
 
         self.cluster = search_query._cluster
         self.index = search_query._index
