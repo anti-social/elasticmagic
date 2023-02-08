@@ -811,6 +811,10 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
             query_ctx.track_total_hits is not None
         ):
             params['track_total_hits'] = query_ctx.track_total_hits
+
+        if query_ctx.search_after:
+            params['search_after'] = query_ctx.search_after
+
         if not self.features.supports_mapping_types:
             self._patch_docvalue_fields(params, self.doc_classes)
         return params
