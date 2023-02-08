@@ -287,7 +287,7 @@ class Document(with_metaclass(DocumentMeta)):
 
     def get_fields(self):
         return self.__hit_fields or {}
-    
+
     def get_sort_values(self):
         return self.__sort_values or []
 
