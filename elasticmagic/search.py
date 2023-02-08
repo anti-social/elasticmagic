@@ -206,7 +206,7 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
 
     def fields(self, *fields):
         return self.stored_fields(*fields)
-    
+
     def search_after(self, *sort_values):
         if len(sort_values) == 1 and sort_values[0] is None:
             if '_search_after' in self.__dict__:
