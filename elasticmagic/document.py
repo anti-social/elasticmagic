@@ -162,6 +162,7 @@ class Document(with_metaclass(DocumentMeta)):
             self._score = _hit.get('_score')
             source = _hit.get('_source')
             fields = _hit.get('fields')
+            self.__sort_values = _hit.get('sort')
             if fields:
                 custom_doc_type = fields.get(
                     DOC_TYPE_NAME_FIELD, fields.get(DOC_TYPE_JOIN_FIELD)
@@ -286,6 +287,9 @@ class Document(with_metaclass(DocumentMeta)):
 
     def get_fields(self):
         return self.__hit_fields or {}
+    
+    def get_sort_values(self):
+        return self.__sort_values or []
 
     def get_hit_fields(self):
         return self.get_fields()
