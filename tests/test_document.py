@@ -376,7 +376,11 @@ def test_document_instance__from_hit():
             '_explanation': {
                 'value': 3.14,
                 'description': 'pi',
-            }
+            },
+            'sort': [
+                1675636742438,
+                '1760183056'
+            ]
         }
     )
     assert hit_doc._id == '123'
@@ -398,6 +402,7 @@ def test_document_instance__from_hit():
     assert hit_doc.get_highlight() == {'test_name': '<em>Test</em> name'}
     assert hit_doc.get_matched_queries() == ['field_1', 'field_2']
     assert hit_doc.get_explanation() == {'value': 3.14, 'description': 'pi'}
+    assert hit_doc.get_sort_values() == [1675636742438, '1760183056']
 
 
 def test_document_instance__from_hit_with_fields():
@@ -433,6 +438,7 @@ def test_document_instance__from_hit_with_fields():
         ],
         'not_mapped': ['Test'],
     }
+    assert hit_doc.get_sort_values() == []
 
 
 def test_document_instance__from_hit_without_source():
