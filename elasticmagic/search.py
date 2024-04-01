@@ -470,8 +470,8 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         function_scores = OrderedDict()
         for fs_settings in function_score_settings:
             if fs_settings.name in self._function_scores:
-                fs = self._function_score[fs_settings.name]
-                self._function_score[fs_settings.name] = _FunctionScore(
+                fs = self._function_scores[fs_settings.name]
+                self._function_scores[fs_settings.name] = _FunctionScore(
                     fs.functions, fs_settings.settings
                 )
             else:
