@@ -1,11 +1,11 @@
 from __future__ import absolute_import
 import inspect
 import operator
+from collections.abc import Mapping
 from itertools import count
 
 from .util import clean_params, collect_doc_classes
 from .types import instantiate, Type
-from .compat import string_types, Mapping
 
 
 class Expression(object):
@@ -602,7 +602,7 @@ class Field(Expression, FieldOperators):
         self._name = None
         self._type = None
         if len(args) == 1:
-            if isinstance(args[0], string_types):
+            if isinstance(args[0], str):
                 self._name = args[0]
             elif (
                     isinstance(args[0], Type) or (

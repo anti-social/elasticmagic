@@ -2,7 +2,6 @@ import datetime
 from mock import Mock
 
 from elasticmagic import agg, Document, Field, Match
-from elasticmagic.compat import text_type
 from elasticmagic.compiler import Compiler_5_0
 from elasticmagic.types import Integer, Float, List, Nested, String, Date
 from elasticmagic.ext.queryfilter import FacetFilter
@@ -141,7 +140,7 @@ def test_facet_filter(index, client):
     def get_title(v):
         if v.instance:
             return v.instance.title
-        return text_type(v.value)
+        return str(v.value)
 
     class CarQueryFilter(QueryFilter):
         type = FacetFilter(

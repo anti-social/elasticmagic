@@ -4,7 +4,6 @@ from .attribute import _attributed_field_factory
 from .expression import Field, MappingField
 from .datastructures import OrderedAttributes
 from .util import cached_property
-from .compat import with_metaclass
 
 
 DOC_TYPE_FIELD = '_doc_type'
@@ -128,7 +127,7 @@ class DocumentMeta(type):
         return getattr(cls.fields, name)
 
 
-class Document(with_metaclass(DocumentMeta)):
+class Document(metaclass=DocumentMeta):
     __visit_name__ = 'document'
 
     _uid = MappingField(String)
@@ -327,7 +326,7 @@ class DynamicDocumentMeta(DocumentMeta):
         return cls.fields[name]
 
 
-class DynamicDocument(with_metaclass(DynamicDocumentMeta, Document)):
+class DynamicDocument(Document, metaclass=DynamicDocumentMeta):
     def _process_source_key_value(self, key, value):
         key, value = (
             super(DynamicDocument, self)._process_source_key_value(key, value)

@@ -6,10 +6,9 @@ from math import ceil
 
 from . import SearchQueryWrapper
 from ...cluster import MAX_RESULT_WINDOW
-from ...compat import with_metaclass
 
 
-class BasePagination(with_metaclass(ABCMeta)):
+class BasePagination(metaclass=ABCMeta):
     def _prev_page_params(self):
         return {
             'page': self.prev_num,

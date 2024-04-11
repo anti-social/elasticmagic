@@ -1,4 +1,3 @@
-from .compat import string_types
 from .document import DynamicDocument
 from .document import get_doc_type_for_hit
 
@@ -122,7 +121,7 @@ class ActionResult(Result):
         self.found = data.get('found')
         raw_error = data.get('error')
         if raw_error:
-            if isinstance(raw_error, string_types):
+            if isinstance(raw_error, str):
                 self.error = raw_error
             else:
                 self.error = ErrorReason(raw_error)

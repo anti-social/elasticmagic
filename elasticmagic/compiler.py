@@ -1,14 +1,12 @@
 import operator
 from collections import OrderedDict
 from collections import namedtuple
+from collections.abc import Iterable, Mapping
 from functools import partial
 
 from elasticsearch import ElasticsearchException
 
 from elasticmagic.attribute import AttributedField
-from .compat import Iterable
-from .compat import Mapping
-from .compat import string_types
 from .document import DOC_TYPE_JOIN_FIELD
 from .document import DOC_TYPE_FIELD
 from .document import DOC_TYPE_NAME_FIELD
@@ -107,7 +105,7 @@ def _add_doc_type_fields_into_stored_fields(
     extra_stored_fields.extend([DOC_TYPE_NAME_FIELD, DOC_TYPE_PARENT_FIELD])
     if not stored_fields:
         return extra_stored_fields
-    elif isinstance(stored_fields, string_types):
+    elif isinstance(stored_fields, str):
         return [stored_fields] + extra_stored_fields
     elif isinstance(stored_fields, list):
         return stored_fields + extra_stored_fields
@@ -119,7 +117,7 @@ def _add_doc_type_fields_into_stored_fields(
 def _patch_stored_fields_in_params(features, params, add_source_field):
     stored_fields_param = features.stored_fields_param
     stored_fields = params.get(stored_fields_param)
-    if isinstance(stored_fields, string_types):
+    if isinstance(stored_fields, str):
         stored_fields = stored_fields.split(',')
     stored_fields = _add_doc_type_fields_into_stored_fields(
         stored_fields, add_source_field

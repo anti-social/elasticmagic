@@ -2,12 +2,11 @@ from __future__ import absolute_import
 
 from abc import ABCMeta
 
-from .compat import with_metaclass
 from .document import DynamicDocument
 from .util import to_camel_case
 
 
-class BaseIndex(with_metaclass(ABCMeta)):
+class BaseIndex(metaclass=ABCMeta):
     def __init__(self, cluster, name):
         self._cluster = cluster
         self._name = name

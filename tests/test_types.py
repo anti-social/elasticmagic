@@ -1,10 +1,8 @@
 import binascii
 import datetime
-import unittest
 
 import pytest
 
-from elasticmagic.compat import PY2
 from elasticmagic.compiler import Compiler_5_0
 from elasticmagic.document import DynamicDocument
 from elasticmagic.types import (
@@ -151,12 +149,8 @@ def test_binary():
     t = Binary()
     assert t.to_python(None) is None
     assert t.to_python('dGVzdA==') == b'test'
-    if PY2:
-        with pytest.raises(TypeError):
-            t.to_python('dGVzdA=')
-    else:
-        with pytest.raises(binascii.Error):
-            t.to_python('dGVzdA=')
+    with pytest.raises(binascii.Error):
+        t.to_python('dGVzdA=')
     assert t.from_python(b'test', Compiler_5_0) == 'dGVzdA=='
     with pytest.raises(TypeError):
         t.from_python(True, Compiler_5_0)
