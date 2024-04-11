@@ -17,7 +17,7 @@ jobs:
       !contains(github.event.head_commit.message, '[skip tests]')
     strategy:
       matrix:
-        python-version: ['2.7', '3.7', '3.8', '3.9', '3.10', 'pypy3.8']
+        python-version: ['3.7', '3.8', '3.9', '3.10', 'pypy3.8']
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.python-version }}
@@ -45,7 +45,7 @@ jobs:
     strategy:
       matrix:
         es-version: ['5.6.16', '6.8.23', '7.16.3']
-        python-version: ['2.7', '3.7', '3.8', '3.9', '3.10', 'pypy3.8']
+        python-version: ['3.7', '3.8', '3.9', '3.10', 'pypy3.8']
     services:
       elasticsearch:
         image: elasticsearch:${{ matrix.es-version }}
