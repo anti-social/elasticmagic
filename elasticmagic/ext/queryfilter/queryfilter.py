@@ -6,7 +6,6 @@ from itertools import chain
 
 from elasticmagic import agg
 from elasticmagic.cluster import MAX_RESULT_WINDOW
-from elasticmagic.compat import text_type, string_types, with_metaclass
 from elasticmagic.expression import Bool, MatchAll, Nested
 from elasticmagic.types import Integer, instantiate
 
@@ -51,7 +50,7 @@ class QueryFilterMeta(type):
             type.__setattr__(cls, name, value)
 
 
-class QueryFilter(with_metaclass(QueryFilterMeta)):
+class QueryFilter(metaclass=QueryFilterMeta):
     NAME = 'qf'
 
     CONJ_OR = 'CONJ_OR'
@@ -168,7 +167,7 @@ class BaseFilterResult(object):
 
 class BaseFilter(object):
     def __new__(cls, *args, **kwargs):
-        if not args or not isinstance(args[0], string_types):
+        if not args or not isinstance(args[0], str):
             return UnboundFilter(cls, args, kwargs)
         return super(BaseFilter, cls).__new__(cls)
 
@@ -447,11 +446,11 @@ class FacetValueResult(object):
         if self._get_title:
             return self._get_title(self)
         if self.instance:
-            return text_type(self.instance)
-        return text_type(self.value)
+            return str(self.instance)
+        return str(self.value)
 
     def __str__(self):
-        return text_type(self.title)
+        return str(self.title)
 
     __unicode__ = __str__
 
@@ -553,11 +552,11 @@ class FacetValue(BaseFilterValue):
         if self.filter._get_title:
             return self.filter._get_title(self)
         if self.instance:
-            return text_type(self.instance)
-        return text_type(self.value)
+            return str(self.instance)
+        return str(self.value)
 
     def __str__(self):
-        return text_type(self.title)
+        return str(self.title)
 
     __unicode__ = __str__
 
@@ -801,10 +800,10 @@ class FacetQueryValue(BaseFilterValue):
 
     @property
     def title(self):
-        return text_type(self.opts.get('title', self.value))
+        return str(self.opts.get('title', self.value))
 
     def __str__(self):
-        return text_type(self.title)
+        return str(self.title)
 
     __unicode__ = __str__
 
@@ -955,10 +954,10 @@ class FacetQueryValueResult(object):
 
     @property
     def title(self):
-        return text_type(self.opts.get('title', self.value))
+        return str(self.opts.get('title', self.value))
 
     def __str__(self):
-        return text_type(self.title)
+        return str(self.title)
 
     __unicode__ = __str__
 
@@ -975,7 +974,7 @@ class OrderingValue(BaseFilterValue):
         )
 
     def __str__(self):
-        return text_type(self.opts.get('title', self.value))
+        return str(self.opts.get('title', self.value))
 
     __unicode__ = __str__
 
@@ -1063,7 +1062,7 @@ class OrderingValueResult(object):
         self.title = title
 
     def __str__(self):
-        return text_type(self.title)
+        return str(self.title)
 
     __unicode__ = __str__
 

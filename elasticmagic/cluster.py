@@ -1,6 +1,5 @@
 from abc import ABCMeta
 
-from .compat import with_metaclass
 from .compiler import (
     ESVersion,
     get_compiler_by_es_version,
@@ -17,7 +16,7 @@ from .util import clean_params
 MAX_RESULT_WINDOW = 10000
 
 
-class BaseCluster(with_metaclass(ABCMeta)):
+class BaseCluster(metaclass=ABCMeta):
     _index_cls = None
     _search_query_cls = None
 

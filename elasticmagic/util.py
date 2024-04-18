@@ -1,7 +1,6 @@
+from collections.abc import Iterable, Mapping
 from functools import wraps
 from itertools import chain
-
-from .compat import Iterable, Mapping
 
 
 def _with_clone(fn):

@@ -12,8 +12,6 @@ try:
 except ImportError:
     GEOHASH_IMPORTED = False
 
-from .compat import binary_type, text_type, string_types
-
 
 def instantiate(typeobj, *args, **kwargs):
     if inspect.isclass(typeobj):
@@ -49,10 +47,10 @@ class Type(object):
 class String(Type):
     __visit_name__ = 'string'
 
-    python_type = text_type
+    python_type = str
 
     def from_python(self, value, compiler, validate=False):
-        return text_type(value)
+        return str(value)
 
 
 class Keyword(String):
@@ -176,7 +174,7 @@ class Boolean(Type):
 class Binary(Type):
     __visit_name__ = 'binary'
 
-    python_type = binary_type
+    python_type = str
 
     def to_python(self, value):
         if value is None:
@@ -203,7 +201,7 @@ class Ip(Type):
         r'(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
     )
 
-    python_type = text_type
+    python_type = str
 
     def from_python(self, value, compiler, validate=False):
         if validate:
@@ -290,7 +288,7 @@ class GeoPoint(Type):
             return None
         if isinstance(value, (list, tuple)):
             value = list(reversed(value))
-        if isinstance(value, string_types):
+        if isinstance(value, str):
             if self.LAT_LON_SEPARATOR in value:
                 value = list(value.split(self.LAT_LON_SEPARATOR))
             elif GEOHASH_IMPORTED:

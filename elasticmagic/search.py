@@ -7,9 +7,8 @@
 import warnings
 from abc import ABCMeta
 from collections import namedtuple, OrderedDict
+from collections.abc import Iterable
 
-from .compat import zip, with_metaclass, string_types
-from .compat import Iterable
 from .util import _with_clone
 from .util import merge_params, collect_doc_classes
 from .expression import Params, Source, Highlight, Rescore, Script
@@ -46,7 +45,7 @@ BOOST_FUNCTION_SCORE = FunctionScoreSettings(
 )
 
 
-class BaseSearchQuery(with_metaclass(ABCMeta)):
+class BaseSearchQuery(metaclass=ABCMeta):
     _q = None
     _source = None
     _fields = None
@@ -470,8 +469,8 @@ class BaseSearchQuery(with_metaclass(ABCMeta)):
         function_scores = OrderedDict()
         for fs_settings in function_score_settings:
             if fs_settings.name in self._function_scores:
-                fs = self._function_score[fs_settings.name]
-                self._function_score[fs_settings.name] = _FunctionScore(
+                fs = self._function_scores[fs_settings.name]
+                self._function_scores[fs_settings.name] = _FunctionScore(
                     fs.functions, fs_settings.settings
                 )
             else:
@@ -978,7 +977,7 @@ class SearchQueryContext(object):
 
         if not search_query._doc_type:
             doc_types = []
-        elif isinstance(search_query._doc_type, string_types):
+        elif isinstance(search_query._doc_type, str):
             doc_types = [
                 t.strip() for t in search_query._doc_type.split(',')
             ]
