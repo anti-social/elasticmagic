@@ -178,7 +178,7 @@ class Document(metaclass=DocumentMeta):
 
             if custom_doc_type:
                 doc_type = custom_doc_type[0]
-                doc_id = _hit['_id']
+                doc_id = _hit.get('_id')
                 if doc_id is not None:
                     _, _, self._id = doc_id.rpartition(DOC_TYPE_ID_DELIMITER)
                 else:
