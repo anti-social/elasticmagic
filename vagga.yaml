@@ -9,7 +9,6 @@ containers:
       - !PipConfig
         dependencies: true
       - !Py2Requirements requirements.txt
-      - !Py2Requirements requirements_geo.txt
       - !Py2Requirements requirements_test.txt
 
   py3-test:
@@ -19,7 +18,6 @@ containers:
       - !PipConfig
         dependencies: true
       - !Py3Requirements requirements.txt
-      - !Py3Requirements requirements_geo.txt
       - !Py3Requirements requirements_async.txt
       - !Py3Requirements requirements_async_test.txt
       - !Py3Requirements requirements_lint.txt

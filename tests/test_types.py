@@ -201,13 +201,10 @@ def test_list():
         t.from_python([1 << 31], Compiler_5_0, validate=True)
 
 
-def test_geo_poing():
+def test_geo_point():
     t = GeoPoint()
     assert t.to_python(None) == None
     assert t.to_python('41.12,-71.34') == {'lat': 41.12, 'lon': -71.34}
-    p = t.to_python('drm3btev3e86')
-    assert p['lat'] == pytest.approx(41.12)
-    assert p['lon'] == pytest.approx(-71.3400001)
     assert t.to_python([-71.34, 41.12]) == {'lat': 41.12, 'lon': -71.34}
     assert t.to_python({'lat': 41.12, 'lon': -71.32}) == \
         {'lat': 41.12, 'lon': -71.32}

@@ -110,3 +110,12 @@ async def test_scroll(es_index, all_cars):
     assert len(res.hits) == 1
 
     await es_index.clear_scroll(scroll_id=res.scroll_id)
+
+
+@pytest.mark.asyncio
+async def test_disabled_stored_fields(es_index, cars):
+    res = await es_index.search_query().stored_fields("_none_").get_result()
+
+    assert res.error is None
+    for doc in res:
+        assert doc._id is None

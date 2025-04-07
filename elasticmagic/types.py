@@ -6,12 +6,6 @@ import copy
 
 import dateutil.parser
 
-try:
-    import geohash
-    GEOHASH_IMPORTED = True
-except ImportError:
-    GEOHASH_IMPORTED = False
-
 
 def instantiate(typeobj, *args, **kwargs):
     if inspect.isclass(typeobj):
@@ -291,8 +285,6 @@ class GeoPoint(Type):
         if isinstance(value, str):
             if self.LAT_LON_SEPARATOR in value:
                 value = list(value.split(self.LAT_LON_SEPARATOR))
-            elif GEOHASH_IMPORTED:
-                value = list(geohash.decode(value))
         elif isinstance(value, dict):
             value = [value.get('lat'), value.get('lon')]
         return {'lat': float(value[0]), 'lon': float(value[1])}

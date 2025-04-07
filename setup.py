@@ -16,9 +16,6 @@ setup(
         "python-dateutil",
     ],
     extras_require={
-        "geo": [
-            "python-geohash",
-        ],
         "async": [
             "elasticsearch-py-async",
         ],
