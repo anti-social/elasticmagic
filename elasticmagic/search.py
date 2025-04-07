@@ -623,7 +623,7 @@ class BaseSearchQuery(metaclass=ABCMeta):
         """Adds `suggesters <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-suggesters.html>`_
         to the query"""  # noqa:E501
         if args == (None,):
-            if'_suggest' in self.__dict__:
+            if '_suggest' in self.__dict__:
                 del self._suggest
         else:
             self._suggest = merge_params(self._suggest, args, kwargs)
