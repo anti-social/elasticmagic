@@ -30,7 +30,6 @@ from itertools import chain
 from .document import DynamicDocument
 from .document import get_doc_type_for_hit
 from .expression import ParamsExpression, Params
-from .compat import force_unicode
 from .types import instantiate, Type
 from .util import _with_clone, cached_property, maybe_float, merge_params
 
@@ -97,7 +96,7 @@ class SingleValueMetricsAggResult(AggResult):
         super(SingleValueMetricsAggResult, self).__init__(agg_expr)
         self.value = raw_data['value']
         self.value_as_string = raw_data.get(
-            'value_as_string', force_unicode(raw_data['value'])
+            'value_as_string', str(raw_data['value'])
         )
 
 

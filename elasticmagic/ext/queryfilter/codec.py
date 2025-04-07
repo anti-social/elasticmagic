@@ -6,7 +6,6 @@ import dateutil.parser
 
 from elasticmagic.types import instantiate
 from elasticmagic.types import Type
-from elasticmagic.compat import force_unicode
 
 
 TIME_ATTRS = {'hour', 'minute', 'second', 'microsecond', 'tzinfo'}
@@ -22,10 +21,10 @@ class TypeCodec(object):
 
 class StringCodec(TypeCodec):
     def decode(self, value, es_type=None):
-        return force_unicode(value)
+        return str(value)
 
     def encode(self, value, es_type=None):
-        return force_unicode(value)
+        return str(value)
 
 
 class FloatCodec(TypeCodec):
@@ -42,8 +41,8 @@ class FloatCodec(TypeCodec):
 class IntCodec(TypeCodec):
     def encode(self, value, es_type=None):
         if isinstance(value, int):
-            return force_unicode(value)
-        return force_unicode(int(value))
+            return str(value)
+        return str(int(value))
 
     def decode(self, value, es_type=None):
         v = int(value)
