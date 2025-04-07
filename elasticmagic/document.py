@@ -27,7 +27,7 @@ def get_doc_type_for_hit(hit):
     if custom_doc_type:
         return custom_doc_type[0]
 
-    return hit['_type']
+    return hit.get('_type')
 
 
 class DocumentMeta(type):
@@ -178,7 +178,11 @@ class Document(metaclass=DocumentMeta):
 
             if custom_doc_type:
                 doc_type = custom_doc_type[0]
-                _, _, self._id = _hit['_id'].rpartition(DOC_TYPE_ID_DELIMITER)
+                doc_id = _hit['_id']
+                if doc_id is not None:
+                    _, _, self._id = doc_id.rpartition(DOC_TYPE_ID_DELIMITER)
+                else:
+                    self._id = None
                 self._type = doc_type
 
                 custom_parent_id = fields.get(DOC_TYPE_PARENT_FIELD)
