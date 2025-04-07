@@ -5,10 +5,10 @@ name: Test and build
 
 on:
   push:
-    branches: [ "**" ]
+    branches: [ master ]
     tags: [ "v*" ]
   pull_request:
-    branches: [ master, dev/evo ]
+    branches: [ master ]
 
 jobs:
   unit-tests:
