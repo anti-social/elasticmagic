@@ -263,12 +263,12 @@ class SearchQueryTest(BaseTestCase):
 
         sq = (
             SearchQuery()
-            .fields(True)
+            .fields("*")
         )
         self.assert_expression(
             sq,
             {
-                "stored_fields": '*'
+                "stored_fields": ['*']
             }
         )
         self.assertEqual(collect_doc_classes(sq), set())
@@ -285,13 +285,15 @@ class SearchQueryTest(BaseTestCase):
         sq = (
             SearchQuery()
             .fields(f.name, f.company)
-            .fields(False)
+            .fields(f.keywords)
         )
         self.assert_expression(
             sq,
-            {}
+            {
+                "stored_fields": ["name", "company", "keywords"]
+            }
         )
-        self.assertEqual(collect_doc_classes(sq), set())
+        self.assertEqual(collect_doc_classes(sq), {DynamicDocument})
 
         sq = (
             SearchQuery()

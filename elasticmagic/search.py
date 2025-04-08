@@ -48,7 +48,7 @@ BOOST_FUNCTION_SCORE = FunctionScoreSettings(
 class BaseSearchQuery(metaclass=ABCMeta):
     _q = None
     _source = None
-    _fields = None
+    _fields = ()
     _filters = ()
     _filters_meta = ()
     _post_filters = ()
@@ -72,7 +72,7 @@ class BaseSearchQuery(metaclass=ABCMeta):
     _rescores = ()
     _suggest = Params()
     _highlight = Params()
-    _docvalue_fields = Params()
+    _docvalue_fields = ()
     _script_fields = Params()
     _track_total_hits = None
     _search_after = None
@@ -198,10 +198,8 @@ class BaseSearchQuery(metaclass=ABCMeta):
         if len(fields) == 1 and fields[0] is None:
             if '_fields' in self.__dict__:
                 del self._fields
-        elif len(fields) == 1 and isinstance(fields[0], bool):
-            self._fields = fields[0]
         else:
-            self._fields = fields
+            self._fields = self._fields + fields
 
     def fields(self, *fields):
         return self.stored_fields(*fields)
@@ -235,10 +233,8 @@ class BaseSearchQuery(metaclass=ABCMeta):
         if len(fields) == 1 and fields[0] is None:
             if '_docvalue_fields' in self.__dict__:
                 del self._docvalue_fields
-        elif len(fields) == 1 and isinstance(fields[0], bool):
-            self._docvalue_fields = fields[0]
         else:
-            self._docvalue_fields = fields
+            self._docvalue_fields = self._docvalue_fields + fields
 
     @_with_clone
     def script_fields(self, *args, **kwargs):
