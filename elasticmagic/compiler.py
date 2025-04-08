@@ -770,16 +770,10 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
             params['sort'] = self.visit(query_ctx.order_by)
         if query_ctx.source:
             params['_source'] = self.visit(query_ctx.source)
-        if query_ctx.fields is not None:
-            stored_fields_param = self.features.stored_fields_param
-            if query_ctx.fields is True:
-                params[stored_fields_param] = '*'
-            elif query_ctx.fields is False:
-                pass
-            else:
-                params[stored_fields_param] = self.visit(
-                    query_ctx.fields
-                )
+        if query_ctx.fields:
+            params[self.features.stored_fields_param] = self.visit(
+                query_ctx.fields
+            )
         if query_ctx.aggregations:
             params['aggregations'] = self.visit(
                 query_ctx.aggregations
