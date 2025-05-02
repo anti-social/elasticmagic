@@ -104,6 +104,7 @@ commands = [
 ]
 
 [tool.tox.gh.python]
-"3.8" = ["flake8", "py38"]
-"3.9" = ["flake8", "py39"]
-"3.10" = ["flake8", "py310"]
+"3.8" = ["py38"]
+"3.9" = ["py39"]
+"3.10" = ["py310"]
+"pypy3.8" = ["pypy3.8"]
