@@ -42,7 +42,7 @@ jobs:
         uv tool run -v tox -e flake8
     - name: Run unit tests
       run: |
-        uv tool run -v tox ${TOX_ENV_OPTS} -- tests -v --cov --cov-append
+        uv tool run -v tox ${TOX_ENV_OPTS} -- -v --cov --cov-append
     - name: Run doc tests
       run: |
         uv tool run -v tox -e doctest
@@ -78,11 +78,11 @@ jobs:
         uv tool install tox --with tox-uv
     - name: Run integration tests
       run: |
-        uv tool run tox -e integ -- tests_integ/general -v --cov --cov-append
+        uv tool run tox -e integ -- -v --cov --cov-append
     - name: Run async integration tests
       if: startsWith(matrix.python-version, '3.')
       run: |
-        uv tool run tox -e integ-async -- tests_integ/asyncio -v --cov --cov-append
+        uv tool run tox -e integ-async -- -v --cov --cov-append
 
   deploy:
     runs-on: ubuntu-latest
