@@ -2,7 +2,7 @@
 .. testsetup:: min,sum,value-count,top-hits,stats,percentiles,percentile-ranks
 
    from __future__ import print_function
-   from mock import Mock
+   from unittest.mock import Mock
 
    from elasticmagic import agg, Cluster, SearchQuery, DynamicDocument
    from elasticmagic.compiler import Compiler_5_0

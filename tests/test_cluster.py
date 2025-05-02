@@ -1,5 +1,5 @@
 import warnings
-from mock import Mock
+from unittest.mock import Mock
 
 from elasticmagic import (
     actions, agg, Cluster, DynamicDocument, Index, SearchQuery

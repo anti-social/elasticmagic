@@ -1,5 +1,5 @@
 import datetime
-from mock import Mock
+from unittest.mock import Mock
 
 from elasticmagic import agg, Document, Field, Match
 from elasticmagic.compiler import Compiler_5_0

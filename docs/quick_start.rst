@@ -6,7 +6,7 @@ Quick Start
 
 .. testsetup:: python
 
-   from mock import patch
+   from unittest.mock import patch
 
    from elasticsearch import Elasticsearch
    from elasticsearch.client import IndicesClient

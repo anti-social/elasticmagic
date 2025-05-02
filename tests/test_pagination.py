@@ -1,4 +1,4 @@
-from mock import Mock
+from unittest.mock import Mock
 
 from elasticmagic.ext.pagination import SearchQueryWrapper
 from elasticmagic.ext.pagination.flask import Pagination

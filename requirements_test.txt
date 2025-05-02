@@ -1,6 +1,0 @@
-mock
-setuptools
-attrs
-pytest
-pytest-cov
-coverage

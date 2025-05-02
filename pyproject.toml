@@ -1,0 +1,105 @@
+[project]
+name = "elasticmagic"
+version = "0.3.0"
+description = "Add your description here"
+authors = [
+    { name = "Alexander Koval", email = "kovalidis@gmail.com" }
+]
+dependencies = [
+    "python-dateutil>=2.8.2",
+    "elasticsearch<7.14",
+]
+readme = "README.md"
+requires-python = ">= 3.8"
+
+[project.optional-dependencies]
+async = [
+    "elasticsearch[async]<7.14",
+]
+
+[dependency-groups]
+dev = [
+    "coverage>=7.6.1",
+    "flake8>=5.0.4",
+    "flake8-pyproject>=1.2.3",
+    "imagesize>=1.4.1",
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=5.0.0",
+    "sphinx>=7.1.2",
+    "sphinx-rtd-theme>=3.0.2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+managed = true
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "elasticmagic",
+]
+
+[tool.pytest.ini_options]
+addopts = "--cov-report=term --cov-report=html:htmlcov"
+filterwarnings = """
+    ignore::DeprecationWarning:elasticsearch_async.connection
+    ignore:The loop argument is deprecated since Python 3.8:DeprecationWarning:
+"""
+
+[tool.coverage.run]
+branch = true
+source = "elasticmagic,tests"
+
+[tool.flake8]
+ignore = [
+    # comparison to None should be 'if cond is not None:'
+    "E711",
+    # line break before binary operator
+    "W503",
+    # line break after binary operator
+    "W504",
+]
+
+### Tox configuration ###
+
+[tool.tox]
+env_list = ["py3.9", "py3.10", "pypy3.9", "flake8"]
+
+[tool.tox.env_run_base]
+runner = "uv-venv-lock-runner"
+commands = [
+    ["pytest", "tests", { replace = "posargs", extend = true }]
+]
+
+[tool.tox.env.flake8]
+commands = [
+    ["flake8", "elasticmagic", "tests_integ", "tests/conftest.py", "tests/fixtures.py", "tests/test_document.py"]
+]
+
+[tool.tox.env.doctest]
+set_env = { LC_ALL = "C" }
+commands = [
+    ["sphinx-build", "-b", "doctest", "docs", "docs/_build/doctest"]
+]
+
+[tool.tox.env.integ]
+commands = [
+    ["pytest", "tests_integ/general", { replace = "posargs", extend = true }]
+]
+
+[tool.tox.env.integ-async]
+extras = ["async"]
+commands = [
+    ["pytest", "tests_integ/asyncio", { replace = "posargs", extend = true }]
+]
+
+[tool.tox.gh.python]
+"3.9" = ["py3.9"]
+"3.10" = ["py3.10"]
+"pypy3.9" = ["pypy3.9"]

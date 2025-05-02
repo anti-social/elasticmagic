@@ -1,3 +1,4 @@
+from elasticmagic import Document
 from elasticmagic import DynamicDocument
 from elasticmagic import (
     Params, Term, Terms, Exists, Missing, Match, MatchPhrase,
@@ -13,13 +14,31 @@ from elasticmagic.compiler import Compiler_5_6
 from elasticmagic.compiler import Compiler_6_0
 from elasticmagic.expression import BooleanExpression, Script
 from elasticmagic.types import (
-    Type, String, Integer, List, GeoPoint, Completion, Text
+    Boolean, Type, String, Integer, List, GeoPoint, Completion, Text
 )
 
 from .base import BaseTestCase
 
 
 class ExpressionTestCase(BaseTestCase):
+    def test_bool_field_expression(self):
+        class Doc(Document):
+            flag = Field(Boolean)
+
+        self.assert_expression(
+            Doc.flag == True,
+            {"term": {"flag": True}}
+        )
+
+        # TODO: Reduce expression
+        # self.assert_expression(
+        #     Bool(should=[
+        #         Doc.flag == True,
+        #         Doc.flag == True,
+        #     ]),
+        #     {"term": {"flag": True}}
+        # )
+
     def test_expression(self):
         f = DynamicDocument.fields
 
