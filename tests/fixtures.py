@@ -4,7 +4,7 @@ from elasticsearch import Elasticsearch
 
 from elasticmagic import Cluster, Index
 from elasticmagic.compiler import all_compilers
-from elasticmagic.compiler import Compiler_5_0
+from elasticmagic.compiler import Compiler_7_0
 
 
 @pytest.fixture
@@ -15,7 +15,7 @@ def client():
 @pytest.fixture
 def cluster(client):
     yield Cluster(
-        client, autodetect_es_version=False, compiler=Compiler_5_0
+        client, autodetect_es_version=False, compiler=Compiler_7_0
     )
 
 

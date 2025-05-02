@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import MagicMock
 
 from elasticmagic import Cluster, Index
-from elasticmagic.compiler import Compiler_5_0
+from elasticmagic.compiler import Compiler_6_0
 
 
 class BaseTestCase(unittest.TestCase):
@@ -10,11 +10,11 @@ class BaseTestCase(unittest.TestCase):
 
     def setUp(self):
         self.client = MagicMock()
-        self.cluster = Cluster(self.client, compiler=Compiler_5_0)
+        self.cluster = Cluster(self.client, compiler=Compiler_6_0)
         self.index = Index(self.cluster, 'test')
 
     def assert_expression(self, expr, expected, compiler=None):
-        compiler = compiler or Compiler_5_0
+        compiler = compiler or Compiler_6_0
         self.assertEqual(expr.to_dict(compiler=compiler), expected)
 
 

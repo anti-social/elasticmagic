@@ -82,7 +82,6 @@ class ClusterTest(BaseTestCase):
         sq.get_result()
         self.client.search.assert_called_with(
             index='log_2014-11-19,log_2014-11-20,log_2014-11-20',
-            doc_type='log',
             body={
                 'aggregations': {
                     'percentiles': {
@@ -152,9 +151,9 @@ class ClusterTest(BaseTestCase):
         results = self.cluster.multi_search([sq1, sq2])
         self.client.msearch.assert_called_with(
             body=[
-                {'type': 'product', 'search_type': 'count', 'routing': 123},
+                {'search_type': 'count', 'routing': 123},
                 {},
-                {'index': 'us', 'type': 'product'},
+                {'index': 'us'},
                 {'query': {'bool': {'filter': {'term': {'status': 0}}}}, 'size': 1}
             ]
         )

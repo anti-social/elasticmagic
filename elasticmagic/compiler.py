@@ -1,4 +1,3 @@
-import operator
 from collections import OrderedDict
 from collections import namedtuple
 from collections.abc import Iterable, Mapping
@@ -17,7 +16,6 @@ from .document import get_doc_type_for_hit
 from .document import mk_uid
 from .expression import Bool
 from .expression import Exists
-from .expression import Filtered
 from .expression import FunctionScore
 from .expression import HighlightedField
 from .expression import Ids
@@ -39,16 +37,6 @@ from .types import ValidationError
 from .util import collect_doc_classes
 
 
-BOOL_OPERATOR_NAMES = {
-    operator.and_: 'and',
-    operator.or_: 'or',
-}
-
-BOOL_OPERATORS_MAP = {
-    operator.and_: Bool.must,
-    operator.or_: Bool.should,
-}
-
 DEFAULT_DOC_TYPE = '_doc'
 
 ESVersion = namedtuple('ESVersion', ['major', 'minor', 'patch'])
@@ -56,13 +44,6 @@ ESVersion = namedtuple('ESVersion', ['major', 'minor', 'patch'])
 ElasticsearchFeatures = namedtuple(
     'ExpressionFeatures',
     [
-        'supports_old_boolean_queries',
-        'supports_missing_query',
-        'supports_parent_id_query',
-        'supports_bool_filter',
-        'supports_search_exists_api',
-        'supports_match_type',
-        'supports_mapping_types',
         'supports_doc_type',
         'supports_track_total_hits',
         'stored_fields_param',
@@ -72,8 +53,6 @@ ElasticsearchFeatures = namedtuple(
         'source_exclude_param',
         'patch_source_include_param',
         'patch_source_exclude_param',
-        'supports_script_file',
-        'supports_nested_script',
         'bulk_update_underscore_retry_on_conflict',
     ]
 )
@@ -89,7 +68,6 @@ class MultiSearchError(ElasticsearchException):
 
 def _is_emulate_doc_types_mode(features, doc_cls):
     return (
-        not features.supports_mapping_types and
         hasattr(doc_cls, 'get_doc_type') and
         doc_cls.get_doc_type() and
         doc_cls.has_parent_doc_cls()
@@ -202,9 +180,6 @@ class Compiled(object):
         return [self.visit(v) for v in lst]
 
     def visit_script(self, script):
-        if not self.features.supports_nested_script:
-            raise CompilationError(
-                'Elasticsearch v0.x and v1.x does not support Script')
         res = dict()
         if script.lang:
             res['lang'] = script.lang
@@ -214,8 +189,6 @@ class Compiled(object):
             res[self.features.script_source_field_name] = script.inline
         elif script.id:
             res[self.features.script_id_field_name] = script.id
-        elif self.features.supports_script_file and script.file:
-            res['file'] = script.file
         else:
             raise CompilationError('Invalid arguments for Script')
         return self.visit_dict(res)
@@ -269,7 +242,7 @@ class CompiledExpression(Compiled):
             }
 
     def visit_match(self, expr):
-        if not self.features.supports_match_type and expr.type:
+        if expr.type:
             if expr.type == 'phrase':
                 return self.visit(
                     MatchPhrase(expr.field, expr.query, **expr.params)
@@ -335,10 +308,6 @@ class CompiledExpression(Compiled):
         }
 
     def visit_missing(self, expr):
-        if self.features.supports_missing_query:
-            return {
-                'missing': self.visit(expr.params)
-            }
         return self.visit(
             Bool.must_not(Exists(**expr.params))
         )
@@ -366,36 +335,6 @@ class CompiledExpression(Compiled):
                 'fquery': params
             }
         return params
-
-    def visit_boolean_expression(self, expr):
-        if not self.features.supports_old_boolean_queries:
-            return self.visit(
-                BOOL_OPERATORS_MAP[expr.operator](*expr.expressions)
-            )
-        if expr.params:
-            params = {
-                'filters': [self.visit(e) for e in expr.expressions]
-            }
-            params.update(self.visit(expr.params))
-        else:
-            params = [self.visit(e) for e in expr.expressions]
-        return {
-            BOOL_OPERATOR_NAMES[expr.operator]: params
-        }
-
-    def visit_not(self, expr):
-        if not self.features.supports_old_boolean_queries:
-            return self.visit(Bool.must_not(expr.expr))
-        if expr.params:
-            params = {
-                'filter': self.visit(expr.expr)
-            }
-            params.update(self.visit(expr.params))
-        else:
-            params = self.visit(expr.expr)
-        return {
-            'not': params
-        }
 
     def visit_sort(self, expr):
         if expr.params:
@@ -443,7 +382,7 @@ class CompiledExpression(Compiled):
 
     def visit_top_hits_agg(self, agg):
         params = self.visit(agg.params)
-        if not self.features.supports_mapping_types:
+        if self.doc_classes:
             self._patch_docvalue_fields(params, self.doc_classes)
         return {
             agg.__agg_name__: params
@@ -534,12 +473,6 @@ class CompiledExpression(Compiled):
         }
 
     def visit_parent_id(self, expr):
-        if not self.features.supports_parent_id_query:
-            raise CompilationError(
-                'Elasticsearch before 5.x does not have support for '
-                'parent_id query'
-            )
-
         if _is_emulate_doc_types_mode(self.features, expr.child_type):
             parent_id = mk_uid(
                 expr.child_type.__parent__.__doc_type__,
@@ -687,9 +620,6 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
         else:
             search_params = params
 
-        if self.features.supports_mapping_types and self.doc_types:
-            search_params['doc_type'] = _mk_doc_type(self.doc_types)
-
         return self._patch_doc_type(search_params)
 
     def process_result(self, raw_result):
@@ -729,7 +659,7 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
         filter_clauses = []
         if query_context.filters:
             filter_clauses.extend(query_context.iter_filters())
-        if not cls.features.supports_mapping_types and doc_classes:
+        if doc_classes:
             doc_types = []
             for doc_cls in doc_classes:
                 if _is_emulate_doc_types_mode(cls.features, doc_cls):
@@ -739,13 +669,9 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
                     Terms(DOC_TYPE_JOIN_FIELD, doc_types)
                 )
         if filter_clauses:
-            if cls.features.supports_bool_filter:
-                if len(filter_clauses) == 1:
-                    return Bool(must=q, filter=filter_clauses[0])
-                return Bool(must=q, filter=filter_clauses)
-            return Filtered(
-                query=q, filter=Bool.must(*filter_clauses)
-            )
+            if len(filter_clauses) == 1:
+                return Bool(must=q, filter=filter_clauses[0])
+            return Bool(must=q, filter=filter_clauses)
         return q
 
     @classmethod
@@ -807,14 +733,10 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
         if query_ctx.search_after:
             params['search_after'] = query_ctx.search_after
 
-        if not self.features.supports_mapping_types:
-            self._patch_docvalue_fields(params, self.doc_classes)
+        self._patch_docvalue_fields(params, self.doc_classes)
         return params
 
     def _patch_doc_type(self, search_params):
-        if self.features.supports_mapping_types:
-            return search_params
-
         should_use_default_type = self.doc_classes and any(map(
             lambda doc_cls: doc_cls.has_parent_doc_cls(),
             self.doc_classes
@@ -945,21 +867,15 @@ class CompiledCountQuery(CompiledScalarQuery):
 class CompiledExistsQuery(CompiledScalarQuery):
     def __init__(self, query, params=None):
         super(CompiledExistsQuery, self).__init__(query, params)
-        if not self.features.supports_search_exists_api:
-            if self.body is None:
-                self.body = {}
-            self.body['size'] = 0
-            self.body['terminate_after'] = 1
+        if self.body is None:
+            self.body = {}
+        self.body['size'] = 0
+        self.body['terminate_after'] = 1
 
     def api_method(self, client):
-        if self.features.supports_search_exists_api:
-            return client.exists
-        else:
-            return client.search
+        return client.search
 
     def process_result(self, raw_result):
-        if self.features.supports_search_exists_api:
-            return ExistsResult(raw_result)
         return ExistsResult({
             'exists': SearchResult(raw_result).total >= 1
         })
@@ -1059,22 +975,13 @@ class CompiledPutMapping(CompiledEndpoint):
                 params['doc_type'] = DEFAULT_DOC_TYPE
             else:
                 params['doc_type'] = self.expression.get_doc_type()
-        elif self.features.supports_mapping_types:
-            if isinstance(self.expression, self._MultipleMappings):
-                put_params = params
-                params = []
-                for doc_cls_or_mapping in self.expression.mappings:
-                    if issubclass(doc_cls_or_mapping, Document):
-                        put_params['doc_type'] = \
-                            doc_cls_or_mapping.get_doc_type()
-                        params.append(put_params.copy())
-        else:
-            if (
-                    isinstance(self.expression, self._MultipleMappings) or
-                    issubclass(self.expression, Document) and
-                    self.expression.has_parent_doc_cls()
-            ):
-                params['doc_type'] = DEFAULT_DOC_TYPE
+        elif (
+            isinstance(self.expression, self._MultipleMappings) or
+            isinstance(self.expression, type) and
+            issubclass(self.expression, Document) and
+            self.expression.has_parent_doc_cls()
+        ):
+            params['doc_type'] = DEFAULT_DOC_TYPE
 
         if not self.features.supports_doc_type:
             params.pop('doc_type', None)
@@ -1162,34 +1069,26 @@ class CompiledPutMapping(CompiledEndpoint):
             mapping_properties[name] = value
 
     def visit_multiple_mappings(self, multiple_mappings):
-        if self.features.supports_mapping_types:
-            raise CompilationError(
-                'You can only put multiple mappings at the index creation time'
-            )
-        else:
-            mappings = {}
-            relations = {}
-            for mapping_or_doc_cls in multiple_mappings.mappings:
-                if issubclass(mapping_or_doc_cls, Document):
-                    doc_type = mapping_or_doc_cls.get_doc_type()
-                    parent_doc_type = self._get_parent_doc_type(
-                        mapping_or_doc_cls
-                    )
-                    if doc_type and parent_doc_type:
-                        relations.setdefault(parent_doc_type, []) \
-                            .append(doc_type)
+        mappings = {}
+        relations = {}
+        for mapping_or_doc_cls in multiple_mappings.mappings:
+            if issubclass(mapping_or_doc_cls, Document):
+                doc_type = mapping_or_doc_cls.get_doc_type()
+                parent_doc_type = self._get_parent_doc_type(
+                    mapping_or_doc_cls
+                )
+                if doc_type and parent_doc_type:
+                    relations.setdefault(parent_doc_type, []) \
+                        .append(doc_type)
 
-                mapping = self.visit(mapping_or_doc_cls)
-                if self.features.supports_mapping_types:
-                    mappings.update(mapping)
-                else:
-                    self._merge_properties(mappings, mapping['properties'])
+            mapping = self.visit(mapping_or_doc_cls)
+            self._merge_properties(mappings, mapping['properties'])
 
-            if not self.features.supports_mapping_types and relations:
-                doc_type_property = mappings['properties'][DOC_TYPE_JOIN_FIELD]
-                doc_type_property['relations'] = relations
+        if relations:
+            doc_type_property = mappings['properties'][DOC_TYPE_JOIN_FIELD]
+            doc_type_property['relations'] = relations
 
-            return mappings
+        return mappings
 
     def visit_document(self, doc_cls):
         mapping = self._dict_type()
@@ -1226,12 +1125,7 @@ class CompiledPutMapping(CompiledEndpoint):
             self._visit_dynamic_field(f)
         if self._dynamic_templates:
             mapping['dynamic_templates'] = self._dynamic_templates
-        if self.features.supports_mapping_types:
-            return {
-                doc_cls.__doc_type__: mapping
-            }
-        else:
-            return mapping
+        return mapping
 
 
 class CompiledCreateIndex(CompiledEndpoint):
@@ -1260,31 +1154,20 @@ class CompiledCreateIndex(CompiledEndpoint):
         if create_index.settings:
             body['settings'] = self.visit(create_index.settings)
         if create_index.mappings:
-            if (
-                    self.features.supports_mapping_types and
-                    isinstance(create_index.mappings, (list, tuple))
-            ):
-                mappings = {}
-                # if mappings is a list it must be list of document classes
-                for doc_cls in create_index.mappings:
-                    mappings.update(
-                        self.compiled_put_mapping(doc_cls).body
-                    )
+            compiled_mappings = self.compiled_put_mapping(
+                create_index.mappings
+            )
+            if isinstance(create_index.mappings, (list, tuple)):
+                doc_type = DEFAULT_DOC_TYPE
             else:
-                compiled_mappings = self.compiled_put_mapping(
-                    create_index.mappings
-                )
-                if isinstance(create_index.mappings, (list, tuple)):
-                    doc_type = DEFAULT_DOC_TYPE
-                else:
-                    doc_type = create_index.mappings.get_doc_type()
+                doc_type = create_index.mappings.get_doc_type()
 
-                if self.features.supports_doc_type:
-                    mappings = {
-                        doc_type: compiled_mappings.body
-                    }
-                else:
-                    mappings = compiled_mappings.body
+            if self.features.supports_doc_type:
+                mappings = {
+                    doc_type: compiled_mappings.body
+                }
+            else:
+                mappings = compiled_mappings.body
             body['mappings'] = mappings
 
         return body
@@ -1752,121 +1635,6 @@ def _featured_compiler(elasticsearch_features):
 
 @_featured_compiler(
     ElasticsearchFeatures(
-        supports_old_boolean_queries=True,
-        supports_missing_query=True,
-        supports_parent_id_query=False,
-        supports_bool_filter=False,
-        supports_search_exists_api=True,
-        supports_match_type=True,
-        supports_mapping_types=True,
-        supports_doc_type=True,
-        supports_track_total_hits=False,
-        stored_fields_param='fields',
-        script_source_field_name='script',
-        script_id_field_name='script_id',
-        source_include_param='_source_include',
-        source_exclude_param='_source_exclude',
-        patch_source_include_param='_source_includes',
-        patch_source_exclude_param='_source_excludes',
-        supports_script_file=True,
-        supports_nested_script=False,
-        bulk_update_underscore_retry_on_conflict=True,
-    )
-)
-class Compiler_1_0(object):
-    pass
-
-
-@_featured_compiler(
-    ElasticsearchFeatures(
-        supports_old_boolean_queries=False,
-        supports_missing_query=True,
-        supports_parent_id_query=False,
-        supports_bool_filter=True,
-        supports_search_exists_api=True,
-        supports_match_type=True,
-        supports_mapping_types=True,
-        supports_doc_type=True,
-        supports_track_total_hits=False,
-        stored_fields_param='fields',
-        script_source_field_name='inline',
-        script_id_field_name='id',
-        source_include_param='_source_include',
-        source_exclude_param='_source_exclude',
-        patch_source_include_param='_source_includes',
-        patch_source_exclude_param='_source_excludes',
-        supports_script_file=True,
-        supports_nested_script=True,
-        bulk_update_underscore_retry_on_conflict=True,
-    )
-)
-class Compiler_2_0(object):
-    pass
-
-
-@_featured_compiler(
-    ElasticsearchFeatures(
-        supports_old_boolean_queries=False,
-        supports_missing_query=False,
-        supports_parent_id_query=True,
-        supports_bool_filter=True,
-        supports_search_exists_api=False,
-        supports_match_type=True,
-        supports_mapping_types=True,
-        supports_doc_type=True,
-        supports_track_total_hits=False,
-        stored_fields_param='stored_fields',
-        script_source_field_name='inline',
-        script_id_field_name='stored',
-        source_include_param='_source_include',
-        source_exclude_param='_source_exclude',
-        patch_source_include_param='_source_includes',
-        patch_source_exclude_param='_source_excludes',
-        supports_script_file=True,
-        supports_nested_script=True,
-        bulk_update_underscore_retry_on_conflict=True,
-    )
-)
-class Compiler_5_0(object):
-    pass
-
-
-@_featured_compiler(
-    ElasticsearchFeatures(
-        supports_old_boolean_queries=False,
-        supports_missing_query=False,
-        supports_parent_id_query=True,
-        supports_bool_filter=True,
-        supports_search_exists_api=False,
-        supports_match_type=True,
-        supports_mapping_types=True,
-        supports_doc_type=True,
-        supports_track_total_hits=False,
-        stored_fields_param='stored_fields',
-        script_source_field_name='source',
-        script_id_field_name='id',
-        source_include_param='_source_include',
-        source_exclude_param='_source_exclude',
-        patch_source_include_param='_source_includes',
-        patch_source_exclude_param='_source_excludes',
-        supports_script_file=True,
-        supports_nested_script=True,
-        bulk_update_underscore_retry_on_conflict=True,
-    )
-)
-class Compiler_5_6(object):
-    pass
-
-
-@_featured_compiler(
-    ElasticsearchFeatures(
-        supports_old_boolean_queries=False,
-        supports_missing_query=False,
-        supports_parent_id_query=True,
-        supports_bool_filter=True,
-        supports_search_exists_api=False,
-        supports_match_type=False,
-        supports_mapping_types=False,
         supports_doc_type=True,
         supports_track_total_hits=False,
         stored_fields_param='stored_fields',
@@ -1876,8 +1644,6 @@ class Compiler_5_6(object):
         source_exclude_param='_source_excludes',
         patch_source_include_param='_source_include',
         patch_source_exclude_param='_source_exclude',
-        supports_script_file=False,
-        supports_nested_script=True,
         bulk_update_underscore_retry_on_conflict=True,
     )
 )
@@ -1887,13 +1653,6 @@ class Compiler_6_0(object):
 
 @_featured_compiler(
     ElasticsearchFeatures(
-        supports_old_boolean_queries=False,
-        supports_missing_query=False,
-        supports_parent_id_query=True,
-        supports_bool_filter=True,
-        supports_search_exists_api=False,
-        supports_match_type=False,
-        supports_mapping_types=False,
         supports_doc_type=False,
         supports_track_total_hits=True,
         stored_fields_param='stored_fields',
@@ -1903,8 +1662,6 @@ class Compiler_6_0(object):
         source_exclude_param='_source_excludes',
         patch_source_include_param='_source_include',
         patch_source_exclude_param='_source_exclude',
-        supports_script_file=False,
-        supports_nested_script=True,
         bulk_update_underscore_retry_on_conflict=False,
     )
 )
@@ -1912,22 +1669,9 @@ class Compiler_7_0(object):
     pass
 
 
-Compiler10 = Compiler_1_0
-
-Compiler20 = Compiler_2_0
-
-Compiler50 = Compiler_5_0
-
-
 def get_compiler_by_es_version(es_version):
-    if es_version.major <= 1:
-        return Compiler_1_0
-    elif es_version.major == 2:
-        return Compiler_2_0
-    elif es_version.major == 5 and es_version.minor <= 5:
-        return Compiler_5_0
-    elif es_version.major == 5 and es_version.minor > 5:
-        return Compiler_5_6
+    if es_version.major < 6:
+        raise ValueError(f"Unsuported Elasticsearch version: {es_version}")
     elif es_version.major == 6:
         return Compiler_6_0
     elif es_version.major == 7:
@@ -1936,10 +1680,6 @@ def get_compiler_by_es_version(es_version):
 
 
 all_compilers = [
-    Compiler_1_0,
-    Compiler_2_0,
-    Compiler_5_0,
-    Compiler_5_6,
     Compiler_6_0,
     Compiler_7_0,
 ]

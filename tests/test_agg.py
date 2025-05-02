@@ -2,8 +2,6 @@ import math
 from unittest.mock import Mock, patch
 
 from elasticmagic import agg, Params, Term, Document, DynamicDocument
-from elasticmagic.compiler import Compiler_2_0
-from elasticmagic.compiler import Compiler_5_0
 from elasticmagic.compiler import Compiler_6_0
 from elasticmagic.compiler import Compiler_7_0
 from elasticmagic.expression import Field, Script
@@ -1129,7 +1127,7 @@ class AggregationTest(BaseTestCase):
         self.assertEqual(gender_mapper.call_count, 1)
 
 
-@pytest.mark.parametrize('compiler', [Compiler_2_0, Compiler_5_0, Compiler_6_0, Compiler_7_0])
+@pytest.mark.parametrize('compiler', [Compiler_6_0, Compiler_7_0])
 def test_bucket_script(compiler):
     f = DynamicDocument.fields
     a = agg.DateHistogram(
@@ -1254,7 +1252,7 @@ def test_bucket_script(compiler):
     assert r.buckets[2].get_aggregation('t_shirt_percentage').value == 50
 
 
-@pytest.mark.parametrize('compiler', [Compiler_2_0, Compiler_5_0, Compiler_6_0, Compiler_7_0])
+@pytest.mark.parametrize('compiler', [Compiler_6_0, Compiler_7_0])
 def test_bucket_selector(compiler):
     f = DynamicDocument.fields
     a = agg.DateHistogram(

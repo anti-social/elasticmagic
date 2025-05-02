@@ -1,7 +1,7 @@
 """
 .. testsetup:: *
 
-   from elasticmagic.compiler import Compiler_5_0
+   from elasticmagic.compiler import Compiler_6_0
    from elasticmagic.compiler import Compiler_7_0
 """
 import warnings
@@ -164,7 +164,7 @@ class BaseSearchQuery(metaclass=ABCMeta):
 
         .. testcode:: source
 
-           assert search_query.to_dict(Compiler_5_0) == {'_source': ['title', 'user.*']}
+           assert search_query.to_dict(Compiler_7_0) == {'_source': ['title', 'user.*']}
 
         See `source filtering <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-source-filtering.html>`_
         for more information.
@@ -189,7 +189,7 @@ class BaseSearchQuery(metaclass=ABCMeta):
 
         .. testcode:: stored_fields
 
-           assert search_query.to_dict(Compiler_5_0) == {'stored_fields': ['rank']}
+           assert search_query.to_dict(Compiler_7_0) == {'stored_fields': ['rank']}
 
         See `stored fields <https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-store.html>`_ and
         `stored fields filtering <https://www.elastic.co/guide/en/elasticsearch/reference/current/search-fields.html#stored-fields>`_
@@ -261,7 +261,7 @@ class BaseSearchQuery(metaclass=ABCMeta):
                'script_fields': {
                    'rating': {
                        'script': {
-                           'inline': 'doc[params.positive_opinions_field].value / '
+                           'source': 'doc[params.positive_opinions_field].value / '
                                      'doc[params.total_opinions_field].value * 5',
                            'params': {
                                'total_opinions_field': 'total_opinions',
@@ -272,11 +272,11 @@ class BaseSearchQuery(metaclass=ABCMeta):
                }
            }
 
-           assert search_query.to_dict(Compiler_5_0) == {
+           assert search_query.to_dict(Compiler_7_0) == {
                'script_fields': {
                    'rating': {
                        'script': {
-                           'inline': 'doc[params.positive_opinions_field].value / '
+                           'source': 'doc[params.positive_opinions_field].value / '
                                      'doc[params.total_opinions_field].value * 5',
                            'params': {
                                'total_opinions_field': 'total_opinions',
@@ -316,7 +316,7 @@ class BaseSearchQuery(metaclass=ABCMeta):
 
         .. testcode:: query
 
-           assert search_query.to_dict(Compiler_5_0) == {
+           assert search_query.to_dict(Compiler_7_0) == {
                'query': {'match': {'title': {
                    'query': 'test',
                    'minimum_should_match': '100%'}}}}
@@ -343,7 +343,7 @@ class BaseSearchQuery(metaclass=ABCMeta):
 
         .. testcode:: filter
 
-           assert search_query.to_dict(Compiler_5_0) == {
+           assert search_query.to_dict(Compiler_7_0) == {
                'query': {'bool': {'filter': [
                    {'term': {'status': 'published'}},
                    {'range': {
@@ -390,7 +390,7 @@ class BaseSearchQuery(metaclass=ABCMeta):
                PostDocument.publish_date.desc(),
                PostDocument._score,
            )
-           assert search_query.to_dict(Compiler_5_0) == {
+           assert search_query.to_dict(Compiler_7_0) == {
                'sort': [
                    {'publish_date': 'desc'},
                    '_score'
@@ -403,7 +403,7 @@ class BaseSearchQuery(metaclass=ABCMeta):
         .. testcode:: order_by
 
            search_query = SearchQuery().order_by(None)
-           assert search_query.to_dict(Compiler_5_0) == {}
+           assert search_query.to_dict(Compiler_7_0) == {}
         """  # noqa:E501
         if len(orders) == 1 and orders[0] is None:
             if '_order_by' in self.__dict__:
@@ -432,7 +432,7 @@ class BaseSearchQuery(metaclass=ABCMeta):
 
         .. testcode:: aggs
 
-           assert search_query.to_dict(Compiler_5_0) == {
+           assert search_query.to_dict(Compiler_7_0) == {
                'aggregations': {
                    'stars': {'terms': {'field': 'stars', 'size': 50},
                        'aggregations': {
@@ -499,7 +499,7 @@ class BaseSearchQuery(metaclass=ABCMeta):
 
         .. testcode:: function_score
 
-           assert search_query.to_dict(Compiler_5_0) == {
+           assert search_query.to_dict(Compiler_7_0) == {
                'query': {
                    'function_score': {
                        'query': {'match': {'title': 'test'}},
@@ -543,7 +543,7 @@ class BaseSearchQuery(metaclass=ABCMeta):
 
         .. testcode:: boost_score
 
-           assert search_query.to_dict(Compiler_5_0) == {
+           assert search_query.to_dict(Compiler_7_0) == {
                'query': {
                    'function_score': {
                        'query': {
@@ -555,7 +555,7 @@ class BaseSearchQuery(metaclass=ABCMeta):
                                        'modifier': 'sqrt'}}]}},
                        'functions': [
                            {'script_score': {'script': {
-                                'inline': 'log10(10.0 + doc[cpc_field].value)',
+                                'source': 'log10(10.0 + doc[cpc_field].value)',
                                 'params': {'cpc_field': 'adv_cpc'}}},
                             'filter': {'range': {'adv_cpc': {'gt': 0}}},
                             'weight': 1000}],

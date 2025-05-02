@@ -7,7 +7,7 @@ from elasticmagic import (
     SearchQuery, Params, Term, MultiMatch,
     FunctionScore, Sort, QueryRescorer, agg
 )
-from elasticmagic.compiler import Compiler_5_0, Compiler_7_0
+from elasticmagic.compiler import Compiler_7_0
 from elasticmagic.search import FunctionScoreSettings
 from elasticmagic.function import FieldValueFactor, Weight
 from elasticmagic.util import collect_doc_classes
@@ -524,10 +524,9 @@ class SearchQueryTest(BaseTestCase):
                     {
                         "query": {
                             "rescore_query": {
-                                "match": {
+                                "match_phrase": {
                                     "field1": {
                                         "query": "the quick brown fox",
-                                        "type": "phrase",
                                         "slop": 2
                                     }
                                 }
@@ -571,7 +570,7 @@ class SearchQueryTest(BaseTestCase):
                 script_fields=dict(
                     rating=dict(
                         script=dict(
-                            inline='doc[params.brand].value +'
+                            source='doc[params.brand].value +'
                                    'doc[params.color].value',
                             params=dict(
                                 brand='brand',
@@ -584,7 +583,7 @@ class SearchQueryTest(BaseTestCase):
         )
         sq = sq.script_fields(
             brand=dict(
-                inline='doc[params.brand].value',
+                source='doc[params.brand].value',
                 params=dict(brand='brand')
             )
         )
@@ -594,7 +593,7 @@ class SearchQueryTest(BaseTestCase):
                 script_fields=dict(
                     rating=dict(
                         script=dict(
-                            inline='doc[params.brand].value +'
+                            source='doc[params.brand].value +'
                                    'doc[params.color].value',
                             params=dict(
                                 brand='brand',
@@ -603,7 +602,7 @@ class SearchQueryTest(BaseTestCase):
                         )
                     ),
                     brand=dict(
-                        inline='doc[params.brand].value',
+                        source='doc[params.brand].value',
                         params=dict(brand='brand')
                     )
                 )
@@ -616,7 +615,7 @@ class SearchQueryTest(BaseTestCase):
                 script_fields=dict(
                     rating=dict(
                         script=dict(
-                            inline='doc[params.brand].value +'
+                            source='doc[params.brand].value +'
                                    'doc[params.color].value',
                             params=dict(
                                 brand='brand',
@@ -625,7 +624,7 @@ class SearchQueryTest(BaseTestCase):
                         )
                     ),
                     brand=dict(
-                        inline='doc[params.brand].value',
+                        source='doc[params.brand].value',
                         params=dict(brand='brand')
                     )
                 )
@@ -786,7 +785,7 @@ class SearchQueryTest(BaseTestCase):
                         'sort': {
                             '_script': {
                                 'script': {
-                                    'inline': 'score * params.a',
+                                    'source': 'score * params.a',
                                     'lang': 'painless',
                                     'params': {
                                         'a': 1,
@@ -1059,7 +1058,6 @@ class SearchQueryTest(BaseTestCase):
         )
         self.client.count.assert_called_with(
             index='test',
-            doc_type='car',
             body={},
         )
 
@@ -1080,7 +1078,6 @@ class SearchQueryTest(BaseTestCase):
         )
         self.client.count.assert_called_with(
             index='test',
-            doc_type='car',
             body={
                 "query": {
                     "bool": {
@@ -1111,7 +1108,6 @@ class SearchQueryTest(BaseTestCase):
         )
         self.client.search.assert_called_with(
             index='test',
-            doc_type='car',
             body={
                 'size': 0,
                 'terminate_after': 1,
@@ -1130,7 +1126,6 @@ class SearchQueryTest(BaseTestCase):
         )
         self.client.search.assert_called_with(
             index='test',
-            doc_type='car',
             body={
                 "size": 0,
                 "terminate_after": 1,
@@ -1230,10 +1225,9 @@ class SearchQueryTest(BaseTestCase):
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             self.assertEqual(len(sq.result), 2)
-        self.assertEqual(type(sq.get_query_compiler()), type(Compiler_5_0))
+        self.assertEqual(type(sq.get_query_compiler()), type(Compiler_7_0))
         self.client.search.assert_called_with(
             index='test',
-            doc_type='car',
             body={
                 'query': {
                     'bool': {
@@ -1337,7 +1331,6 @@ class SearchQueryTest(BaseTestCase):
 
         self.client.search.assert_called_with(
             index='test',
-            doc_type=OrderTolerantString('customer,seller', ','),
             body={
                 'query': {
                     'bool': {
@@ -1399,7 +1392,6 @@ class SearchQueryTest(BaseTestCase):
 
         self.client.search.assert_called_with(
             index='test',
-            doc_type='type',
             body={
                 'size': 1000
             },
@@ -1413,7 +1405,6 @@ class SearchQueryTest(BaseTestCase):
         self.index.query(self.index['car'].vendor == 'Focus').delete()
         self.client.delete_by_query.assert_called_with(
             index='test',
-            doc_type='car',
             body={
                 'query': {
                     'term': {'vendor': 'Focus'}
@@ -1427,7 +1418,6 @@ class SearchQueryTest(BaseTestCase):
             .delete(timeout='1m', replication='async')
         self.client.delete_by_query.assert_called_with(
             index='test',
-            doc_type='car',
             body={
                 "query": {
                     "bool": {

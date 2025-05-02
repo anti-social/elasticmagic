@@ -643,12 +643,7 @@ def test_document_class__to_mapping(compiler):
             }
         }
     }
-    if compiler.features.supports_mapping_types:
-        assert ProductGroupDocument.to_mapping(compiler) == {
-            "product_group": expeted_mapping
-        }
-    else:
-        assert ProductGroupDocument.to_mapping(compiler) == expeted_mapping
+    assert ProductGroupDocument.to_mapping(compiler) == expeted_mapping
 
 
 def test_document_class_with_subdocument__to_mapping(compiler):
@@ -764,12 +759,7 @@ def test_document_class_with_subdocument__to_mapping(compiler):
             }
         }
     }
-    if compiler.features.supports_mapping_types:
-        assert ProductDocument.to_mapping(compiler) == {
-            "product": expected_mapping
-        }
-    else:
-        assert ProductDocument.to_mapping(compiler) == expected_mapping
+    assert ProductDocument.to_mapping(compiler) == expected_mapping
 
 
 def test_document_class_with_geopoint_field__to_mapping(compiler):
@@ -785,35 +775,18 @@ def test_document_class_with_geopoint_field__to_mapping(compiler):
             },
         }
     }
-    if compiler.features.supports_mapping_types:
-        assert GeoPointDoc.to_mapping(compiler) == {
-            "geo_data": expected_mapping
-        }
-    else:
-        assert GeoPointDoc.to_mapping(compiler) == expected_mapping
+    assert GeoPointDoc.to_mapping(compiler) == expected_mapping
 
 
 def test_document_class_with_completion_field__to_mapping(compiler):
-    if compiler.features.supports_mapping_types:
-        assert CompletionDoc.to_mapping(compiler) == {
+    assert CompletionDoc.to_mapping(compiler) == {
+        'properties': {
             'suggest': {
-                'properties': {
-                    'suggest': {
-                        'type': 'completion',
-                        'payloads': True,
-                    }
-                }
+                'type': 'completion',
+                'payloads': True,
             }
         }
-    else:
-        assert CompletionDoc.to_mapping(compiler) == {
-            'properties': {
-                'suggest': {
-                    'type': 'completion',
-                    'payloads': True,
-                }
-            }
-        }
+    }
 
 
 def test_document_instance_with_completion_field__to_source(compiler):
@@ -847,20 +820,11 @@ def test_document_instance_with_completion_field__to_source(compiler):
 
 
 def test_document_class_with_percolator_field__to_mapping(compiler):
-    if compiler.features.supports_mapping_types:
-        assert QueryDocument.to_mapping(compiler) == {
-            "query": {
-                "properties": {
-                    "query": {"type": "percolator"}
-                }
-            }
+    assert QueryDocument.to_mapping(compiler) == {
+        "properties": {
+            "query": {"type": "percolator"}
         }
-    else:
-        assert QueryDocument.to_mapping(compiler) == {
-            "properties": {
-                "query": {"type": "percolator"}
-            }
-        }
+    }
 
 
 def test_document_instance_with_percolator_field__to_source(compiler):
