@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 import sys
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomllib
 
 
 proj = tomllib.load(open("pyproject.toml", "rb"))
