@@ -1,6 +1,5 @@
 import unittest
-
-from mock import MagicMock
+from unittest.mock import MagicMock
 
 from elasticmagic import Cluster, Index
 from elasticmagic.compiler import Compiler_5_0

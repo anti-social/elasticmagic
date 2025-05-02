@@ -1,6 +1,6 @@
 import datetime
 import warnings
-from mock import Mock
+from unittest.mock import Mock
 
 from elasticmagic import (
     Document, DynamicDocument,

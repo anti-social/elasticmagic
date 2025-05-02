@@ -1,4 +1,4 @@
-from mock import Mock
+from unittest.mock import Mock
 
 from elasticmagic import Cluster, Index, Document, DynamicDocument, MatchAll, Field
 from elasticmagic import actions

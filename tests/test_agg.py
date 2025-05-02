@@ -1,5 +1,5 @@
 import math
-from mock import Mock, patch
+from unittest.mock import Mock, patch
 
 from elasticmagic import agg, Params, Term, Document, DynamicDocument
 from elasticmagic.compiler import Compiler_2_0
