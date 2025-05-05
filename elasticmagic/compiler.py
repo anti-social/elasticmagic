@@ -39,7 +39,9 @@ from .util import collect_doc_classes
 
 DEFAULT_DOC_TYPE = '_doc'
 
-ESVersion = namedtuple('ESVersion', ['major', 'minor', 'patch'])
+ESVersion = namedtuple(
+    'ESVersion', ['major', 'minor', 'patch', 'distribution']
+)
 
 ElasticsearchFeatures = namedtuple(
     'ExpressionFeatures',
@@ -1647,14 +1649,20 @@ class Compiler_7_0(object):
 
 
 def get_compiler_by_es_version(es_version):
-    if es_version.major < 6:
-        raise ValueError(f"Unsuported Elasticsearch version: {es_version}")
-    elif es_version.major == 6:
-        return Compiler_6_0
-    elif es_version.major == 7:
-        return Compiler_7_0
+    if es_version.distribution == "opensearch":
+        if es_version.major < 2:
+            raise ValueError(f"Unsuported Opensearch version: {es_version}")
+        else:
+            return Compiler_7_0
     else:
-        return Compiler_7_0
+        if es_version.major < 6:
+            raise ValueError(f"Unsuported Elasticsearch version: {es_version}")
+        elif es_version.major == 6:
+            return Compiler_6_0
+        elif es_version.major == 7:
+            return Compiler_7_0
+        else:
+            return Compiler_7_0
 
 
 all_compilers = [

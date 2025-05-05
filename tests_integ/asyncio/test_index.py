@@ -190,11 +190,7 @@ async def test_multi_search(es_index, cars):
 async def test_delete(es_index, cars):
     res = await es_index.delete(1, doc_type='car')
 
-    es_version = await es_index.get_cluster().get_es_version()
-    if es_version.major >= 5:
-        assert res.result == 'deleted'
-    if es_version.major <= 5:
-        assert res.found is True
+    assert res.result == 'deleted'
 
 
 @pytest.mark.asyncio
