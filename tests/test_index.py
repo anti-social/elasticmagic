@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 from elasticmagic import Cluster, Index, Document, DynamicDocument, MatchAll, Field
 from elasticmagic import actions
-from elasticmagic.compiler import Compiler20
+from elasticmagic.compiler import Compiler_6_0
 from elasticmagic.types import String, Date
 
 from .base import BaseTestCase
@@ -17,7 +17,7 @@ class IndexTest(BaseTestCase):
         self.assertIs(doc_cls, self.index['product'])
 
     def test_index_compiler(self):
-        cluster = Cluster(self.client, compiler=Compiler20())
+        cluster = Cluster(self.client, compiler=Compiler_6_0())
         index = Index(cluster, 'test')
 
         self.assert_expression(
@@ -364,13 +364,11 @@ class IndexTest(BaseTestCase):
             index='test',
             doc_type='car',
             body={
-                'car': {
-                    'date_detection': False,
-                    'properties': {
-                        'vendor': {'type': 'string'},
-                        'model': {'type': 'string'},
-                        'date_manufactured': {'type': 'date'},
-                    }
+                'date_detection': False,
+                'properties': {
+                    'vendor': {'type': 'string'},
+                    'model': {'type': 'string'},
+                    'date_manufactured': {'type': 'date'},
                 }
             }
         )

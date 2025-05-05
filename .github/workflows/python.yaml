@@ -49,15 +49,21 @@ jobs:
       !contains(github.event.head_commit.message, '[skip tests]')
     strategy:
       matrix:
-        es-version: ['5.6.16', '6.8.23', '7.16.3']
+        es-image:
+        - 'elasticsearch:6.8.23'
+        - 'elasticsearch:7.16.3'
+        - 'elasticsearch:8.18.0'
+        - 'opensearchproject/opensearch:2.19.2'
         python-version: ['3.11', '3.12', '3.13', 'pypy3.11']
     services:
       elasticsearch:
-        image: elasticsearch:${{ matrix.es-version }}
+        image: ${{ matrix.es-image }}
         ports:
         - 9200:9200
         options: >-
           -e="discovery.type=single-node"
+          ${{ startsWith(matrix.es-image, 'elasticsearch:8.') && '-e="xpack.security.enabled=false" -e="xpack.security.enrollment.enabled=false"' || '' }}
+          ${{ startsWith(matrix.es-image, 'opensearch') && '-e="DISABLE_SECURITY_PLUGIN=true"' || '' }}
           --health-cmd="curl http://localhost:9200/_cluster/health"
           --health-interval=5s
           --health-timeout=2s

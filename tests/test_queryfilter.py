@@ -2,7 +2,7 @@ import datetime
 from unittest.mock import Mock
 
 from elasticmagic import agg, Document, Field, Match
-from elasticmagic.compiler import Compiler_5_0
+from elasticmagic.compiler import Compiler_7_0
 from elasticmagic.types import Integer, Float, List, Nested, String, Date
 from elasticmagic.ext.queryfilter import FacetFilter
 from elasticmagic.ext.queryfilter import FacetQueryFilter
@@ -50,11 +50,11 @@ def test_simple_filter(index):
 
     sq = index.search_query()
     sq = qf.apply(sq, {})
-    assert sq.to_dict(Compiler_5_0) == {}
+    assert sq.to_dict(Compiler_7_0) == {}
 
     sq = index.search_query()
     sq = qf.apply(sq, {'m': ['vrx']})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "query": {
                 'bool': {'filter': {'term': {'model': u'vrx'}}}
@@ -67,7 +67,7 @@ def test_simple_filter(index):
     )
     sq = qf.apply(sq, {'type': ['0', '1', '3', 'null'],
                        'vendor': ['Subaru']})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "query": {
                 "bool": {
@@ -93,11 +93,11 @@ def test_simple_filter_with_and_conjunction(index):
 
     sq = index.search_query()
     sq = qf.apply(sq, {})
-    assert sq.to_dict(Compiler_5_0) == {}
+    assert sq.to_dict(Compiler_7_0) == {}
 
     sq = index.search_query()
     sq = qf.apply(sq, {'label': ['greedy']})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "query": {
                 "bool": {
@@ -112,7 +112,7 @@ def test_simple_filter_with_and_conjunction(index):
 
     sq = index.search_query()
     sq = qf.apply(sq, {'label': ['greedy', 'young', 'nasty']})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "query": {
                 "bool": {
@@ -157,7 +157,7 @@ def test_facet_filter(index, client):
 
     sq = index.search_query()
     sq = qf.apply(sq, {})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "aggregations": {
                 "qf.type": {
@@ -179,7 +179,7 @@ def test_facet_filter(index, client):
 
     sq = index.search_query()
     sq = qf.apply(sq, {'m': ['vrx']})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "aggregations": {
                 "qf.type.filter": {
@@ -226,7 +226,7 @@ def test_facet_filter(index, client):
     )
     sq = qf.apply(sq, {'type': ['0', '1', '3', 'null'],
                        'vendor': ['Subaru']})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "query": {
                 "bool": {
@@ -432,7 +432,7 @@ def test_facet_filter_with_and_conjunction(index):
 
     sq = index.search_query()
     sq = qf.apply(sq, {})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "aggregations": {
                 "qf.region": {
@@ -450,7 +450,7 @@ def test_facet_filter_with_and_conjunction(index):
 
     sq = index.search_query()
     sq = qf.apply(sq, {'label': ['greedy']})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "aggregations": {
                 "qf.region.filter": {
@@ -492,7 +492,7 @@ def test_facet_filter_with_and_conjunction(index):
     sq = index.search_query()
     sq = qf.apply(sq, {'region': [123, 456],
                        'label': ['greedy', 'young', 'nasty']})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "aggregations": {
                 "qf.region.filter": {
@@ -597,7 +597,7 @@ def test_range_filter(index, client):
 
     sq = index.search_query()
     sq = qf.apply(sq, {'ed__gte': ['1.9']})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "aggregations": {
                 "qf.price.enabled": {"filter": {"exists": {"field": "price"}}},
@@ -611,7 +611,7 @@ def test_range_filter(index, client):
 
     sq = index.search_query()
     sq = qf.apply(sq, {'price__lte': ['10000']})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "aggregations": {
                 "qf.price.enabled": {"filter": {"exists": {"field": "price"}}},
@@ -676,7 +676,7 @@ def test_range_filter_dynamic_document(index, client):
 
     sq = index.search_query()
     sq = qf.apply(sq, {'price__lte': ['10000']})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "aggregations": {
                 "qf.price.enabled": {"filter": {"exists": {"field": "price"}}},
@@ -754,7 +754,7 @@ def test_range_datetime_filter(index):
     # Full datetime with zero time data
     sq = index.search_query()
     sq = qf.apply(sq, {'dt__gte': ['2017-08-08 00:00:00']})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "aggregations": {
                 "qf.dt.enabled": {"filter": {"exists": {"field": "presentation_date"}}},
@@ -773,7 +773,7 @@ def test_range_datetime_filter(index):
     # Only date
     sq = index.search_query()
     sq = qf.apply(sq, {'dt__gte': ['2017-08-08']})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
            {
                "aggregations": {
                    "qf.dt.enabled": {"filter": {"exists": {"field": "presentation_date"}}},
@@ -792,7 +792,7 @@ def test_range_datetime_filter(index):
     # Full datetime
     sq = index.search_query()
     sq = qf.apply(sq, {'dt__gte': ['2017-08-08 00:00:01']})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
            {
                "aggregations": {
                    "qf.dt.enabled": {"filter": {"exists": {"field": "presentation_date"}}},
@@ -814,7 +814,7 @@ def test_range_datetime_filter(index):
         'dt__gte': [datetime.date(2017, 8, 9)],
         'dt__lte': [datetime.datetime(2017, 8, 9)]
     })
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "aggregations": {
                 "qf.dt.enabled": {"filter": {"exists": {"field": "presentation_date"}}},
@@ -834,7 +834,7 @@ def test_range_datetime_filter(index):
     # FIXME Should convert to datetime.date
     # sq = index.search_query()
     # sq = qf.apply(sq, {'dt__gte': ['2017-08-08'], 'dt__lte': ['2017-08-08']})
-    # assert sq.to_dict(Compiler_5_0) == \
+    # assert sq.to_dict(Compiler_7_0) == \
     #     {
     #         "aggregations": {
     #             "qf.dt.enabled": {"filter": {"exists": {"field": "presentation_date"}}},
@@ -853,7 +853,7 @@ def test_range_datetime_filter(index):
     #
     # sq = index.search_query()
     # sq = qf.apply(sq, {'dt': ['2017-08-08']})
-    # assert sq.to_dict(Compiler_5_0) == \
+    # assert sq.to_dict(Compiler_7_0) == \
     #     {
     #         "aggregations": {
     #             "qf.dt.enabled": {"filter": {"exists": {"field": "presentation_date"}}},
@@ -872,7 +872,7 @@ def test_range_datetime_filter(index):
 
     # sq = index.search_query()
     # sq = qf.apply(sq, {'dt': ['2017-08-08', '2017-08-09']})
-    # assert sq.to_dict(Compiler_5_0) == \
+    # assert sq.to_dict(Compiler_7_0) == \
     #     {
     #         "aggregations": {
     #             "qf.dt.enabled": {"filter": {"exists": {"field": "presentation_date"}}},
@@ -910,15 +910,15 @@ def test_simple_query_filter(index):
 
     sq = index.search_query()
     sq = qf.apply(sq, {})
-    assert sq.to_dict(Compiler_5_0) == {}
+    assert sq.to_dict(Compiler_7_0) == {}
 
     sq = index.search_query()
     sq = qf.apply(sq, {'price': [None]})
-    assert sq.to_dict(Compiler_5_0) == {}
+    assert sq.to_dict(Compiler_7_0) == {}
 
     sq = index.search_query()
     sq = qf.apply(sq, {'new': ['true', 'false']})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "query": {
                 "bool": {
@@ -935,7 +935,7 @@ def test_simple_query_filter(index):
         .filter(index['car'].year == 2014)
     )
     sq = qf.apply(sq, {'price': ['*-10000', '10000-20000', 'null']})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "query": {
                 "bool": {
@@ -982,11 +982,11 @@ def test_simple_query_filter_with_and_conjunction(index):
 
     sq = index.search_query()
     sq = qf.apply(sq, {})
-    assert sq.to_dict(Compiler_5_0) == {}
+    assert sq.to_dict(Compiler_7_0) == {}
 
     sq = index.search_query()
     sq = qf.apply(sq, {'selling_type': ['retail', 'wholesale']})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "query": {
                 "bool": {
@@ -1032,7 +1032,7 @@ def test_facet_query_filter(index, client):
 
     sq = index.search_query()
     sq = qf.apply(sq, {'new': ['true', 'false']})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "aggregations": {
                 "qf.is_new:true": {
@@ -1166,7 +1166,7 @@ def test_facet_query_filter(index, client):
     qf = CarQueryFilter()
     sq = index.search_query(index['car'].year == 2014)
     sq = qf.apply(sq, {'price': ['*-10000', '10000-20000', 'null']})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "query": {
                 "term": {"year": 2014}
@@ -1344,7 +1344,7 @@ def test_facet_query_filter_with_and_conjunction(index):
 
     sq = index.search_query()
     sq = qf.apply(sq, {})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "aggregations": {
                 "qf.available:true": {
@@ -1367,7 +1367,7 @@ def test_facet_query_filter_with_and_conjunction(index):
 
     sq = index.search_query()
     sq = qf.apply(sq, {'selling_type': ['retail']})
-    assert sq.to_dict(Compiler_5_0) == \
+    assert sq.to_dict(Compiler_7_0) == \
         {
             "aggregations": {
                 "qf.available.filter": {
@@ -1424,7 +1424,7 @@ def test_ordering(index):
 
     qf = CarQueryFilter()
 
-    assert qf.apply(sq, {}).to_dict(Compiler_5_0) == \
+    assert qf.apply(sq, {}).to_dict(Compiler_7_0) == \
         {
             "sort": [
                 {
@@ -1445,7 +1445,7 @@ def test_ordering(index):
     assert qf_res.sort.get_value('-price').selected is False
 
     qf = CarQueryFilter()
-    assert qf.apply(sq, {'o': ['price']}).to_dict(Compiler_5_0) == \
+    assert qf.apply(sq, {'o': ['price']}).to_dict(Compiler_7_0) == \
         {
             "sort": [
                 "price"
@@ -1468,33 +1468,33 @@ def test_page(index, client):
     sq = index.search_query()
 
     qf = CarQueryFilter()
-    assert qf.apply(sq, {}).to_dict(Compiler_5_0) == \
+    assert qf.apply(sq, {}).to_dict(Compiler_7_0) == \
         {
             "size": 10
         }
 
-    assert qf.apply(sq, {'p': [None]}).to_dict(Compiler_5_0) == \
+    assert qf.apply(sq, {'p': [None]}).to_dict(Compiler_7_0) == \
            {
                "size": 10
            }
 
-    assert qf.apply(sq, {'p': 3}).to_dict(Compiler_5_0) == \
+    assert qf.apply(sq, {'p': 3}).to_dict(Compiler_7_0) == \
         {
             "size": 10,
             "from": 20
         }
 
-    assert qf.apply(sq, {'per_page': 25}).to_dict(Compiler_5_0) == \
+    assert qf.apply(sq, {'per_page': 25}).to_dict(Compiler_7_0) == \
         {
             "size": 25
         }
 
-    assert qf.apply(sq, {'p': 201, 'per_page': 50}).to_dict(Compiler_5_0) == \
+    assert qf.apply(sq, {'p': 201, 'per_page': 50}).to_dict(Compiler_7_0) == \
         {
             "size": 0
         }
 
-    assert qf.apply(sq, {'p': 3, 'per_page': 100}).to_dict(Compiler_5_0) == \
+    assert qf.apply(sq, {'p': 3, 'per_page': 100}).to_dict(Compiler_7_0) == \
         {
             "size": 10,
             "from": 20
@@ -1539,13 +1539,13 @@ def test_page_with_max_items(index):
     sq = index.search_query()
     qf = CarQueryFilter()
 
-    assert qf.apply(sq, {'p': 11, 'per_page': 96}).to_dict(Compiler_5_0) == \
+    assert qf.apply(sq, {'p': 11, 'per_page': 96}).to_dict(Compiler_7_0) == \
         {
             "size": 40,
             "from": 960
         }
 
-    assert qf.apply(sq, {'p': 500}).to_dict(Compiler_5_0) == \
+    assert qf.apply(sq, {'p': 500}).to_dict(Compiler_7_0) == \
         {
             "size": 0
         }
@@ -1567,9 +1567,9 @@ def test_nested_facet_filter(index, client):
         ProductDoc.attrs.value,
     )
     f.qf = Mock(_name='qf')
-    assert f._apply_filter(index.search_query(), {}).to_dict(Compiler_5_0) == {}
+    assert f._apply_filter(index.search_query(), {}).to_dict(Compiler_7_0) == {}
     assert \
-        f._apply_agg(index.search_query()).to_dict(Compiler_5_0) == \
+        f._apply_agg(index.search_query()).to_dict(Compiler_7_0) == \
         {
             "aggregations": {
                 "qf.size": {
@@ -1593,7 +1593,7 @@ def test_nested_facet_filter(index, client):
         }
     assert \
         f._apply_filter(index.search_query(),
-                        {'size': {'exact': [1]}}).to_dict(Compiler_5_0) == \
+                        {'size': {'exact': [1]}}).to_dict(Compiler_7_0) == \
         {
             "post_filter": {
                 "nested": {
@@ -1611,7 +1611,7 @@ def test_nested_facet_filter(index, client):
         }
     assert \
         f._apply_filter(index.search_query(),
-                        {'size': {'exact': [1, 2]}}).to_dict(Compiler_5_0) == \
+                        {'size': {'exact': [1, 2]}}).to_dict(Compiler_7_0) == \
         {
             "post_filter": {
                 "nested": {
@@ -1635,11 +1635,11 @@ def test_nested_facet_filter(index, client):
         conj_operator=QueryFilter.CONJ_AND,
     )
     assert \
-        f._apply_filter(index.search_query(), {}).to_dict(Compiler_5_0) == \
+        f._apply_filter(index.search_query(), {}).to_dict(Compiler_7_0) == \
         {}
     assert \
         f._apply_filter(index.search_query(),
-                        {'size': {'exact': [1]}}).to_dict(Compiler_5_0) == \
+                        {'size': {'exact': [1]}}).to_dict(Compiler_7_0) == \
         {
             "post_filter": {
                 "nested": {
@@ -1657,7 +1657,7 @@ def test_nested_facet_filter(index, client):
         }
     assert \
         f._apply_filter(index.search_query(),
-                        {'size': {'exact': [1, 2]}}).to_dict(Compiler_5_0) == \
+                        {'size': {'exact': [1, 2]}}).to_dict(Compiler_7_0) == \
         {
             "post_filter": {
                 "nested": {
@@ -1829,7 +1829,7 @@ def test_nested_facet_filter_func(index, client):
     sq = index.search_query()
     sq = qf.apply(sq, {"size": ['S', 'XS']})
     assert \
-        sq.to_dict(Compiler_5_0) == \
+        sq.to_dict(Compiler_7_0) == \
         {
             "aggregations": {
                 "qf.color.filter": {
@@ -1955,10 +1955,10 @@ def test_nested_range_filter(index, client):
     )
     f.qf = Mock(_name='qf')
     assert \
-        f._apply_filter(index.search_query(), {}).to_dict(Compiler_5_0) == \
+        f._apply_filter(index.search_query(), {}).to_dict(Compiler_7_0) == \
         {}
     assert \
-        f._apply_agg(index.search_query()).to_dict(Compiler_5_0) == \
+        f._apply_agg(index.search_query()).to_dict(Compiler_7_0) == \
         {
             "aggregations": {
                 "qf.test.enabled": {
@@ -2005,7 +2005,7 @@ def test_nested_range_filter(index, client):
 
     assert \
         f._apply_filter(index.search_query(),
-                        {'test': {'gte': [5.1]}}).to_dict(Compiler_5_0) == \
+                        {'test': {'gte': [5.1]}}).to_dict(Compiler_7_0) == \
         {
             "post_filter": {
                 "nested": {

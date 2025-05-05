@@ -3,9 +3,6 @@ import pytest
 
 from elasticmagic import Document, DynamicDocument, Field, Script
 from elasticmagic import actions
-from elasticmagic.compiler import Compiler_1_0
-from elasticmagic.compiler import Compiler_2_0
-from elasticmagic.compiler import Compiler_5_0
 from elasticmagic.compiler import Compiler_6_0
 from elasticmagic.compiler import Compiler_7_0
 from elasticmagic.types import Date
@@ -27,9 +24,6 @@ class ProductWithoudTypeDocument(Document):
 
 @pytest.fixture(
     params=[
-        Compiler_1_0,
-        Compiler_2_0,
-        Compiler_5_0,
         Compiler_6_0,
         Compiler_7_0,
     ]
@@ -50,7 +44,7 @@ def test_index_action_dict(compiler):
         {'_id': 1, '_type': 'test', 'name': 'Test'},
         refresh=True
     )
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         expected_meta = {
             'index': {
                 '_id': 1,
@@ -73,7 +67,7 @@ def test_index_action_dict(compiler):
 
 def test_index_action_document(compiler, order_doc):
     action = actions.Index(order_doc, index='orders-2019')
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         expected_meta = {
             'index': {
                 '_type': 'order',
@@ -112,7 +106,7 @@ def test_delete_action_dict(compiler):
         {'_id': 1, '_type': 'test', 'name': 'Test'},
         routing=2
     )
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         expected_meta = {
             'delete': {
                 '_id': 1,
@@ -133,7 +127,7 @@ def test_delete_action_dict(compiler):
 
 def test_delete_action_document(compiler, order_doc):
     action = actions.Delete(order_doc, index='orders-2019')
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         expected_meta = {
             'delete': {
                 '_type': 'order',
@@ -155,7 +149,7 @@ def test_delete_action_dynamic_document(compiler):
         DynamicDocument(_id='1', _type='order', _index='orders-2019'),
         index='orders-2022'
     )
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         expected_meta = {
             'delete': {
                 '_id': '1',
@@ -179,7 +173,7 @@ def test_create_action_dict(compiler):
         {'_id': 1, '_type': 'test', 'name': 'Test'},
         refresh=True
     )
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         expected_meta = {
             'create': {
                 '_id': 1,
@@ -202,7 +196,7 @@ def test_create_action_dict(compiler):
 
 def test_create_action_document(compiler, order_doc):
     action = actions.Create(order_doc, index='orders-2019')
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         expected_meta = {
             'create': {
                 '_type': 'order',
@@ -227,7 +221,7 @@ def test_update_action_dict(compiler):
         {'_id': 1, '_type': 'test', 'name': 'Test'},
         refresh=True
     )
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         expected_meta = {
             'update': {
                 '_id': 1,
@@ -250,7 +244,7 @@ def test_update_action_dict(compiler):
     }
 
 
-@pytest.mark.parametrize('compiler', [Compiler_2_0, Compiler_5_0])
+@pytest.mark.parametrize('compiler', [Compiler_6_0, Compiler_7_0])
 def test_update_action_script(compiler):
     action = actions.Update(
         {'_id': 1, '_type': 'test', 'name': 'Test'},
@@ -258,48 +252,28 @@ def test_update_action_script(compiler):
         upsert={'name': 'Test via upsert'},
         refresh=True
     )
-    assert action.to_meta(compiler=compiler) == {
-        'update': {
-            '_id': 1,
-            '_type': 'test',
-            'refresh': True,
+    if compiler.features.requires_doc_type:
+        expected_meta = {
+            'update': {
+                '_id': 1,
+                '_type': 'test',
+                'refresh': True,
+            }
         }
-    }
+    else:
+        expected_meta = {
+            'update': {
+                '_id': 1,
+                'refresh': True,
+            }
+        }
+    assert action.to_meta(compiler=compiler) == expected_meta
+
     assert action.to_source(compiler=compiler) == {
         'script': {
-            'inline': 'ctx._source.product_ids.append(911)',
+            'source': 'ctx._source.product_ids.append(911)',
         },
         'upsert': {
             'name': 'Test via upsert',
         },
     }
-
-
-def test_update_action_script_compiler_1_0():
-    compiler = Compiler_1_0
-    action = actions.Update(
-        {'_id': 1, '_type': 'test', 'name': 'Test'},
-        script=Script(
-            inline='ctx._source.product_ids.append(911)',
-            params={'product_id': 911}
-        ),
-        upsert={'name': 'Test via upsert'},
-        consistency='one',
-    )
-    assert action.to_meta(compiler=compiler) == {
-        'update': {
-            '_id': 1,
-            '_type': 'test',
-            'consistency': 'one',
-        }
-    }
-    # TODO: For Elasticsearch 1.x we should put script in-place
-    # assert action.to_source(compiler=compiler) == {
-    #     'script': 'ctx._source.product_ids.append(product_id)',
-    #     'params': {
-    #         'product_id': 911
-    #     },
-    #     'upsert': {
-    #         'name': 'Test via upsert',
-    #     },
-    # }

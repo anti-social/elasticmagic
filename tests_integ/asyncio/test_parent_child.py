@@ -3,13 +3,11 @@ import pytest
 from elasticmagic import (
     agg,
     Document,
-    DynamicDocument,
     Field,
     Ids,
     HasParent,
     HasChild
 )
-from elasticmagic.compiler import CompilationError
 from elasticmagic.expression import (
     Bool,
     ParentId,
@@ -120,13 +118,10 @@ def check_question_meta(q, es_version, doc_cls=Question):
     assert q._routing is None
     assert q._parent is None
     fields = q.get_hit_fields()
-    if es_version.major < 6:
-        assert '_doc_type.name' not in fields
-    else:
-        assert (
-            fields.get('_doc_type.name') == ['question'] or
-            fields.get('_doc_type_join') == ['question']
-        )
+    assert (
+        fields.get('_doc_type.name') == ['question'] or
+        fields.get('_doc_type_join') == ['question']
+    )
 
 
 def check_standard_question_doc(q, es_version, doc_cls=Question):
@@ -144,109 +139,19 @@ def check_answer_meta(a, es_version):
     assert a._routing == '1'
     assert a._parent == '1'
     fields = a.get_hit_fields()
-    if es_version.major < 6:
-        assert '_doc_type.name' not in fields
-        assert '_doc_type.parent' not in fields
-    else:
-        assert (
-            fields.get('_doc_type.name') == ['answer'] or
-            fields.get('_doc_type_join') == ['answer']
-        )
-        assert (
-            fields.get('_doc_type.parent') == ['question~1'] or
-            fields.get('_doc_type_join#question') == ['question~1']
-        )
+    assert (
+        fields.get('_doc_type.name') == ['answer'] or
+        fields.get('_doc_type_join') == ['answer']
+    )
+    assert (
+        fields.get('_doc_type.parent') == ['question~1'] or
+        fields.get('_doc_type_join#question') == ['question~1']
+    )
 
 
 def check_standard_answer_doc(a, es_version):
     check_answer_meta(a, es_version)
     assert a.text == '42'
-
-
-@pytest.mark.asyncio
-async def test_update_mapping_5x(
-        es_client, es_version, index_name, es_index_empty
-):
-    if es_version.major > 5:
-        pytest.skip(f'skipped for Elasticsearch {es_version}')
-
-    assert await es_client.indices.get_mapping(index_name) == {
-        index_name: {
-            'mappings': {
-                'answer': {
-                    '_parent': {
-                        'type': 'question'
-                    },
-                    '_routing': {
-                        'required': True
-                    }
-                },
-                'question': {}
-            }
-        }
-    }
-
-    await es_index_empty.put_mapping(Answer)
-
-    assert await es_client.indices.get_mapping(index_name) == {
-        index_name: {
-            'mappings': {
-                'answer': {
-                    '_parent': {
-                        'type': 'question'
-                    },
-                    '_routing': {
-                        'required': True
-                    },
-                    'properties': {
-                        'text': {
-                            'type': 'text'
-                        }
-                    }
-                },
-                'question': {}
-            }
-        }
-    }
-
-    await es_index_empty.put_mapping(Question)
-    assert await es_client.indices.get_mapping(index_name) == {
-        index_name: {
-            'mappings': {
-                'answer': {
-                    '_parent': {
-                        'type': 'question'
-                    },
-                    '_routing': {
-                        'required': True
-                    },
-                    'properties': {
-                        'text': {
-                            'type': 'text'
-                        }
-                    }
-                },
-                'question': {
-                    'properties': {
-                        'title': {
-                            'type': 'text'
-                        },
-                        'text': {
-                            'type': 'text'
-                        },
-                        'rank': {
-                            'type': 'float',
-                            'store': True
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    # TODO: Implement put_mapping([Answer, Question])
-    with pytest.raises(CompilationError):
-        await es_index_empty.put_mapping([Question, Answer])
 
 
 @pytest.mark.asyncio
@@ -562,17 +467,9 @@ async def test_search_explicit_doc_type(es_index, es_version, docs):
     sq = es_index.search_query(doc_type='question')
     res = await sq.get_result()
 
-    if es_version.major < 6:
-        assert res.total == 1
-        assert len(res.hits) == 1
-        assert res.error is None
-        check_standard_question_doc(
-            res.hits[0], es_version, doc_cls=DynamicDocument
-        )
-    else:
-        assert res.total == 2
-        assert len(res.hits) == 2
-        assert res.error is None
+    assert res.total == 2
+    assert len(res.hits) == 2
+    assert res.error is None
 
 
 @pytest.mark.asyncio
@@ -709,10 +606,7 @@ async def test_id_term_query_no_doc_cls(es_index, es_version, docs):
     )
     res = await sq.get_result()
 
-    if es_version.major < 6:
-        assert res.total == 2
-    else:
-        assert res.total == 0
+    assert res.total == 0
 
 
 @pytest.mark.asyncio
@@ -749,10 +643,7 @@ async def test_id_terms_query_no_doc_cls(es_index, es_version, docs):
     )
     res = await sq.get_result()
 
-    if es_version.major < 6:
-        assert res.total == 2
-    else:
-        assert res.total == 0
+    assert res.total == 0
 
 
 @pytest.mark.asyncio

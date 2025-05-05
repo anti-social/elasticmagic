@@ -15,7 +15,9 @@ Quick Start
        Elasticsearch, 'info',
        return_value={
            'version': {
-               'number': '6.7.2'
+               'number': '6.7.2',
+               'distribution': 'elasticsearch',
+
            }
        }
    )

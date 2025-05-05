@@ -27,7 +27,7 @@ def get_doc_type_for_hit(hit):
     if custom_doc_type:
         return custom_doc_type[0]
 
-    return hit.get('_type')
+    return hit.get('_type', '_doc')
 
 
 class DocumentMeta(type):

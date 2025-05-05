@@ -4,8 +4,8 @@ from .document import Document, DynamicDocument
 from .expression import (
     Params, Term, Terms, Exists, Missing, Range,
     Match, MatchPhrase, MatchPhrasePrefix, MultiMatch, MatchAll,
-    Bool, Query, DisMax, Filtered, Ids, Prefix, Limit,
-    And, Or, Not, Sort, Boosting, Common, ConstantScore, FunctionScore,
+    Bool, Query, DisMax, Ids, Prefix, Limit,
+    Sort, Boosting, Common, ConstantScore, FunctionScore,
     Field, SpanFirst, SpanMulti, SpanNear, SpanNot, SpanOr, SpanTerm,
     Nested, HasParent, HasChild, QueryRescorer, Script, SortScript
 )
@@ -26,8 +26,8 @@ __all__ = [
 
     'Params', 'Term', 'Terms', 'Exists', 'Missing',
     'Match', 'MatchPhrase', 'MatchPhrasePrefix', 'MultiMatch', 'MatchAll',
-    'Range', 'Bool', 'Query', 'DisMax', 'Filtered', 'Ids',
-    'Prefix', 'Limit', 'And', 'Or', 'Not', 'Sort', 'Boosting', 'Common',
+    'Range', 'Bool', 'Query', 'DisMax', 'Ids',
+    'Prefix', 'Limit', 'Sort', 'Boosting', 'Common',
     'ConstantScore', 'FunctionScore', 'Field',
     'SpanFirst', 'SpanMulti', 'SpanNear', 'SpanNot', 'SpanOr', 'SpanTerm',
     'Nested', 'HasParent', 'HasChild', 'QueryRescorer', 'SortScript',

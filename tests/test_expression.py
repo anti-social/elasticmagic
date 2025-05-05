@@ -3,16 +3,15 @@ from elasticmagic import DynamicDocument
 from elasticmagic import (
     Params, Term, Terms, Exists, Missing, Match, MatchPhrase,
     MatchPhrasePrefix, MatchAll, MultiMatch, Range,
-    Bool, Query, And, Or, Not, Sort, Field, Limit,
-    Boosting, Common, ConstantScore, FunctionScore, DisMax, Filtered, Ids, Prefix,
+    Bool, Query, Sort, Field, Limit,
+    Boosting, Common, ConstantScore, FunctionScore, DisMax, Ids, Prefix,
     SpanFirst, SpanMulti, SpanNear, SpanNot, SpanOr, SpanTerm, 
     Nested, HasParent, HasChild, SortScript,
 )
-from elasticmagic.compiler import Compiler_1_0, CompilationError
-from elasticmagic.compiler import Compiler_5_0
-from elasticmagic.compiler import Compiler_5_6
+from elasticmagic.compiler import CompilationError
 from elasticmagic.compiler import Compiler_6_0
-from elasticmagic.expression import BooleanExpression, Script
+from elasticmagic.compiler import Compiler_7_0
+from elasticmagic.expression import Script
 from elasticmagic.types import (
     Boolean, Type, String, Integer, List, GeoPoint, Completion, Text
 )
@@ -165,41 +164,22 @@ class ExpressionTestCase(BaseTestCase):
                 }
             }
         )
+
         script_inline = "(doc[params.field_name].size() > 0 && " \
                         "doc[params.field_name].value > 0) ? " \
                         "params.adv_boost : 0"
         script_params = dict(adv_boost=70, field_name='advert_weight')
         self.assert_expression(
             Script(inline=script_inline, lang='painless', params=script_params),
-            dict(inline=script_inline, lang='painless', params=script_params)
+            dict(source=script_inline, lang='painless', params=script_params)
         )
         self.assert_expression(
             Script(inline=script_inline, params=script_params),
-            dict(inline=script_inline, params=script_params)
+            dict(source=script_inline, params=script_params)
         )
         self.assert_expression(
             Script(inline=script_inline),
-            dict(inline=script_inline)
-        )
-        self.assert_expression(
-            Script(inline=script_inline),
-            dict(source=script_inline),
-            compiler=Compiler_5_6
-        )
-        self.assert_expression(
-            Script(inline=script_inline),
-            dict(source=script_inline),
-            compiler=Compiler_6_0
-        )
-        self.assert_expression(
-            Script(id="ajkshfajsndajvn2143jlan"),
-            dict(stored="ajkshfajsndajvn2143jlan"),
-            compiler=Compiler_5_0
-        )
-        self.assert_expression(
-            Script(id="ajkshfajsndajvn2143jlan"),
-            dict(id="ajkshfajsndajvn2143jlan"),
-            compiler=Compiler_5_6
+            dict(source=script_inline)
         )
         self.assert_expression(
             Script(id="ajkshfajsndajvn2143jlan"),
@@ -207,15 +187,14 @@ class ExpressionTestCase(BaseTestCase):
             compiler=Compiler_6_0
         )
         self.assert_expression(
-            Script(file="home/es/test.py"),
-            dict(file="home/es/test.py")
+            Script(id="ajkshfajsndajvn2143jlan"),
+            dict(id="ajkshfajsndajvn2143jlan"),
+            compiler=Compiler_7_0
         )
         with self.assertRaises(CompilationError):
-            Script(params=dict(hello='no')).to_dict(compiler=Compiler_5_0)
+            Script(params=dict(hello='no')).to_dict(compiler=Compiler_7_0)
         with self.assertRaises(CompilationError):
             Script(params=dict(file='no')).to_dict(compiler=Compiler_6_0)
-        with self.assertRaises(CompilationError):
-            Script(inline=script_inline).to_dict(compiler=Compiler_1_0)
 
         e = MultiMatch(
             "Will Smith",
@@ -342,23 +321,6 @@ class ExpressionTestCase(BaseTestCase):
         )
 
         self.assert_expression(
-            Filtered(
-                filter=Range(f.created, gte='now - 1d / d'),
-                query=Match(f.tweet, 'full text search')
-            ),
-            {
-                "filtered": {
-                    "query": {
-                        "match": { "tweet": "full text search" }
-                    },
-                    "filter": {
-                        "range": { "created": { "gte": "now - 1d / d" }}
-                    }
-                }
-            }
-        )
-
-        self.assert_expression(
             Ids(['123456']),
             {
                 "ids": {
@@ -418,122 +380,12 @@ class ExpressionTestCase(BaseTestCase):
             }
         )
 
-        self.assertRaises(NotImplementedError, BooleanExpression)
-
-        self.assert_expression(
-            And(
-                Range(f.post_date, from_='2010-03-01', to='2010-04-01'),
-                Prefix(f.name.second, 'ba')
-            ),
-            {
-                "and": [
-                    {
-                        "range": {
-                            "post_date": {
-                                "from": "2010-03-01",
-                                "to": "2010-04-01"
-                            }
-                        }
-                    },
-                    {
-                        "prefix": {"name.second": "ba"}
-                    }
-                ]
-            },
-            compiler=Compiler_1_0
-        )
-        self.assert_expression(
-            And(
-                Range(f.post_date, from_='2010-03-01', to='2010-04-01'),
-                Prefix(f.name.second, 'ba'),
-                _cache=True
-            ),
-            {
-                "and": {
-                    "filters": [
-                        {
-                            "range": {
-                                "post_date": {
-                                    "from": "2010-03-01",
-                                    "to": "2010-04-01"
-                                }
-                            }
-                        },
-                        {
-                            "prefix": {"name.second": "ba"}
-                        }
-                    ],
-                    "_cache": True
-                }
-            },
-            compiler=Compiler_1_0
-        )
-
-        self.assert_expression(
-            Or(Term(f.name.second, 'banon'), Term(f.name.nick, 'kimchy')),
-            {
-                "or": [
-                    {
-                        "term": {"name.second": "banon"}
-                    },
-                    {
-                        "term": {"name.nick": "kimchy"}
-                    }
-                ]
-            },
-            compiler=Compiler_1_0
-        )
-        self.assert_expression(
-            And(Or(Term(f.name.nick, 'kimchy'))),
-            {
-                "term": {"name.nick": "kimchy"}
-            },
-            compiler=Compiler_1_0
-        )
-
-        self.assert_expression(
-            Not(
-                Range(f.post_date, from_='2010-03-01', to='2010-04-01'),
-            ),
-            {
-                "not": {
-                    "range": {
-                        "post_date": {
-                            "from": "2010-03-01",
-                            "to": "2010-04-01"
-                        }
-                    }
-                }
-            },
-            compiler=Compiler_1_0
-        )
-        self.assert_expression(
-            Not(
-                Range(f.post_date, from_='2010-03-01', to='2010-04-01'),
-                _cache=True,
-            ),
-            {
-                "not": {
-                    "filter":  {
-                        "range": {
-                            "post_date": {
-                                "from": "2010-03-01",
-                                "to": "2010-04-01"
-                            }
-                        }
-                    },
-                    "_cache": True
-                }
-            },
-            compiler=Compiler_1_0
-        )
-
         self.assert_expression(
             SortScript(script=Script(inline='score')),
             {
                 '_script': {
                     'script': {
-                        'inline': 'score',
+                        'source': 'score',
                     },
                 },
             },
@@ -546,7 +398,7 @@ class ExpressionTestCase(BaseTestCase):
             {
                 '_script': {
                     'script': {
-                        'inline': 'score * 2',
+                        'source': 'score * 2',
                         'params': {
                             'a': 1,
                         },
@@ -566,7 +418,7 @@ class ExpressionTestCase(BaseTestCase):
             {
                 '_script': {
                     'script': {
-                        'inline': 'score * 2',
+                        'source': 'score * 2',
                         'params': {
                             'a': 1,
                         },
@@ -1003,7 +855,7 @@ class ExpressionTestCase(BaseTestCase):
     def test_field_mapping(self):
         f = Field('name', String)
         self.assertEqual(
-            f.to_mapping(Compiler_5_0),
+            f.to_mapping(Compiler_7_0),
             {
                 "name": {
                     "type": "string"
@@ -1013,7 +865,7 @@ class ExpressionTestCase(BaseTestCase):
 
         f = Field('name', String, fields={'sort': Field(String)})
         self.assertEqual(
-            f.to_mapping(Compiler_5_0),
+            f.to_mapping(Compiler_7_0),
             {
                 "name": {
                     "type": "string",
@@ -1028,7 +880,7 @@ class ExpressionTestCase(BaseTestCase):
 
         f = Field('name', String, fields={'sort': Field('ordering', String)})
         self.assertEqual(
-            f.to_mapping(Compiler_5_0),
+            f.to_mapping(Compiler_7_0),
             {
                 "name": {
                     "type": "string",
@@ -1046,7 +898,7 @@ class ExpressionTestCase(BaseTestCase):
             fields=[Field('raw', String, index='not_analyzed')]
         )
         self.assertEqual(
-            f.to_mapping(Compiler_5_0),
+            f.to_mapping(Compiler_7_0),
             {
                 "name": {
                     "type": "string",
@@ -1062,7 +914,7 @@ class ExpressionTestCase(BaseTestCase):
 
         f = Field('status', Integer)
         self.assertEqual(
-            f.to_mapping(Compiler_5_0),
+            f.to_mapping(Compiler_7_0),
             {
                 "status": {
                     "type": "integer"
@@ -1072,7 +924,7 @@ class ExpressionTestCase(BaseTestCase):
 
         f = Field('tag', List(Integer))
         self.assertEqual(
-            f.to_mapping(Compiler_5_0),
+            f.to_mapping(Compiler_7_0),
             {
                 "tag": {
                     "type": "integer"
@@ -1082,7 +934,7 @@ class ExpressionTestCase(BaseTestCase):
 
         f = Field('pin', GeoPoint())
         self.assertEqual(
-            f.to_mapping(Compiler_5_0),
+            f.to_mapping(Compiler_7_0),
             {
                 "pin": {
                     "type": "geo_point"
@@ -1091,7 +943,7 @@ class ExpressionTestCase(BaseTestCase):
         )
         f = Field('pin', GeoPoint(), lat_lon=True)
         self.assertEqual(
-            f.to_mapping(Compiler_5_0),
+            f.to_mapping(Compiler_7_0),
             {
                 "pin": {
                     "type": "geo_point",
@@ -1102,7 +954,7 @@ class ExpressionTestCase(BaseTestCase):
 
         f = Field('suggest', Completion())
         self.assertEqual(
-            f.to_mapping(Compiler_5_0),
+            f.to_mapping(Compiler_7_0),
             {
                 'suggest': {
                     'type': 'completion',
@@ -1111,7 +963,7 @@ class ExpressionTestCase(BaseTestCase):
         )
         f = Field('suggest', Completion(), payloads=True)
         self.assertEqual(
-            f.to_mapping(Compiler_5_0),
+            f.to_mapping(Compiler_7_0),
             {
                 'suggest': {
                     'type': 'completion',
@@ -1198,20 +1050,8 @@ def test_match_phrase_prefix(compiler):
 
 def test_match_with_type():
     expr = Match(Field('name', Text()), 'Test match type', type='phrase')
-    assert expr.to_elastic(Compiler_5_0) == {
-        'match': {
-            'name': {
-                'query': 'Test match type',
-                'type': 'phrase'
-            }
-        }
-    }
-
-
-def test_match_with_type_rewrite():
-    expr = Match(Field('name', Text()), 'Test match type', type='phrase')
-    assert expr.to_elastic(Compiler_6_0) == {
+    assert expr.to_elastic(Compiler_7_0) == {
         'match_phrase': {
-            'name': 'Test match type'
+            'name': 'Test match type',
         }
     }

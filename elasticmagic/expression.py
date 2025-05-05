@@ -248,11 +248,10 @@ class Script(Expression):
     __visit_name__ = 'script'
 
     def __init__(self, inline=None, lang=None,
-                 params=None, id=None, file=None):
+                 params=None, id=None):
         self.inline = inline
         self.id = id
         self.lang = lang
-        self.file = file
         self.script_params = params
 
 
@@ -326,14 +325,6 @@ class DisMax(QueryExpression):
         )
 
 
-class Filtered(QueryExpression):
-    __query_name__ = 'filtered'
-
-    def __init__(self, filter=None, query=None, strategy=None, **kwargs):
-        super(Filtered, self).__init__(
-            filter=filter, query=query, strategy=strategy, **kwargs)
-
-
 class Ids(QueryExpression):
     __visit_name__ = 'ids'
 
@@ -381,56 +372,6 @@ class Query(QueryExpression):
         return set().union(
             super(Query, self)._collect_doc_classes(),
             collect_doc_classes(self.query),
-        )
-
-
-class BooleanExpression(QueryExpression):
-    __visit_name__ = 'boolean_expression'
-
-    def __init__(self, *args, **kwargs):
-        raise NotImplementedError('Use and_ & or_ class methods instead')
-
-    @classmethod
-    def _construct(cls, operator, *expressions, **kwargs):
-        if len(expressions) == 1:
-            return expressions[0]
-
-        self = cls.__new__(cls)
-        super(BooleanExpression, self).__init__(**kwargs)
-        self.operator = operator
-        self.expressions = expressions
-        return self
-
-    def _collect_doc_classes(self):
-        return set().union(
-            super(BooleanExpression, self)._collect_doc_classes(),
-            collect_doc_classes(self.expressions),
-        )
-
-    @classmethod
-    def and_(cls, *expressions, **kwargs):
-        return cls._construct(operator.and_, *expressions, **kwargs)
-
-    @classmethod
-    def or_(cls, *expressions, **kwargs):
-        return cls._construct(operator.or_, *expressions, **kwargs)
-
-
-And = BooleanExpression.and_
-Or = BooleanExpression.or_
-
-
-class Not(QueryExpression):
-    __visit_name__ = 'not'
-
-    def __init__(self, expr, **kwargs):
-        super(Not, self).__init__(**kwargs)
-        self.expr = expr
-
-    def _collect_doc_classes(self):
-        return set().union(
-            super(Not, self)._collect_doc_classes(),
-            collect_doc_classes(self.expr),
         )
 
 

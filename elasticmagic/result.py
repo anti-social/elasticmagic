@@ -96,12 +96,13 @@ class ExplainResult(Result):
 
         raw_hit = raw_result.get('get', {}).copy()
         self._id = raw_result['_id']
-        self._type = raw_result['_type']
+        self._type = raw_result.get('_type')
         self._index = raw_result['_index']
         self.hit = None
         if raw_hit:
             raw_hit['_id'] = raw_result['_id']
-            raw_hit['_type'] = raw_result['_type']
+            if doc_type := raw_result.get('_type'):
+                raw_hit['_type'] = doc_type
             raw_hit['_index'] = raw_result['_index']
             doc_type = get_doc_type_for_hit(raw_hit)
             doc_cls = doc_cls_map.get(doc_type, DynamicDocument)
@@ -128,7 +129,7 @@ class ActionResult(Result):
         else:
             self.error = None
         self._index = data['_index']
-        self._type = data['_type']
+        self._type = data.get('_type')
         self._id = data['_id']
         self._version = data.get('_version')
 
@@ -157,7 +158,7 @@ class DeleteResult(Result):
         self.found = raw_result.get('found')
         self.result = raw_result.get('result')
         self._index = raw_result['_index']
-        self._type = raw_result['_type']
+        self._type = raw_result.get('_type')
         self._id = raw_result['_id']
         self._version = raw_result['_version']
 

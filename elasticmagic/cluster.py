@@ -65,7 +65,9 @@ class BaseCluster(metaclass=ABCMeta):
         version_str = raw_result['version']['number']
         version_str, _, snapshot = version_str.partition('-')
         major, minor, patch = map(int, version_str.split('.'))
-        return ESVersion(major, minor, patch)
+        return ESVersion(
+            major, minor, patch, raw_result['version'].get('distribution')
+        )
 
     def _preprocess_params(self, params, *pop_keys):
         params = params.copy()
