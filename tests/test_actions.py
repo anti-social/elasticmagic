@@ -44,7 +44,7 @@ def test_index_action_dict(compiler):
         {'_id': 1, '_type': 'test', 'name': 'Test'},
         refresh=True
     )
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         expected_meta = {
             'index': {
                 '_id': 1,
@@ -67,7 +67,7 @@ def test_index_action_dict(compiler):
 
 def test_index_action_document(compiler, order_doc):
     action = actions.Index(order_doc, index='orders-2019')
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         expected_meta = {
             'index': {
                 '_type': 'order',
@@ -106,7 +106,7 @@ def test_delete_action_dict(compiler):
         {'_id': 1, '_type': 'test', 'name': 'Test'},
         routing=2
     )
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         expected_meta = {
             'delete': {
                 '_id': 1,
@@ -127,7 +127,7 @@ def test_delete_action_dict(compiler):
 
 def test_delete_action_document(compiler, order_doc):
     action = actions.Delete(order_doc, index='orders-2019')
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         expected_meta = {
             'delete': {
                 '_type': 'order',
@@ -149,7 +149,7 @@ def test_delete_action_dynamic_document(compiler):
         DynamicDocument(_id='1', _type='order', _index='orders-2019'),
         index='orders-2022'
     )
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         expected_meta = {
             'delete': {
                 '_id': '1',
@@ -173,7 +173,7 @@ def test_create_action_dict(compiler):
         {'_id': 1, '_type': 'test', 'name': 'Test'},
         refresh=True
     )
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         expected_meta = {
             'create': {
                 '_id': 1,
@@ -196,7 +196,7 @@ def test_create_action_dict(compiler):
 
 def test_create_action_document(compiler, order_doc):
     action = actions.Create(order_doc, index='orders-2019')
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         expected_meta = {
             'create': {
                 '_type': 'order',
@@ -221,7 +221,7 @@ def test_update_action_dict(compiler):
         {'_id': 1, '_type': 'test', 'name': 'Test'},
         refresh=True
     )
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         expected_meta = {
             'update': {
                 '_id': 1,
@@ -252,7 +252,7 @@ def test_update_action_script(compiler):
         upsert={'name': 'Test via upsert'},
         refresh=True
     )
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         expected_meta = {
             'update': {
                 '_id': 1,

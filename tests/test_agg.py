@@ -1182,8 +1182,7 @@ def test_bucket_script(compiler):
                         'total_sales': 'total_sales',
                     },
                     'script': {
-                        compiler.features.script_source_field_name:
-                            'params.t_shirt_sales / params.total_sales * 100'
+                        'source': 'params.t_shirt_sales / params.total_sales * 100'
                     }
                 }
             }
@@ -1285,8 +1284,7 @@ def test_bucket_selector(compiler):
                         'total_sales': 'total_sales',
                     },
                     'script': {
-                        compiler.features.script_source_field_name:
-                            'params.total_sales > 200'
+                        'source': 'params.total_sales > 200'
                     }
                 }
             }

@@ -44,15 +44,8 @@ ESVersion = namedtuple('ESVersion', ['major', 'minor', 'patch'])
 ElasticsearchFeatures = namedtuple(
     'ExpressionFeatures',
     [
-        'supports_doc_type',
+        'requires_doc_type',
         'supports_track_total_hits',
-        'stored_fields_param',
-        'script_source_field_name',
-        'script_id_field_name',
-        'source_include_param',
-        'source_exclude_param',
-        'patch_source_include_param',
-        'patch_source_exclude_param',
         'bulk_update_underscore_retry_on_conflict',
     ]
 )
@@ -93,14 +86,13 @@ def _add_doc_type_fields_into_stored_fields(
 
 
 def _patch_stored_fields_in_params(features, params, add_source_field):
-    stored_fields_param = features.stored_fields_param
-    stored_fields = params.get(stored_fields_param)
+    stored_fields = params.get('stored_fields')
     if isinstance(stored_fields, str):
         stored_fields = stored_fields.split(',')
     stored_fields = _add_doc_type_fields_into_stored_fields(
         stored_fields, add_source_field
     )
-    params[stored_fields_param] = ','.join(stored_fields)
+    params['stored_fields'] = ','.join(stored_fields)
     return params
 
 
@@ -112,8 +104,8 @@ def _has_custom_source(params):
             source != [False] and
             source != ['false']
         ) or
-        params.get('_source_include') or
-        params.get('_source_exclude')
+        params.get('_source_includes') or
+        params.get('_source_excludes')
     )
 
 
@@ -121,7 +113,7 @@ def _mk_doc_type(doc_types):
     return ','.join(doc_types)
 
 
-def _mk_doc_cls_map(doc_classes, supports_doc_type):
+def _mk_doc_cls_map(doc_classes, requires_doc_type):
     if doc_classes is None:
         doc_classes = ()
     elif isinstance(doc_classes, Iterable):
@@ -132,7 +124,7 @@ def _mk_doc_cls_map(doc_classes, supports_doc_type):
     doc_cls_map = {
         doc_cls.__doc_type__: doc_cls for doc_cls in doc_classes
     }
-    if not supports_doc_type and len(doc_classes) == 1:
+    if not requires_doc_type and len(doc_classes) == 1:
         doc_cls_map['_doc'] = doc_classes[0]
 
     return doc_cls_map
@@ -186,9 +178,9 @@ class Compiled(object):
         if script.script_params:
             res['params'] = script.script_params
         if script.inline:
-            res[self.features.script_source_field_name] = script.inline
+            res['source'] = script.inline
         elif script.id:
-            res[self.features.script_id_field_name] = script.id
+            res['id'] = script.id
         else:
             raise CompilationError('Invalid arguments for Script')
         return self.visit_dict(res)
@@ -627,7 +619,7 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
             raw_result,
             aggregations=self.expression.aggregations,
             doc_cls_map=_mk_doc_cls_map(
-                self.expression.doc_classes, self.features.supports_doc_type
+                self.expression.doc_classes, self.features.requires_doc_type
             ),
             instance_mapper=self.expression.instance_mapper,
         )
@@ -697,7 +689,7 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
         if query_ctx.source:
             params['_source'] = self.visit(query_ctx.source)
         if query_ctx.fields:
-            params[self.features.stored_fields_param] = self.visit(
+            params['stored_fields'] = self.visit(
                 query_ctx.fields
             )
         if query_ctx.aggregations:
@@ -744,7 +736,7 @@ class CompiledSearchQuery(CompiledExpression, CompiledEndpoint):
         if should_use_default_type:
             search_params['doc_type'] = DEFAULT_DOC_TYPE
 
-        if not self.features.supports_doc_type:
+        if not self.features.requires_doc_type:
             search_params.pop('doc_type', None)
 
         return search_params
@@ -771,7 +763,7 @@ class CompiledExplain(CompiledSearchQuery):
 
     def prepare_params(self, params):
         params['id'] = self.doc_id
-        if not params.get('doc_type'):
+        if self.features.requires_doc_type and not params.get('doc_type'):
             params['doc_type'] = self.doc_type
         if not params.get('routing') and self.routing:
             params['routing'] = self.routing
@@ -779,18 +771,17 @@ class CompiledExplain(CompiledSearchQuery):
             if self._source.fields:
                 params['_source'] = self._source.fields
             if self._source.include:
-                params[self.features.source_include_param] = \
-                    self._source.include
+                params['_source_includes'] = self._source.include
             if self._source.exclude:
-                params[self.features.source_exclude_param] = \
-                    self._source.exclude
+                params['_source_excludes'] = self._source.exclude
         if self._stored_fields:
             params['stored_fields'] = self._stored_fields
         if _is_emulate_doc_types_mode(self.features, self.doc_cls):
             params['id'] = mk_uid(
                 self.doc_cls.get_doc_type(), params['id']
             )
-            params['doc_type'] = DEFAULT_DOC_TYPE
+            if self.features.requires_doc_type:
+                params['doc_type'] = DEFAULT_DOC_TYPE
             _patch_stored_fields_in_params(
                 self.features, params, not _has_custom_source(params)
             )
@@ -800,7 +791,7 @@ class CompiledExplain(CompiledSearchQuery):
         return ExplainResult(
             raw_result,
             doc_cls_map=_mk_doc_cls_map(
-                self.doc_cls, self.features.supports_doc_type
+                self.doc_cls, self.features.requires_doc_type
             ),
             # Only store hit in a result when there were custom source or
             # stored fields
@@ -833,7 +824,7 @@ class CompiledScroll(CompiledEndpoint):
         return SearchResult(
             raw_result,
             doc_cls_map=_mk_doc_cls_map(
-                self.doc_cls, self.features.supports_doc_type
+                self.doc_cls, self.features.requires_doc_type
             ),
             instance_mapper=self.instance_mapper,
         )
@@ -983,7 +974,7 @@ class CompiledPutMapping(CompiledEndpoint):
         ):
             params['doc_type'] = DEFAULT_DOC_TYPE
 
-        if not self.features.supports_doc_type:
+        if not self.features.requires_doc_type:
             params.pop('doc_type', None)
 
         return params
@@ -1162,7 +1153,7 @@ class CompiledCreateIndex(CompiledEndpoint):
             else:
                 doc_type = create_index.mappings.get_doc_type()
 
-            if self.features.supports_doc_type:
+            if self.features.requires_doc_type:
                 mappings = {
                     doc_type: compiled_mappings.body
                 }
@@ -1221,10 +1212,10 @@ class CompiledGet(CompiledEndpoint):
             get_params['doc_type'] = DEFAULT_DOC_TYPE
             _patch_stored_fields_in_params(
                 self.features, get_params,
-                not get_params.get(self.features.stored_fields_param)
+                not get_params.get('stored_fields')
             )
 
-        if not self.features.supports_doc_type:
+        if not self.features.requires_doc_type:
             get_params.pop('doc_type', None)
 
         self._patch_source_include_exclude(get_params)
@@ -1235,18 +1226,18 @@ class CompiledGet(CompiledEndpoint):
         params = {}
 
         source_include = get_params.pop(
-            self.features.source_include_param,
-            get_params.pop(self.features.patch_source_include_param, None)
+            '_source_includes',
+            get_params.pop('_source_include', None)
         )
         if source_include is not None:
-            params[self.features.source_include_param] = source_include
+            params['_source_includes'] = source_include
 
         source_exclude = get_params.pop(
-            self.features.source_exclude_param,
-            get_params.pop(self.features.patch_source_exclude_param, None)
+            '_source_excludes',
+            get_params.pop('_source_exclude', None)
         )
         if source_exclude is not None:
-            params[self.features.source_exclude_param] = source_exclude
+            params['_source_excludes'] = source_exclude
 
         if params:
             get_params['params'] = params
@@ -1317,11 +1308,11 @@ class CompiledMultiGet(CompiledEndpoint):
             if _is_emulate_doc_types_mode(self.features, doc_cls):
                 doc['_id'] = mk_uid(doc_cls.get_doc_type(), doc['_id'])
                 doc['_type'] = DEFAULT_DOC_TYPE
-                doc[self.features.stored_fields_param] = [
+                doc['stored_fields'] = [
                     '_source', DOC_TYPE_NAME_FIELD, DOC_TYPE_PARENT_FIELD
                 ]
 
-            if not self.features.supports_doc_type:
+            if not self.features.requires_doc_type:
                 doc.pop('_type', None)
 
             docs.append(doc)
@@ -1430,7 +1421,7 @@ class CompiledMeta(Compiled):
             )
             meta['_type'] = DEFAULT_DOC_TYPE
 
-        if not self.features.supports_doc_type:
+        if not self.features.requires_doc_type:
             meta.pop('_type', None)
 
         return meta
@@ -1635,15 +1626,8 @@ def _featured_compiler(elasticsearch_features):
 
 @_featured_compiler(
     ElasticsearchFeatures(
-        supports_doc_type=True,
+        requires_doc_type=True,
         supports_track_total_hits=False,
-        stored_fields_param='stored_fields',
-        script_source_field_name='source',
-        script_id_field_name='id',
-        source_include_param='_source_includes',
-        source_exclude_param='_source_excludes',
-        patch_source_include_param='_source_include',
-        patch_source_exclude_param='_source_exclude',
         bulk_update_underscore_retry_on_conflict=True,
     )
 )
@@ -1653,15 +1637,8 @@ class Compiler_6_0(object):
 
 @_featured_compiler(
     ElasticsearchFeatures(
-        supports_doc_type=False,
+        requires_doc_type=False,
         supports_track_total_hits=True,
-        stored_fields_param='stored_fields',
-        script_source_field_name='source',
-        script_id_field_name='id',
-        source_include_param='_source_includes',
-        source_exclude_param='_source_excludes',
-        patch_source_include_param='_source_include',
-        patch_source_exclude_param='_source_exclude',
         bulk_update_underscore_retry_on_conflict=False,
     )
 )
@@ -1676,7 +1653,8 @@ def get_compiler_by_es_version(es_version):
         return Compiler_6_0
     elif es_version.major == 7:
         return Compiler_7_0
-    return Compiler_6_0
+    else:
+        return Compiler_7_0
 
 
 all_compilers = [

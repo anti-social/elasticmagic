@@ -299,7 +299,7 @@ def test_document_meta_and_source_no_mapping_types(compiler):
         _id=1,
         question='The Ultimate Question'
     )
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         assert \
             ultimate_question.to_meta(compiler=compiler) == \
             {
@@ -330,7 +330,7 @@ def test_document_meta_and_source_no_mapping_types(compiler):
         _routing=1,
         answer='42'
     )
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         assert \
             amazingly_accurate_answer.to_meta(compiler=compiler) == \
             {
@@ -611,7 +611,7 @@ def test_search_query_filter_by_ids_no_mapping_types(compiler):
         },
         'docvalue_fields': ['_doc_type_join', '_doc_type_join#*']
     }
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         assert compiled_query.params == {
             'doc_type': '_doc'
         }
@@ -647,7 +647,7 @@ def test_search_query_filter_by_ids_no_mapping_types(compiler):
             '_doc_type_join', '_doc_type_join#*'
         ]
     }
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         assert compiled_query.params == {
             'doc_type': '_doc'
         }
@@ -719,7 +719,7 @@ def test_process_search_result(compiler):
 @pytest.mark.parametrize('compiler', compilers_no_mapping_types)
 def test_get_no_mapping_types(compiler):
     compiled_get = compiler.compiled_get(1, doc_cls=Question)
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         assert compiled_get.params == {
             'doc_type': '_doc',
             'id': 'question~1',
@@ -734,7 +734,7 @@ def test_get_no_mapping_types(compiler):
     compiled_get = compiler.compiled_get(
         {'id': 1}, doc_cls=Question
     )
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         assert compiled_get.params == {
             'doc_type': '_doc',
             'id': 'question~1',
@@ -747,7 +747,7 @@ def test_get_no_mapping_types(compiler):
         }
 
     compiled_get = compiler.compiled_get(Question(_id=1))
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         assert compiled_get.params == {
             'doc_type': '_doc',
             'id': 'question~1',
@@ -765,7 +765,7 @@ def test_multi_get_no_mapping_types(compiler):
     compiled_multi_get = compiler.compiled_multi_get(
         [Question(_id=1), Answer(_id=1)]
     )
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         assert compiled_multi_get.body == {
             'docs': [
                 {
@@ -797,7 +797,7 @@ def test_multi_get_no_mapping_types(compiler):
     compiled_multi_get = compiler.compiled_multi_get(
         [{'_id': 1, 'doc_cls': Question}, {'_id': 1, 'doc_cls': Answer}]
     )
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         assert compiled_multi_get.body == {
             'docs': [
                 {
@@ -829,7 +829,7 @@ def test_multi_get_no_mapping_types(compiler):
     compiled_multi_get = compiler.compiled_multi_get(
         [1, 2], doc_cls=Answer
     )
-    if compiler.features.supports_doc_type:
+    if compiler.features.requires_doc_type:
         assert compiled_multi_get.body == {
             'docs': [
                 {
