@@ -89,6 +89,8 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
     if: |
       always() &&
       github.event_name == 'push' &&
