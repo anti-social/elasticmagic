@@ -91,6 +91,9 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
+    permissions:
+      id-token: write
+      contents: read
     if: |
       always() &&
       github.event_name == 'push' &&
