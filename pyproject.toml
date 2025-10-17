@@ -1,6 +1,5 @@
 [project]
 name = "elasticmagic"
-version = "0.3.0"
 description = "Add your description here"
 authors = [
     { name = "Alexander Koval", email = "kovalidis@gmail.com" }
@@ -11,6 +10,7 @@ dependencies = [
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
+version = "0.3.0"
 
 [project.optional-dependencies]
 async = [
@@ -44,6 +44,9 @@ allow-direct-references = true
 packages = [
     "elasticmagic",
 ]
+
+[tool.setuptools_scm]
+version_file = "elasticmagic/version.py"
 
 [tool.pytest.ini_options]
 addopts = "--cov-report=term --cov-report=html:htmlcov"
