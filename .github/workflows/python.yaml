@@ -51,8 +51,8 @@ jobs:
       matrix:
         es-image:
         - 'elasticsearch:6.8.23'
-        - 'elasticsearch:7.16.3'
-        - 'elasticsearch:8.18.0'
+        - 'elasticsearch:7.17.28'
+        - 'elasticsearch:8.19.5'
         - 'opensearchproject/opensearch:2.19.2'
         python-version: ['3.11', '3.12', '3.13', 'pypy3.11']
     services:
