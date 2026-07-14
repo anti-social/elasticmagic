@@ -24,6 +24,24 @@ def test_adding_documents(es_index):
     assert doc._score is None
 
 
+def test_multi_search_with_stats(es_index, es_client, cars):
+    # in msearch stats can only be passed inside a sub-request body:
+    # Elasticsearch 7+ rejects it in the metadata line
+    results = es_index.multi_search([
+        SearchQuery().with_stats('cars:list'),
+        SearchQuery(),
+    ])
+
+    assert results[0].total == 2
+    assert results[1].total == 2
+
+    stats = es_client.indices.stats(
+        index=es_index.get_name(), groups='cars:list'
+    )
+    group_stats = stats['_all']['total']['search']['groups']['cars:list']
+    assert group_stats['query_total'] >= 1
+
+
 def test_scroll(es_index, cars):
     search_res = es_index.search(
         SearchQuery(), scroll='1m',

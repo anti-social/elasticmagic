@@ -174,6 +174,79 @@ class ClusterTest(BaseTestCase):
         self.assertAlmostEqual(doc.price.unit, 5.67)
         self.assertEqual(doc.status, 0)
 
+    @staticmethod
+    def _empty_msearch_result(num_queries):
+        return {
+            'responses': [
+                {
+                    'hits': {'hits': [], 'max_score': 0.0, 'total': 0},
+                    'timed_out': False,
+                    'took': 1,
+                }
+                for _ in range(num_queries)
+            ]
+        }
+
+    def test_multi_search_stats_string_moved_to_body(self):
+        self.client.msearch = Mock(return_value=self._empty_msearch_result(1))
+        sq = SearchQuery().with_stats('catalog:list')
+        self.cluster.multi_search([sq])
+        self.client.msearch.assert_called_with(
+            body=[
+                {},
+                {'stats': ['catalog:list']},
+            ]
+        )
+
+    def test_multi_search_stats_list_moved_to_body(self):
+        self.client.msearch = Mock(return_value=self._empty_msearch_result(1))
+        sq = SearchQuery().with_stats(['catalog:list', 'main_page'])
+        self.cluster.multi_search([sq])
+        self.client.msearch.assert_called_with(
+            body=[
+                {},
+                {'stats': ['catalog:list', 'main_page']},
+            ]
+        )
+
+    def test_multi_search_metadata_params_stay_in_metadata(self):
+        self.client.msearch = Mock(return_value=self._empty_msearch_result(1))
+        sq = (
+            SearchQuery(index=self.cluster['us'], search_type='count')
+            .with_routing(123)
+            .with_preference('_local')
+            .with_stats('catalog:list')
+        )
+        self.cluster.multi_search([sq])
+        self.client.msearch.assert_called_with(
+            body=[
+                {
+                    'index': 'us',
+                    'search_type': 'count',
+                    'routing': 123,
+                    'preference': '_local',
+                },
+                {'stats': ['catalog:list']},
+            ]
+        )
+
+    def test_search_query_stats_stays_in_query_string(self):
+        self.client.search = Mock(
+            return_value={
+                'hits': {'hits': [], 'max_score': 0.0, 'total': 0},
+                'timed_out': False,
+                'took': 1,
+            }
+        )
+        sq = self.cluster.search_query().with_stats('catalog:list')
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            sq.get_result()
+        self.client.search.assert_called_with(
+            body={},
+            stats='catalog:list',
+        )
+
     def test_multi_search_with_error(self):
         self.client.msearch = Mock(
             return_value={
