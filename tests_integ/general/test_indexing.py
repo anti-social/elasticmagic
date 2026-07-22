@@ -42,6 +42,45 @@ def test_multi_search_with_stats(es_index, es_client, cars):
     assert group_stats['query_total'] >= 1
 
 
+def test_multi_search_with_search_params(es_cluster, es_client, index_name):
+    # msearch accepts stats, terminate_after and timeout only inside
+    # a sub-request body; a single shard makes terminate_after counting
+    # deterministic on any Elasticsearch version
+    es_client.indices.create(
+        index=index_name,
+        body={'settings': {'index': {'number_of_shards': 1}}},
+    )
+    try:
+        es_index = es_cluster[index_name]
+        es_index.put_mapping(Car)
+        es_index.add(
+            [
+                Car(_id=car_id, name='Car {}'.format(car_id))
+                for car_id in range(1, 6)
+            ],
+            refresh=True,
+        )
+
+        results = es_index.multi_search([
+            SearchQuery().with_stats('cars:list'),
+            SearchQuery().with_search_params(terminate_after=1),
+            SearchQuery().with_timeout('10s'),
+            SearchQuery(),
+        ])
+
+        assert results[0].total == 5
+        assert results[1].total == 1
+        assert results[2].total == 5
+        assert results[2].timed_out is False
+        assert results[3].total == 5
+
+        stats = es_client.indices.stats(index=index_name, groups='cars:list')
+        group_stats = stats['_all']['total']['search']['groups']['cars:list']
+        assert group_stats['query_total'] >= 1
+    finally:
+        es_client.indices.delete(index=index_name)
+
+
 def test_scroll(es_index, cars):
     search_res = es_index.search(
         SearchQuery(), scroll='1m',

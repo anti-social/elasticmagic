@@ -5,6 +5,7 @@ from elasticmagic import (
     actions, agg, Cluster, DynamicDocument, Index, SearchQuery
 )
 from elasticmagic import MultiSearchError
+from elasticmagic.compiler import Compiler_7_0
 
 from .base import BaseTestCase
 
@@ -247,6 +248,21 @@ class ClusterTest(BaseTestCase):
             stats='catalog:list',
         )
 
+    def test_multi_search_terminate_after_and_timeout_moved_to_body(self):
+        self.client.msearch = Mock(return_value=self._empty_msearch_result(1))
+        sq = (
+            SearchQuery()
+            .with_search_params(terminate_after=100000)
+            .with_timeout('10s')
+        )
+        self.cluster.multi_search([sq])
+        self.client.msearch.assert_called_with(
+            body=[
+                {},
+                {'terminate_after': 100000, 'timeout': '10s'},
+            ]
+        )
+
     def test_multi_search_with_error(self):
         self.client.msearch = Mock(
             return_value={
@@ -388,7 +404,7 @@ class ClusterTest(BaseTestCase):
         self.assertEqual(doc.user, 'kimchy')
         self.assertEqual(doc.post_date, '2009-11-15T14:12:12')
         self.assertEqual(doc.message, 'trying out Elasticsearch')
-        
+
     def test_multi_get(self):
         self.client.mget = Mock(
             return_value={
