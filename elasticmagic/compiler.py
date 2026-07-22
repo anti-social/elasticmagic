@@ -882,6 +882,12 @@ class CompiledDeleteByQuery(CompiledScalarQuery):
         return DeleteByQueryResult(raw_result)
 
 
+# Search parameters that msearch only accepts inside a sub-request body:
+# Elasticsearch 7+ reject the whole request when they appear
+# in the metadata line
+_MSEARCH_BODY_PARAMS = ('terminate_after', 'timeout')
+
+
 class CompiledMultiSearch(CompiledEndpoint):
     compiled_search = None
 
@@ -910,14 +916,24 @@ class CompiledMultiSearch(CompiledEndpoint):
             compiled_query = self.compiled_search(q)
             self.compiled_queries.append(compiled_query)
             params = compiled_query.params
+            search_body = compiled_query.body or {}
             if isinstance(compiled_query.expression, SearchQueryContext):
                 index = compiled_query.expression.index
                 if index:
                     params['index'] = index.get_name()
             if 'doc_type' in params:
                 params['type'] = params.pop('doc_type')
+            stats = params.pop('stats', None)
+            if stats is not None:
+                # in a search body stats must be an array of strings
+                search_body['stats'] = (
+                    [stats] if isinstance(stats, str) else list(stats)
+                )
+            for key in _MSEARCH_BODY_PARAMS:
+                if key in params:
+                    search_body[key] = params.pop(key)
             body.append(params)
-            body.append(compiled_query.body)
+            body.append(search_body)
         return body
 
     def process_result(self, raw_result):
