@@ -69,7 +69,7 @@ def test_multi_search_with_search_params(es_cluster, es_client, index_name):
         ])
 
         assert results[0].total == 5
-        assert results[1].total == 5
+        assert len(results[1].hits) == 1
         assert results[2].total == 5
         assert results[2].timed_out is False
         assert results[3].total == 5
